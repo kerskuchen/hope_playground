@@ -202,7 +202,6 @@ extend PhysicsScene {
             aimHit.Intersection = tileHit.Intersection;
             aimHit.isTile = true;
             aimHit.cell = tileHit.cell;
-            aimHit.startsInside = tileHit.startsInside;
         }
         ConsiderTargets(aimRay, &aimHit);
 
@@ -219,7 +218,8 @@ extend PhysicsScene {
                 (ProjectileHit* hit) => {
                     shot.trail.Add(hit.point);
                     // Every hit costs speed; grazing and still fast: it bounces, else it explodes
-                    // (also when it starts inside something: it cannot bounce from there)
+                    // (also when it starts inside something: the scene's choice, Step would bounce it
+                    // back out from the face it came in through)
                     shot.velocity = shot.velocity * PHYSICS_SHOT_SPEED_KEPT;
                     if (!hit.startsInside && hit.impactAngle < PHYSICS_SHOT_BOUNCE_ANGLE && shot.velocity.Length() >= PHYSICS_SHOT_MIN_SPEED * (cell / 24)) {
                         shot.bounces++;
