@@ -1,0 +1,246 @@
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Susi
+
+struct SusiTracks {
+    AnimationPlayer tracksAnim;
+    Transform xform;
+    Vec2 vel;
+    Vec2 acc;
+    float rotVel;
+    float rotAcc;
+}
+
+extend SusiTracks {
+    init() {
+        tracksAnim = AnimationPlayer(Draw.GetAnim("susi.run"));
+        xform = Vec2(100, 100);
+    }
+
+    void DoFrame() {
+        tracksAnim.Update();
+        let dirMove = Input.ActionValue2D("move");
+        let dirLook = Input.ActionValue2D("look");
+        vel = 100 * dirMove;
+        xform.pos += vel * Input.deltaTime;
+        Draw.Sprite3D(tracksAnim.CurSprite3D(), xform, 20);
+    }
+}
+
+struct Susi {
+    Sprite3D* turretSprite;
+    SusiTracks tracks;
+}
+
+extend Susi {
+    init() {
+        turretSprite = Draw.GetSprite3D("susi_turret");
+        tracks = SusiTracks();
+    }
+
+    void DoFrame() {
+        tracks.DoFrame();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Game
+
+struct Playground {
+    float time;
+    GameEditor* editor;            // internal mode only, created on first use
+    Susi susi;
+    AnimationPlayer sorcyAnim;
+    AudioStreamId music;           // M fades it out and in again
+    // The spatial audio test (T): a 440 Hz sine at the mouse, the listener in the screen's center
+    AudioStreamId sine;
+    Vec2 sinePosition;
+    Vec2 sineVelocity;             // smoothed
+    AudioFalloffCurve sineFalloff; // F switches it
+    bool isSineFloored;            // K: a minimum loudness of 0.2
+    int reverbRoom;                // R: 0 dry, 1 a small room, 2 a big hall (the farther, the wetter)
+    bool isSineFiltered;           // L
+}
+
+extend Playground {
+    // T: a 440 Hz sine at the mouse (position and velocity relative to the screen's center, where
+    // the listener is), so pan, distance and Doppler can be heard; F switches the falloff, L the
+    // low-pass filter, K a minimum loudness, G slow motion (the global playback speed 0.5)
+    // The sine's falloff: silent (or at its minimum loudness) from half the screen's diagonal on
+    AudioFalloffParams SineFalloff() {
+        return AudioFalloffParams(curve: sineFalloff, minDistance: 20, maxDistance: (Input.windowDim as Vec2).Length() * 0.5, minLoudness: isSineFloored ? 0.2 : 0, reverbAtMaxDistance: reverbRoom == 2 ? 0.9 : 0);
+    }
+
+    void DoSpatialTest(Vec2 mouse) {
+        let settings = Audio.spatialSettings;
+        settings.panWidth = Input.windowDim.x * 0.5;
+        Audio.SetListener(Vec2.Zero, Vec2.Zero);
+        let dt = Max(Input.deltaTimeReal, 0.001);
+        let velocity = (mouse - sinePosition) * (1 / dt);
+        sineVelocity = Vec2.Lerp(sineVelocity, velocity, 0.3);        // smoothed: the mouse moves in steps
+        sinePosition = mouse;
+        let isPlaying = sine.value != 0 && !Audio.IsFinished(sine);
+        let restart = false;
+        if (Input.KeyPressed(Scancode.F)) {
+            sineFalloff = sineFalloff == AudioFalloffCurve.Linear ? AudioFalloffCurve.Inverse : AudioFalloffCurve.Linear;
+            restart = isPlaying;                  // the falloff is the stream's from its start
+        }
+        if (Input.KeyPressed(Scancode.K)) {
+            isSineFloored = !isSineFloored;
+            restart = isPlaying;
+        }
+        if (Input.KeyPressed(Scancode.R)) {
+            reverbRoom = (reverbRoom + 1) % 3;
+            if (reverbRoom == 1)
+                Audio.SetReverb(AudioReverbParams(roomSize: 0.3, damping: 0.7, wetGain: 1, preDelay: 0.005));
+            if (reverbRoom == 2)
+                Audio.SetReverb(AudioReverbParams(roomSize: 0.92, damping: 0.25, wetGain: 1, preDelay: 0.04));
+            restart = isPlaying;                  // (the distance's reverb is the falloff's)
+        }
+        if (Input.KeyPressed(Scancode.T) || restart) {
+            if (isPlaying) {
+                Audio.Stop(sine, fadeOut: 0.05);
+                sine = AudioStreamId(0);
+            }
+            if (!isPlaying || restart) {
+                sine = Audio.PlaySpatial("debug_sine440", sinePosition, sineVelocity, SineFalloff(), volume: 0.5, loop: true, fadeIn: 0.05);
+                Audio.SetLowpass(sine, isSineFiltered ? 0.6 : 0);
+                Audio.SetReverbSend(sine, reverbRoom == 0 ? 0 : 0.3);
+            }
+        }
+        if (Input.KeyPressed(Scancode.L)) {
+            isSineFiltered = !isSineFiltered;
+            Audio.SetLowpass(sine, isSineFiltered ? 0.6 : 0, rampDuration: 0.3);
+        }
+        if (Input.KeyPressed(Scancode.G))
+            Audio.globalPlaybackSpeed = Audio.globalPlaybackSpeed < 1 ? 1 : 0.5;
+        Audio.SetPosition(sine, sinePosition, sineVelocity);
+        Draw.LogLine("spatial test: T sine, F falloff (", sineFalloff, "), K minimum loudness (", isSineFloored, "), R reverb (", reverbRoom == 0 ? "dry" : (reverbRoom == 1 ? "small room" : "big hall, wetter far away"), "), L low-pass (", isSineFiltered, "), G slow motion (", Audio.globalPlaybackSpeed, "), Space coin");
+        let info = Audio.GetStream(sine);
+        if (info != null) {
+            Draw.LogLine("sine at ", mouse.Flooredi(), " moving ", sineVelocity.Flooredi(), " px/s: volume ", (info.volume * 100) as int, " %, pan ",
+                (info.pan * 100) as int, " %, reverb ", (info.reverbSend * 100) as int, " %, playback speed ", (info.playbackSpeed * 1000) as int / 1000.0, " (", (440 * info.playbackSpeed * Audio.globalPlaybackSpeed) as int, " Hz), low-pass ", (info.lowpass * 100) as int, " %");
+        }
+        Draw.LogLine("DSP time ", (Audio.dspTime * 10) as int / 10.0, " s, real ", (Audio.dspTimeReal * 10) as int / 10.0, " s");
+    }
+
+    init() {
+        susi = Susi();
+        sorcyAnim = AnimationPlayer(Draw.GetAnim("sorcy.run"));
+        music = Audio.Play("level1-step1", AudioTrack.Music, volume: 0.7, loop: true, fadeIn: 1);
+
+        Input.RegisterAction("move", InputActionType.AxisRadial2D);
+        Input.AddActionBinding("move", InputActionBinding(GamepadAxis2D.LeftStick, 0.1));
+        Input.AddActionBinding("move", InputActionBinding(GamepadButton.MoveLeft, GamepadButton.MoveRight, GamepadButton.MoveUp, GamepadButton.MoveDown));
+        Input.AddActionBinding("move", InputActionBinding(Scancode.A, Scancode.D, Scancode.W, Scancode.S));
+        Input.AddActionBinding("move", InputActionBinding(Scancode.Left, Scancode.Right, Scancode.Up, Scancode.Down));
+
+        Input.RegisterAction("look", InputActionType.AxisSquare2D);
+        Input.AddActionBinding("look", InputActionBinding(GamepadAxis2D.RightStick, 0.1));
+        Input.AddActionBinding("look", InputActionBinding(Scancode.Kp4, Scancode.Kp6, Scancode.Kp8, Scancode.Kp5));
+
+        Input.RegisterAction("attack_1", InputActionType.ButtonTrigger);
+        Input.AddActionBinding("attack_1", InputActionBinding(MouseButton.Left));
+        Input.AddActionBinding("attack_1", InputActionBinding(GamepadButton.LeftShoulder));
+
+        Input.RegisterAction("attack_2", InputActionType.ButtonTrigger);
+        Input.AddActionBinding("attack_2", InputActionBinding(MouseButton.Left));
+        Input.AddActionBinding("attack_2", InputActionBinding(GamepadButton.RightShoulder));
+
+        Input.RegisterAction("attack_3", InputActionType.ButtonTrigger);
+        Input.AddActionBinding("attack_3", InputActionBinding(MouseButton.Middle));
+        Input.AddActionBinding("attack_3", InputActionBinding(GamepadAxis.LeftShoulderTrigger, 0.5));
+        Input.AddActionBinding("attack_3", InputActionBinding(GamepadAxis.RightShoulderTrigger, 0.5));
+    }
+
+    void DoFrame() {
+        if (INTERNAL) {
+            if (editor == null)
+                editor = New[GameEditor]();
+            if (Input.KeyPressed(Scancode.F1))
+                editor.ToggleActive();
+            if (editor.isActive) {
+                editor.DoFrame();
+                return;
+            }
+        }
+
+        Camera.isCentered = false;
+        Camera.allowPanning = true;
+        Camera.allowZooming = true;
+        Camera.rotation = 20;
+
+        if (Input.KeyDown(Scancode.Left))
+            Camera.pos -= Vec2(0.1, 0);
+        if (Input.KeyDown(Scancode.Right))
+            Camera.pos += Vec2(0.1, 0);
+        if (Input.KeyDown(Scancode.Up))
+            Camera.pos -= Vec2(0, 0.1);
+        if (Input.KeyDown(Scancode.Down))
+            Camera.pos += Vec2(0, 0.1);
+
+        Draw.Sprite(Draw.GetSprite("background"), Vec2(0, 0), 0);
+
+        sorcyAnim.Update();
+        let sorcy = sorcyAnim.CurSprite();
+        let sorcyPos = Transform(Vec2(50, 50), time);
+        Draw.Sprite(sorcy, sorcyPos, 20);
+        Draw.Pixel(sorcyPos.pos, 21, Color.Red);
+        Draw.Pixel(sorcy.GetAttachmentPos(0, sorcyPos), 21, Color.Green);
+        Draw.Pixel(sorcy.GetAttachmentPos(1, sorcyPos), 21, Color.Orange);
+
+        time += 1;
+
+        // Audio: Space plays the coin at the mouse (spatial), M fades the music out and in again
+        let mouse = Input.cursors.screen - (Input.windowDim as Vec2) * 0.5;
+        if (Input.KeyPressed(Scancode.Space))
+            Audio.SetReverbSend(Audio.PlaySpatial("sfx_coin_double1", mouse, falloff: SineFalloff()), reverbRoom == 0 ? 0 : 0.3);
+        DoSpatialTest(mouse);
+        if (Input.KeyPressed(Scancode.M)) {
+            if (Audio.IsFinished(music) || Audio.GetStream(music) == null || Audio.GetStream(music).volume < 0.01)
+                music = Audio.Play("level1-step1", AudioTrack.Music, volume: 0.7, loop: true, fadeIn: 1);
+            else
+                Audio.Stop(music, fadeOut: 1);
+        }
+        let musicInfo = Audio.GetStream(music);
+        if (musicInfo != null)
+            Draw.LogLine("music ", (musicInfo.position * 10) as int / 10.0, " s (", musicInfo.percentFinished as int, " %)");
+
+        susi.DoFrame();
+
+        let cursors = Input.cursors;
+        Draw.LogLine("hello klaine feeese!!");
+        Draw.LogLine("screen = ", cursors.screen.Flooredi());
+        Draw.LogLine("ui     = ", cursors.ui.Flooredi());
+        Draw.LogLine("world  = ", cursors.world.Flooredi());
+        Draw.LogLine("cam-pos      = ", Camera.pos);
+        Draw.LogLine("cam-zoom     = ", Camera.zoom);
+        Draw.LogLine("cam-viewport = ", Camera.viewportDim);
+
+        Draw.Rect(cursors.world, Vec2.Ones, Depth.Nearest, DrawParams(color: Color.Magenta, space: DrawSpace.World));
+        Draw.Rect(cursors.ui + Vec2.UnitX, Vec2.Ones, Depth.Nearest, DrawParams(color: Color.Blue, space: DrawSpace.UI));
+        Draw.Rect(cursors.ui - Vec2.UnitX, Vec2.Ones, Depth.Nearest, DrawParams(color: Color.Blue, space: DrawSpace.UI));
+        Draw.Rect(cursors.ui + Vec2.UnitY, Vec2.Ones, Depth.Nearest, DrawParams(color: Color.Blue, space: DrawSpace.UI));
+        Draw.Rect(cursors.ui - Vec2.UnitY, Vec2.Ones, Depth.Nearest, DrawParams(color: Color.Blue, space: DrawSpace.UI));
+        Draw.Rect(cursors.screen + Vec2.Ones, Vec2.Ones, Depth.Nearest, DrawParams(color: Color.Black, space: DrawSpace.Screen));
+        Draw.Rect(cursors.screen - Vec2.Ones, Vec2.Ones, Depth.Nearest, DrawParams(color: Color.Black, space: DrawSpace.Screen));
+    }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// hope_playground (formerly DungeonTracks, ported from the C# version), for trying out hope's
+// features: Sorcy runs in circles, Susi (a 3D sprite on tracks) drives with the "move" action, and
+// in the internal mode F1 opens the tilemap editor.
+//
+// The game is a module (hope/game): a platform layer hosts it (the targets of hope.pgproj).
+
+
+Playground* playground = null;
+
+// Also on F5 (the runtime restarts the game in the internal mode)
+void CreateGame() { playground = New[Playground](); }
+void DoFrame() { playground.DoFrame(); }
+Game GameMain() {
+    return Game(info: AppInfo("hope playground", "hope_playground", "0.01", 320, 180), Create: CreateGame, DoFrame: DoFrame);
+}

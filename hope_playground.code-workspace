@@ -1,0 +1,8 @@
+{
+    // The game and the hope it uses (../hope, its own git repository): edit both, commit each in
+    // Source Control. Tasks, Ctrl+Shift+B and F5 work on the game, also from hope's files.
+    "folders": [
+        { "name": "hope_playground", "path": "." },
+        { "name": "hope", "path": "../hope" }
+    ]
+}

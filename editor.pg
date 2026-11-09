@@ -1,0 +1,113 @@
+// The tilemap editor (internal mode, F1): left mouse button sets tiles, right removes them
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Tilemap
+
+// A tileset sprite cut into 4x4 tiles for the dual grid
+struct Tileset {
+    Sprite* tileset;
+    [SpriteGridSlice, 16] regions;
+    float size;
+}
+
+extend Tileset {
+    init(Sprite* tileset) {
+        self.tileset = tileset;
+        size = tileset.dim.x / 4;
+        for (let index in 0..16)
+            regions[index] = SpriteGridSlice(tileset, 4, 4, index / 4, index % 4);
+    }
+
+    SpriteGridSlice* GetSpriteForNeighborMask(bool leftTop, bool rightTop, bool leftBottom, bool rightBottom) {
+        let mask = (leftTop ? 8 : 0) | (rightTop ? 4 : 0) | (leftBottom ? 2 : 0) | (rightBottom ? 1 : 0);
+        return &regions[NEIGHBOR_MASK_TO_TILE_INDEX[mask]];
+    }
+}
+
+// The tile index for each neighbor mask (occupied corners: left-top 8, right-top 4,
+// left-bottom 2, right-bottom 1), as laid out in the tileset sprite
+[int, 16] NEIGHBOR_MASK_TO_TILE_INDEX = [0, 4, 3, 5, 1, 13, 8, 6, 12, 2, 7, 11, 15, 9, 14, 10];
+
+// Uses the dual-grid system as explained by jess::codes in https://www.youtube.com/watch?v=jEWFSv3ivTg
+struct TilemapLayer {
+    Tileset tileset;
+    Grid[bool] tilesLogic;
+    Grid[byte] tilesDisplay;
+    float depth;
+}
+
+extend TilemapLayer {
+    init(Sprite* tileset, int width, int height, float depth) {
+        self.tileset = Tileset(tileset);
+        tilesLogic = Grid[bool](width, height);
+        tilesDisplay = Grid[byte](width, height);
+        self.depth = depth;
+    }
+
+    void Set(int x, int y, bool occupied) { tilesLogic.Set(x, y, occupied); }
+
+    void SetWorld(Vec2 worldPos, bool occupied) {
+        let cell = tilesLogic.WorldToCell(worldPos, tileset.size);
+        if (tilesLogic.rect.Contains(cell))
+            tilesLogic.Set(cell, occupied);
+    }
+
+    void DoFrame() {
+        for (let y in 0..tilesLogic.h) {
+            for (let x in 0..tilesLogic.w) {
+                if (tilesLogic.Get(x, y))
+                    Draw.Rect(Vec2(x, y) * tileset.size, Vec2(tileset.size), depth, Color.Red);
+            }
+        }
+        // TODO (as in the C# version): tilesDisplay is not computed from tilesLogic yet
+        for (let y in 0..tilesDisplay.h) {
+            for (let x in 0..tilesDisplay.w) {
+                let tile = tilesDisplay.Get(x, y) % 16;
+                if (tile != 0) {
+                    let slice = &tileset.regions[tile];
+                    Draw.SpriteSlice(slice, slice.colIndex, slice.rowIndex, Vec2(x, y) * tileset.size, depth);
+                }
+            }
+        }
+    }
+}
+
+struct Tilemap {
+    List[TilemapLayer] layers;
+    float depth;
+}
+
+extend Tilemap {
+    void DoFrame() {
+        for (let layer in layers)
+            layer.DoFrame();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Editor
+
+struct GameEditor {
+    bool isActive;
+    TilemapLayer tilemap;
+}
+
+extend GameEditor {
+    init() {
+        tilemap = TilemapLayer(Draw.GetSprite("tileset_test"), 16, 16, 10);
+    }
+
+    void DoFrame() {
+        if (Input.MouseDown(MouseButton.Left))
+            tilemap.SetWorld(Input.cursors.world, true);
+        if (Input.MouseDown(MouseButton.Right))
+            tilemap.SetWorld(Input.cursors.world, false);
+        tilemap.DoFrame();
+    }
+
+    void ToggleActive() {
+        isActive = !isActive;
+        Draw.isCanvasFree = isActive;
+        Draw.clearColor = isActive ? Color.Grey(0.3) : Color.Black;
+    }
+}
