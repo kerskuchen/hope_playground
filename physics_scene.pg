@@ -156,7 +156,9 @@ extend PhysicsScene {
         let motion = direction.NormalizedOr(Vec2(0, 0)) * PHYSICS_MOVE_SPEED * (cell / 24) * dt;
         GatherObstacles(mover, motion);
         moverPath.Clear();
-        mover.center = obstacles.Slide(mover, motion, &moverNormal, &moverPath);
+        let slide = obstacles.Slide(mover, motion, &moverPath);
+        mover.center = slide.center;
+        moverNormal = slide.lastNormal;
 
         // Aiming: a ray to the cursor and on
         let aim = (cursor - mover.center).NormalizedOr(Vec2(1, 0));
@@ -164,15 +166,12 @@ extend PhysicsScene {
         let aimRay = Line(muzzle, muzzle + aim * 3000);
         ProjectileHit aimHit;
         aimHit.direction = aim;
-        Intersection found;
-        Vec2i aimCell;
-        bool inside;
-        if (tiles.Raycast(aimRay, &found, &aimCell, &inside)) {
-            aimHit.found = true;
-            aimHit.intersection = found;
+        let tileHit = tiles.Raycast(aimRay);
+        if (tileHit.hasIntersection) {
+            aimHit.Intersection = tileHit.Intersection;
             aimHit.isTile = true;
-            aimHit.cell = aimCell;
-            aimHit.startsInside = inside;
+            aimHit.cell = tileHit.cell;
+            aimHit.startsInside = tileHit.startsInside;
         }
         ConsiderTargets(aimRay, &aimHit);
 
@@ -215,18 +214,17 @@ extend PhysicsScene {
         Draw.LogLine("physics scene (F2): WASD move, mouse aim, space shoot, left/right mouse add/remove tiles, 1/2 circle size");
         Draw.LogLine("circle ", mover.center, " radius ", mover.radius, ", last hit normal ", moverNormal, ", steps ", moverPath.len - 1,
             ", shots ", shots.len, ", walls near ", obstacles.walls.len);
-        if (aimHit.found)
+        if (aimHit.hasIntersection)
             Draw.LogLine("aim: ", aimHit.isTile ? TFormat("tile ", aimHit.cell) : "obstacle", " at ", aimHit.point, " normal ", aimHit.normal,
                 " impact angle ", FormatFloat(aimHit.impactAngle, 1), aimHit.startsInside ? " (starts inside)" : "");
     }
 
     // The static circles and boxes as a projectile's targets (ids: circles 0.., boxes 1000..)
     void ConsiderTargets(Line ray, ProjectileHit* hit) {
-        Intersection found;
         for (let i, circleObstacle in circles)
-            hit.Consider(Intersect.LineCircle(ray, *circleObstacle, &found), found, i);
+            hit.Consider(Intersect.LineCircle(ray, *circleObstacle), i);
         for (let i, box in boxes)
-            hit.Consider(Intersect.LineBox(ray, *box, &found), found, 1000 + i);
+            hit.Consider(Intersect.LineBox(ray, *box), 1000 + i);
     }
 
     void Render(Vec2 cursor, Line aimRay, ProjectileHit* aimHit) {
@@ -272,9 +270,9 @@ extend PhysicsScene {
             Draw.Line(mover.center, mover.center + moverNormal * (mover.radius + 12), thin, 6, Color(1, 0.3, 0.3, 1));
 
         // The aim: the ray to the hit, the hit's normal
-        let aimEnd = aimHit.found ? aimHit.point : aimRay.end;
+        let aimEnd = aimHit.hasIntersection ? aimHit.point : aimRay.end;
         Draw.Line(aimRay.start, aimEnd, thin, 7, Color(1, 0.2, 0.8, 0.8));
-        if (aimHit.found) {
+        if (aimHit.hasIntersection) {
             Draw.CircleOutline(Circle(aimHit.point, 3), thin, 7, Color(1, 0.2, 0.8, 1));
             Draw.Line(aimHit.point, aimHit.point + aimHit.normal * 20, thin, 7, Color(1, 1, 0.2, 1));
         }
