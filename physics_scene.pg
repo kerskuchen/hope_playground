@@ -61,15 +61,20 @@ extend PhysicsScene {
             solid.Set(0, y, true);
             solid.Set(63, y, true);
         }
-        for (let y in 6..30)
+        for (let y in 6..30) {
             solid.Set(20, y, true);
-        for (let x in 30..50)
+        }
+        for (let x in 30..50) {
             solid.Set(x, 12, true);
-        for (let y in 22..28)
-            for (let x in 34..42)
+        }
+        for (let y in 22..28) {
+            for (let x in 34..42) {
                 solid.Set(x, y, true);
-        for (let i in 0..8)
+            }
+        }
+        for (let i in 0..8) {
             solid.Set(46 + i, 30 - i, true);   // a diagonal staircase
+        }
         cell = 24;
         tiles = TileCollision(&solid, cell);
         circleCells.Add(Circle(Vec2(12.5, 29), 1.7));
@@ -89,17 +94,20 @@ extend PhysicsScene {
             mover = Circle(newOrigin + (mover.center - tiles.origin) * scale, mover.radius * scale);
             cell = newCell;
             tiles = TileCollision(&solid, cell, newOrigin);
-            for (let shot in shots)
+            for (let shot in shots) {
                 shot.trail.Free();
+            }
             shots.Clear();
             explosions.Clear();
         }
         circles.Clear();
-        for (let c in circleCells)
+        for (let c in circleCells) {
             circles.Add(Circle(tiles.origin + c.center * cell, c.radius * cell));
+        }
         boxes.Clear();
-        for (let b in boxCells)
+        for (let b in boxCells) {
             boxes.Add(Box(tiles.origin + b.min * cell, tiles.origin + b.max * cell));
+        }
     }
 
     void ToggleActive() {
@@ -112,10 +120,12 @@ extend PhysicsScene {
     void GatherObstacles(Circle circle, Vec2 motion) {
         obstacles.Clear();
         tiles.AddWalls(Obstacles.SlideRegion(circle, motion), &obstacles);
-        for (let circleObstacle in circles)
+        for (let circleObstacle in circles) {
             obstacles.circles.Add(*circleObstacle);
-        for (let box in boxes)
+        }
+        for (let box in boxes) {
             obstacles.boxes.Add(*box);
+        }
     }
 
     void DoFrame() {
@@ -221,20 +231,24 @@ extend PhysicsScene {
 
     // The static circles and boxes as a projectile's targets (ids: circles 0.., boxes 1000..)
     void ConsiderTargets(Line ray, ProjectileHit* hit) {
-        for (let i, circleObstacle in circles)
+        for (let i, circleObstacle in circles) {
             hit.Consider(Intersect.LineCircle(ray, *circleObstacle), i);
-        for (let i, box in boxes)
+        }
+        for (let i, box in boxes) {
             hit.Consider(Intersect.LineBox(ray, *box), 1000 + i);
+        }
     }
 
     void Render(Vec2 cursor, Line aimRay, ProjectileHit* aimHit) {
         let wallColor = Color(0.9, 0.9, 0.95, 1);
         let thin = pixel;
         // Tiles, and their walls (all of them: the merged exposed faces)
-        for (let y in 0..solid.h)
-            for (let x in 0..solid.w)
+        for (let y in 0..solid.h) {
+            for (let x in 0..solid.w) {
                 if (solid.Get(x, y))
                     Draw.Rect(tiles.CellBox(x, y).ToRect(), 1, Color(0.25, 0.27, 0.35, 1));
+            }
+        }
         let allWalls = Obstacles();
         tiles.AddWalls(tiles.bounds, &allWalls);
         for (let wall in allWalls.walls) {
@@ -253,19 +267,23 @@ extend PhysicsScene {
 
         // The static obstacles
         let obstacleColor = Color(0.4, 0.8, 1, 1);
-        for (let circleObstacle in circles)
+        for (let circleObstacle in circles) {
             Draw.CircleOutline(*circleObstacle, thin, 3, obstacleColor);
-        for (let box in boxes)
+        }
+        for (let box in boxes) {
             DrawBoxOutline(*box, obstacleColor);
+        }
 
         // The walls the mover considered this frame (highlighted)
-        for (let wall in obstacles.walls)
+        for (let wall in obstacles.walls) {
             Draw.Line(wall.start, wall.end, 2 * pixel, 4, Color(1, 0.6, 0.2, 0.8));
+        }
 
         // The mover, its slide steps and its last hit's normal
         Draw.CircleOutline(mover, 1.5 * pixel, 5, Color(0.3, 1, 0.4, 1));
-        for (let step in 1..moverPath.len)
+        for (let step in 1..moverPath.len) {
             Draw.Line(moverPath[step - 1], moverPath[step], thin, 6, Color(1, 1, 1, 1));
+        }
         if (moverNormal != Vec2(0, 0))
             Draw.Line(mover.center, mover.center + moverNormal * (mover.radius + 12), thin, 6, Color(1, 0.3, 0.3, 1));
 
@@ -279,8 +297,9 @@ extend PhysicsScene {
 
         // Shots with their trails, explosions
         for (let shot in shots) {
-            for (let i in 1..shot.trail.len)
+            for (let i in 1..shot.trail.len) {
                 Draw.Line(shot.trail[i - 1], shot.trail[i], thin, 8, Color(1, 0.8, 0.3, 0.6));
+            }
             if (shot.trail.len > 0)
                 Draw.Line(*shot.trail.last, shot.position, thin, 8, Color(1, 0.8, 0.3, 0.6));
             Draw.Circle(shot.position, 2.5, 9, Color(1, 0.9, 0.4, 1));

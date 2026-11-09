@@ -14,8 +14,9 @@ extend Tileset {
     init(Sprite* tileset) {
         self.tileset = tileset;
         size = tileset.dim.x / 4;
-        for (let index in 0..16)
+        for (let index in 0..16) {
             regions[index] = SpriteGridSlice(tileset, 4, 4, index / 4, index % 4);
+        }
     }
 
     SpriteGridSlice* GetSpriteForNeighborMask(bool leftTop, bool rightTop, bool leftBottom, bool rightBottom) {
@@ -79,8 +80,9 @@ struct Tilemap {
 
 extend Tilemap {
     void DoFrame() {
-        for (let layer in layers)
+        for (let layer in layers) {
             layer.DoFrame();
+        }
     }
 }
 
