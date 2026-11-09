@@ -185,6 +185,7 @@ extend PhysicsScene {
         if (Input.KeyDown(Scancode.S))
             direction.y += 1;
         let motion = direction.NormalizedOr(Vec2(0, 0)) * PHYSICS_MOVE_SPEED * (cell / 24) * dt;
+        mover.center = tiles.PushOut(mover);           // out of a tile placed onto it
         GatherObstacles(mover, motion);
         moverPath.Clear();
         let slide = obstacles.Slide(mover, motion, &moverPath);
