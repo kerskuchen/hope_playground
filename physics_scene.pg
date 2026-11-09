@@ -1,6 +1,7 @@
 // The physics debug scene (internal mode, F2): hope's physics.pg to play with. A free canvas (the
 // screen's resolution, world units are pixels), so the lines show the shapes as they are; the
-// cells are as big as the map can be on the screen.
+// cells are as big as the map can be on the screen. The oriented boxes (some turning) are
+// hitboxes: projectiles and the aim hit them, the circle moves through them.
 //
 //     WASD              move the circle (it slides along the walls and the obstacles)
 //     mouse             aim: the ray to the first hit, its normal
@@ -24,6 +25,14 @@ struct DebugShot : Projectile {
     int bounces;
 }
 
+// An oriented box of the scene, in cells, turning by 'spin' degrees per second
+struct DebugOrientedBox {
+    Vec2 center;
+    Vec2 halfDim;
+    float angle;
+    float spin;
+}
+
 // Where a projectile exploded, drawn for a while
 struct DebugExplosion {
     Vec2 point;
@@ -37,6 +46,8 @@ struct PhysicsScene {
     TileCollision tiles;
     List[Circle] circleCells;      // static obstacles besides the tiles, in cells
     List[Box] boxCells;
+    List[DebugOrientedBox] orientedCells;  // hitboxes only (projectiles, the aim)
+    List[OrientedBox] orientedBoxes;       // ... in the world
     List[Circle] circles;          // ... in the world
     List[Box] boxes;
     float cell;                    // the cell size: the map fits the screen (Layout)
@@ -80,6 +91,9 @@ extend PhysicsScene {
         circleCells.Add(Circle(Vec2(12.5, 29), 1.7));
         circleCells.Add(Circle(Vec2(50, 25), 1));
         boxCells.Add(Box(Vec2(29, 31), Vec2(34, 33)));
+        orientedCells.Add(DebugOrientedBox(Vec2(10, 10), Vec2(3, 0.75), 30, 0));
+        orientedCells.Add(DebugOrientedBox(Vec2(44, 5), Vec2(2.5, 1), 0, 20));
+        orientedCells.Add(DebugOrientedBox(Vec2(55, 33), Vec2(1.5, 1.5), 10, -45));
         mover = Circle(Vec2(200, 300), 16);
     }
 
@@ -107,6 +121,10 @@ extend PhysicsScene {
         boxes.Clear();
         for (let b in boxCells) {
             boxes.Add(Box(tiles.origin + b.min * cell, tiles.origin + b.max * cell));
+        }
+        orientedBoxes.Clear();
+        for (let o in orientedCells) {
+            orientedBoxes.Add(OrientedBox(tiles.origin + o.center * cell, o.halfDim * cell, o.angle));
         }
     }
 
@@ -136,8 +154,11 @@ extend PhysicsScene {
         Camera.zoom = 1;
         Camera.allowPanning = false;
         Camera.allowZooming = false;
-        Layout();
         let dt = Input.deltaTime;
+        for (let o in orientedCells) {
+            o.angle += o.spin * dt;
+        }
+        Layout();
         let cursor = Input.cursors.world;
 
         // Tiles
@@ -225,17 +246,21 @@ extend PhysicsScene {
         Draw.LogLine("circle ", mover.center, " radius ", mover.radius, ", last hit normal ", moverNormal, ", steps ", moverPath.len - 1,
             ", shots ", shots.len, ", walls near ", obstacles.walls.len);
         if (aimHit.hasIntersection)
-            Draw.LogLine("aim: ", aimHit.isTile ? TFormat("tile ", aimHit.cell) : "obstacle", " at ", aimHit.point, " normal ", aimHit.normal,
+            Draw.LogLine("aim: ", aimHit.isTile ? TFormat("tile ", aimHit.cell) : aimHit.target >= 2000 ? "oriented box" : aimHit.target >= 1000 ? "box" : "circle", " at ", aimHit.point, " normal ", aimHit.normal,
                 " impact angle ", FormatFloat(aimHit.impactAngle, 1), aimHit.startsInside ? " (starts inside)" : "");
     }
 
-    // The static circles and boxes as a projectile's targets (ids: circles 0.., boxes 1000..)
+    // The static circles, boxes and the oriented boxes as a projectile's targets (ids: circles
+    // 0.., boxes 1000.., oriented boxes 2000..)
     void ConsiderTargets(Line ray, ProjectileHit* hit) {
         for (let i, circleObstacle in circles) {
             hit.Consider(Intersect.LineCircle(ray, *circleObstacle), i);
         }
         for (let i, box in boxes) {
             hit.Consider(Intersect.LineBox(ray, *box), 1000 + i);
+        }
+        for (let i, orientedBox in orientedBoxes) {
+            hit.Consider(Intersect.LineOrientedBox(ray, *orientedBox), 2000 + i);
         }
     }
 
@@ -272,6 +297,11 @@ extend PhysicsScene {
         }
         for (let box in boxes) {
             DrawBoxOutline(*box, obstacleColor);
+        }
+        for (let orientedBox in orientedBoxes) {
+            for (let corner in 0..4) {
+                Draw.Line(orientedBox.Corner(corner), orientedBox.Corner((corner + 1) % 4), thin, 3, Color(0.85, 0.45, 1, 1));
+            }
         }
 
         // The walls the mover considered this frame (highlighted)
