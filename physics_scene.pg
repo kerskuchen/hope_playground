@@ -184,17 +184,20 @@ extend PhysicsScene {
         }
         for (let i = shots.len - 1; i >= 0; i--) {
             let shot = &shots[i];
-            let stopped = shot.Step(dt, &tiles, (Line ray, ProjectileHit* hit) => ConsiderTargets(ray, hit), (ProjectileHit* hit) => {
-                shot.trail.Add(hit.point);
-                // Every hit costs speed; grazing and still fast: it bounces, else it explodes
-                shot.velocity = shot.velocity * PHYSICS_SHOT_SPEED_KEPT;
-                if (hit.impactAngle < PHYSICS_SHOT_BOUNCE_ANGLE && shot.velocity.Length() >= PHYSICS_SHOT_MIN_SPEED * (cell / 24)) {
-                    shot.bounces++;
-                    return true;
+            let stopped = shot.Step(dt, &tiles,
+                (Line ray, ProjectileHit* hit) => ConsiderTargets(ray, hit),
+                (ProjectileHit* hit) => {
+                    shot.trail.Add(hit.point);
+                    // Every hit costs speed; grazing and still fast: it bounces, else it explodes
+                    shot.velocity = shot.velocity * PHYSICS_SHOT_SPEED_KEPT;
+                    if (hit.impactAngle < PHYSICS_SHOT_BOUNCE_ANGLE && shot.velocity.Length() >= PHYSICS_SHOT_MIN_SPEED * (cell / 24)) {
+                        shot.bounces++;
+                        return true;
+                    }
+                    explosions.Add(DebugExplosion(hit.point, hit.normal, 0));
+                    return false;
                 }
-                explosions.Add(DebugExplosion(hit.point, hit.normal, 0));
-                return false;
-            });
+            );
             if (shot.trail.len > 64)
                 shot.trail.RemoveAt(0);
             if (stopped || !tiles.bounds.Contains(shot.position)) {
