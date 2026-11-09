@@ -1,7 +1,10 @@
-// The physics debug scene (internal mode, F2): hope's physics.pg to play with. A free canvas (the
-// screen's resolution, world units are pixels), so the lines show the shapes as they are; the
-// cells are as big as the map can be on the screen. The oriented boxes (some turning) are
-// hitboxes: projectiles and the aim hit them, the circle moves through them.
+// The physics debug scene (internal mode, F2): hope's CollisionWorld to play with. A free canvas
+// (the screen's resolution, world units are pixels), so the lines show the shapes as they are;
+// the cells are as big as the map can be on the screen.
+//
+// Everything is a collider on its layer: obstacles (circles and boxes, blue) block the circle and
+// shots, hitboxes (oriented boxes, some turning, purple) only stop shots, crates (orange) break
+// when the circle runs into them, when a shot hits them and in an explosion's blast.
 //
 //     WASD              move the circle (it slides along the walls and the obstacles)
 //     mouse             aim: the ray to the first hit, its normal
@@ -12,12 +15,28 @@
 
 const int PHYSICS_COLUMNS = 64;
 const int PHYSICS_ROWS = 40;
+const int PHYSICS_CRATES = 150;
 // Speeds per second for cells of 24 (they scale with the cells)
 const float PHYSICS_MOVE_SPEED = 300;
 const float PHYSICS_SHOT_SPEED = 1500;
 const float PHYSICS_SHOT_MIN_SPEED = 250;          // slower explodes
 const float PHYSICS_SHOT_BOUNCE_ANGLE = 35;        // grazing (degrees) below this bounces
 const float PHYSICS_SHOT_SPEED_KEPT = 0.75;        // per bounce
+const float PHYSICS_BLAST_RADIUS = 1.5;            // in cells: crates in it break
+
+// The scene's layers
+const uint LAYER_WALLS = 1;
+const uint LAYER_OBSTACLE = 2;
+const uint LAYER_HITBOX = 4;
+const uint LAYER_NAVIGATION = 8;
+const uint LAYER_CRATE = 16;
+const uint SHOT_MASK = LAYER_WALLS | LAYER_OBSTACLE | LAYER_HITBOX | LAYER_CRATE;
+
+// The owners of the colliders: what a hit was
+const int OWNER_PLAYER = 1;
+const int OWNER_OBSTACLE = 100;                    // + index
+const int OWNER_HITBOX = 200;                      // + index
+const int OWNER_CRATE = 1000;                      // + index
 
 // A projectile of the scene, with what is drawn of it
 struct DebugShot : Projectile {
@@ -44,33 +63,39 @@ struct PhysicsScene {
     bool isActive;
     Grid[bool] solid;
     TileCollision tiles;
-    List[Circle] circleCells;      // static obstacles besides the tiles, in cells
-    List[Box] boxCells;
-    List[DebugOrientedBox] orientedCells;  // hitboxes only (projectiles, the aim)
-    List[OrientedBox] orientedBoxes;       // ... in the world
-    List[Circle] circles;          // ... in the world
-    List[Box] boxes;
     float cell;                    // the cell size: the map fits the screen (Layout)
-    Circle mover;
-    List[Vec2] moverPath;          // the last slide's steps
-    Vec2 moverNormal;              // the last slide's last hit
+    // The level in cells (the world gets them in pixels)
+    List[Circle] circleCells;
+    List[Box] boxCells;
+    List[DebugOrientedBox] orientedCells;
+    List[Vec2] crateCells;         // crate centers
+    List[bool] crateBroken;
+    // The world and the colliders the scene changes
+    CollisionWorld world;
+    bool hasWorld;
+    ColliderId player;
+    List[ColliderId] hitboxes;     // per oriented box
+    List[ColliderId] crates;       // per crate (None: broken)
+    // The player's last slide, the shots
+    List[Vec2] playerPath;
+    Vec2 playerNormal;
+    List[WorldHit] touched;
     List[DebugShot] shots;
     List[DebugExplosion] explosions;
-    Obstacles obstacles;           // gathered every frame
     float pixel = 1;               // the lines' width
 }
 
 extend PhysicsScene {
     init() {
         // A border, some walls and blocks
-        solid = Grid[bool](64, 40);
-        for (let x in 0..64) {
+        solid = Grid[bool](PHYSICS_COLUMNS, PHYSICS_ROWS);
+        for (let x in 0..PHYSICS_COLUMNS) {
             solid.Set(x, 0, true);
-            solid.Set(x, 39, true);
+            solid.Set(x, PHYSICS_ROWS - 1, true);
         }
-        for (let y in 0..40) {
+        for (let y in 0..PHYSICS_ROWS) {
             solid.Set(0, y, true);
-            solid.Set(63, y, true);
+            solid.Set(PHYSICS_COLUMNS - 1, y, true);
         }
         for (let y in 6..30) {
             solid.Set(20, y, true);
@@ -94,37 +119,17 @@ extend PhysicsScene {
         orientedCells.Add(DebugOrientedBox(Vec2(10, 10), Vec2(3, 0.75), 30, 0));
         orientedCells.Add(DebugOrientedBox(Vec2(44, 5), Vec2(2.5, 1), 0, 20));
         orientedCells.Add(DebugOrientedBox(Vec2(55, 33), Vec2(1.5, 1.5), 10, -45));
-        mover = Circle(Vec2(200, 300), 16);
-    }
-
-    // The cell size and the map's position from the screen (the map below the log lines); on a
-    // change the circle and the obstacles go along
-    void Layout() {
-        let canvas = Vec2(Draw.canvasDim);
-        let newCell = Max(Floor(Min((canvas.x - 40) / PHYSICS_COLUMNS, (canvas.y - 170) / PHYSICS_ROWS)), 4.0);
-        let newOrigin = Vec2(Floor((canvas.x - newCell * PHYSICS_COLUMNS) * 0.5), 150);
-        if (newCell != cell || newOrigin != tiles.origin) {
-            let scale = newCell / cell;
-            mover = Circle(newOrigin + (mover.center - tiles.origin) * scale, mover.radius * scale);
-            cell = newCell;
-            tiles = TileCollision(&solid, cell, newOrigin);
-            for (let shot in shots) {
-                shot.trail.Free();
-            }
-            shots.Clear();
-            explosions.Clear();
-        }
-        circles.Clear();
-        for (let c in circleCells) {
-            circles.Add(Circle(tiles.origin + c.center * cell, c.radius * cell));
-        }
-        boxes.Clear();
-        for (let b in boxCells) {
-            boxes.Add(Box(tiles.origin + b.min * cell, tiles.origin + b.max * cell));
-        }
-        orientedBoxes.Clear();
-        for (let o in orientedCells) {
-            orientedBoxes.Add(OrientedBox(tiles.origin + o.center * cell, o.halfDim * cell, o.angle));
+        // Crates on open cells (deterministic, away from the player's start)
+        let random = 12345 as uint;
+        while (crateCells.len < PHYSICS_CRATES) {
+            random = random * 1103515245 + 12345;
+            let x = 1 + ((random >> 8) % ((PHYSICS_COLUMNS - 2) as uint)) as int;
+            random = random * 1103515245 + 12345;
+            let y = 1 + ((random >> 8) % ((PHYSICS_ROWS - 2) as uint)) as int;
+            if (solid.Get(x, y) || (Vec2(x, y) - Vec2(8, 12)).Length() < 4)
+                continue;
+            crateCells.Add(Vec2(x + 0.5, y + 0.5));
+            crateBroken.Add(false);
         }
     }
 
@@ -134,16 +139,74 @@ extend PhysicsScene {
         Draw.clearColor = isActive ? Color.Grey(0.12) : Color.Black;
     }
 
-    // The obstacles near the circle moving by 'motion': the tile walls and the static shapes
-    void GatherObstacles(Circle circle, Vec2 motion) {
-        obstacles.Clear();
-        tiles.AddWalls(Obstacles.SlideRegion(circle, motion), &obstacles);
-        for (let circleObstacle in circles) {
-            obstacles.circles.Add(*circleObstacle);
+    // The cell size and the map's position from the screen (the map below the log lines); on a
+    // change the world is built again (the player goes along)
+    void Layout() {
+        let canvas = Vec2(Draw.canvasDim);
+        let newCell = Max(Floor(Min((canvas.x - 40) / PHYSICS_COLUMNS, (canvas.y - 170) / PHYSICS_ROWS)), 4.0);
+        let newOrigin = Vec2(Floor((canvas.x - newCell * PHYSICS_COLUMNS) * 0.5), 150);
+        if (hasWorld && newCell == cell && newOrigin == tiles.origin)
+            return;
+        // Where the player was, in cells
+        let playerCell = Vec2(8, 12);
+        let playerRadius = 2.0 / 3;
+        if (hasWorld) {
+            let circle = world.Get(player).shape.circle;
+            playerCell = (circle.center - tiles.origin) / cell;
+            playerRadius = circle.radius / cell;
+            world.Free();
         }
-        for (let box in boxes) {
-            obstacles.boxes.Add(*box);
+        cell = newCell;
+        tiles = TileCollision(&solid, cell, newOrigin);
+        for (let shot in shots) {
+            shot.trail.Free();
         }
+        shots.Clear();
+        explosions.Clear();
+        BuildWorld(playerCell, playerRadius);
+    }
+
+    Vec2 ToWorld(Vec2 cells) { return tiles.origin + cells * cell; }
+
+    void BuildWorld(Vec2 playerCell, float playerRadius) {
+        world = CollisionWorld(tiles.bounds, cell * 3, &tiles, LAYER_WALLS);
+        hasWorld = true;
+        player = world.Add(Collider(ColliderShape.Circle(circle: Circle(ToWorld(playerCell), playerRadius * cell)),
+            LAYER_NAVIGATION, LAYER_WALLS | LAYER_OBSTACLE | LAYER_CRATE, OWNER_PLAYER));
+        for (let i, c in circleCells) {
+            world.Add(Collider(ColliderShape.Circle(circle: Circle(ToWorld(c.center), c.radius * cell)), LAYER_OBSTACLE, 0, OWNER_OBSTACLE + i));
+        }
+        for (let i, b in boxCells) {
+            world.Add(Collider(ColliderShape.Box(box: Box(ToWorld(b.min), ToWorld(b.max))), LAYER_OBSTACLE, 0, OWNER_OBSTACLE + circleCells.len + i));
+        }
+        hitboxes.Clear();
+        for (let i, o in orientedCells) {
+            hitboxes.Add(world.Add(Collider(ColliderShape.OrientedBox(orientedBox: OrientedBox(ToWorld(o.center), o.halfDim * cell, o.angle)), LAYER_HITBOX, 0, OWNER_HITBOX + i)));
+        }
+        crates.Clear();
+        for (let i, center in crateCells) {
+            if (crateBroken[i]) {
+                crates.Add(ColliderId.None);
+                continue;
+            }
+            let half = Vec2(cell * 0.3);
+            crates.Add(world.Add(Collider(ColliderShape.Box(box: Box(ToWorld(*center) - half, ToWorld(*center) + half)), LAYER_CRATE, 0, OWNER_CRATE + i)));
+        }
+    }
+
+    // A crate breaks (its collider goes away)
+    void BreakCrate(int owner) {
+        let index = owner - OWNER_CRATE;
+        if (index < 0 || crates.len <= index || crateBroken[index])
+            return;
+        world.Remove(crates[index]);
+        crates[index] = ColliderId.None;
+        crateBroken[index] = true;
+    }
+
+    // What an owner is, for the log
+    string OwnerName(int owner) {
+        return owner >= OWNER_CRATE ? "crate" : owner >= OWNER_HITBOX ? "hitbox" : owner >= OWNER_OBSTACLE ? "obstacle" : "player";
     }
 
     void DoFrame() {
@@ -155,10 +218,12 @@ extend PhysicsScene {
         Camera.allowPanning = false;
         Camera.allowZooming = false;
         let dt = Input.deltaTime;
-        for (let o in orientedCells) {
-            o.angle += o.spin * dt;
-        }
         Layout();
+        // The turning hitboxes
+        for (let i, o in orientedCells) {
+            o.angle += o.spin * dt;
+            world.SetShape(hitboxes[i], ColliderShape.OrientedBox(orientedBox: OrientedBox(ToWorld(o.center), o.halfDim * cell, o.angle)));
+        }
         let cursor = Input.cursors.world;
 
         // Tiles
@@ -169,12 +234,14 @@ extend PhysicsScene {
             if (Input.MouseDown(MouseButton.Right))
                 solid.Set(cursorCell, false);
         }
+        let body = world.Get(player).shape.circle;
         if (Input.KeyPressed(Scancode.Alpha1))
-            mover.radius = Max(mover.radius - cell / 6, cell / 6);
+            body.radius = Max(body.radius - cell / 6, cell / 6);
         if (Input.KeyPressed(Scancode.Alpha2))
-            mover.radius = Min(mover.radius + cell / 6, cell * 3);
+            body.radius = Min(body.radius + cell / 6, cell * 3);
+        world.SetShape(player, ColliderShape.Circle(circle: body));
 
-        // Moving: slide along walls and obstacles
+        // Moving: slides along walls and obstacles, crates it runs into break
         let direction = Vec2(0, 0);
         if (Input.KeyDown(Scancode.A))
             direction.x -= 1;
@@ -185,28 +252,27 @@ extend PhysicsScene {
         if (Input.KeyDown(Scancode.S))
             direction.y += 1;
         let motion = direction.NormalizedOr(Vec2(0, 0)) * PHYSICS_MOVE_SPEED * (cell / 24) * dt;
-        mover.center = tiles.PushOut(mover);           // out of a tile placed onto it
-        GatherObstacles(mover, motion);
-        moverPath.Clear();
-        let slide = obstacles.Slide(mover, motion, &moverPath);
-        mover.center = slide.center;
-        moverNormal = slide.lastNormal;
+        playerPath.Clear();
+        touched.Clear();
+        let slide = world.Slide(player, motion, &touched, &playerPath);
+        playerNormal = slide.lastNormal;
+        for (let hit in touched) {
+            if (!hit.isTile && hit.owner >= OWNER_CRATE)
+                BreakCrate(hit.owner);
+        }
+        body = world.Get(player).shape.circle;
 
         // Aiming: a ray to the cursor and on
-        let aim = (cursor - mover.center).NormalizedOr(Vec2(1, 0));
-        let muzzle = mover.center + aim * (mover.radius + 4);
+        let aim = (cursor - body.center).NormalizedOr(Vec2(1, 0));
+        let muzzle = body.center + aim * (body.radius + 4);
         let aimRay = Line(muzzle, muzzle + aim * 3000);
         ProjectileHit aimHit;
+        aimHit.WorldHit = world.Raycast(aimRay, SHOT_MASK);
         aimHit.direction = aim;
-        let tileHit = tiles.Raycast(aimRay);
-        if (tileHit.hasIntersection) {
-            aimHit.Intersection = tileHit.Intersection;
-            aimHit.isTile = true;
-            aimHit.cell = tileHit.cell;
-        }
-        ConsiderTargets(aimRay, &aimHit);
 
-        // Shooting
+        // Shooting: every hit costs speed; grazing and still fast it bounces, else it explodes
+        // (also when it starts inside something: the scene's choice). Crates it hits break, so
+        // does every crate in the blast.
         if (Input.KeyPressed(Scancode.Space)) {
             let shot = DebugShot(position: muzzle, velocity: aim * PHYSICS_SHOT_SPEED * (cell / 24));
             shot.trail.Add(muzzle);
@@ -214,19 +280,17 @@ extend PhysicsScene {
         }
         for (let i = shots.len - 1; i >= 0; i--) {
             let shot = &shots[i];
-            let stopped = shot.Step(dt, &tiles,
-                (Line ray, ProjectileHit* hit) => ConsiderTargets(ray, hit),
+            let stopped = shot.Step(dt, &world, SHOT_MASK,
                 (ProjectileHit* hit) => {
                     shot.trail.Add(hit.point);
-                    // Every hit costs speed; grazing and still fast: it bounces, else it explodes
-                    // (also when it starts inside something: the scene's choice, Step would bounce it
-                    // back out from the face it came in through)
+                    if (!hit.isTile && hit.owner >= OWNER_CRATE)
+                        BreakCrate(hit.owner);
                     shot.velocity = shot.velocity * PHYSICS_SHOT_SPEED_KEPT;
                     if (!hit.startsInside && hit.impactAngle < PHYSICS_SHOT_BOUNCE_ANGLE && shot.velocity.Length() >= PHYSICS_SHOT_MIN_SPEED * (cell / 24)) {
                         shot.bounces++;
                         return true;
                     }
-                    explosions.Add(DebugExplosion(hit.point, hit.normal, 0));
+                    Explode(hit.point, hit.normal);
                     return false;
                 }
             );
@@ -244,25 +308,24 @@ extend PhysicsScene {
         }
 
         Render(cursor, aimRay, &aimHit);
+        let broken = crateBroken.Count((bool* isBroken) => *isBroken);
         Draw.LogLine("physics scene (F2): WASD move, mouse aim, space shoot, left/right mouse add/remove tiles, 1/2 circle size");
-        Draw.LogLine("circle ", mover.center, " radius ", mover.radius, ", last hit normal ", moverNormal, ", steps ", moverPath.len - 1,
-            ", shots ", shots.len, ", walls near ", obstacles.walls.len);
+        Draw.LogLine("circle radius ", body.radius, ", slide steps ", playerPath.len - 1, ", shots ", shots.len, ", colliders ", world.count,
+            ", crates broken ", broken, "/", crateCells.len);
         if (aimHit.hasIntersection)
-            Draw.LogLine("aim: ", aimHit.isTile ? TFormat("tile ", aimHit.cell) : aimHit.target >= 2000 ? "oriented box" : aimHit.target >= 1000 ? "box" : "circle", " at ", aimHit.point, " normal ", aimHit.normal,
+            Draw.LogLine("aim: ", aimHit.isTile ? TFormat("tile ", aimHit.cell) : OwnerName(aimHit.owner), " at ", aimHit.point, " normal ", aimHit.normal,
                 " impact angle ", FormatFloat(aimHit.impactAngle, 1), aimHit.startsInside ? " (starts inside)" : "");
     }
 
-    // The static circles, boxes and the oriented boxes as a projectile's targets (ids: circles
-    // 0.., boxes 1000.., oriented boxes 2000..)
-    void ConsiderTargets(Line ray, ProjectileHit* hit) {
-        for (let i, circleObstacle in circles) {
-            hit.Consider(Intersect.LineCircle(ray, *circleObstacle), i);
-        }
-        for (let i, box in boxes) {
-            hit.Consider(Intersect.LineBox(ray, *box), 1000 + i);
-        }
-        for (let i, orientedBox in orientedBoxes) {
-            hit.Consider(Intersect.LineOrientedBox(ray, *orientedBox), 2000 + i);
+    // An explosion: drawn for a while, the crates in its blast break
+    void Explode(Vec2 point, Vec2 normal) {
+        explosions.Add(DebugExplosion(point, normal, 0));
+        let blasted = List[int](allocator: context.temp);
+        world.ForEachOverlap(ColliderShape.Circle(circle: Circle(point, PHYSICS_BLAST_RADIUS * cell)), LAYER_CRATE, (ColliderId id, Collider* collider) => {
+            blasted.Add(collider.owner);
+        });
+        for (let owner in blasted) {
+            BreakCrate(*owner);
         }
     }
 
@@ -289,35 +352,32 @@ extend PhysicsScene {
         allWalls.Free();
         // The cell under the cursor
         let cursorCell = tiles.CellAt(cursor);
-        let cellBox = tiles.CellBox(cursorCell.x, cursorCell.y);
-        DrawBoxOutline(cellBox, Color(1, 1, 0, 0.5));
+        DrawBoxOutline(tiles.CellBox(cursorCell.x, cursorCell.y), Color(1, 1, 0, 0.5));
 
-        // The static obstacles
-        let obstacleColor = Color(0.4, 0.8, 1, 1);
-        for (let circleObstacle in circles) {
-            Draw.CircleOutline(*circleObstacle, thin, 3, obstacleColor);
-        }
-        for (let box in boxes) {
-            DrawBoxOutline(*box, obstacleColor);
-        }
-        for (let orientedBox in orientedBoxes) {
-            for (let corner in 0..4) {
-                Draw.Line(orientedBox.Corner(corner), orientedBox.Corner((corner + 1) % 4), thin, 3, Color(0.85, 0.45, 1, 1));
-            }
+        // The colliders, by layer
+        for (let slot in world.slots) {
+            if (!slot.isUsed || slot.collider.owner == OWNER_PLAYER)
+                continue;
+            let layer = slot.collider.layer;
+            let color = layer == LAYER_CRATE ? Color(1, 0.6, 0.2, 1) : layer == LAYER_HITBOX ? Color(0.85, 0.45, 1, 1) : Color(0.4, 0.8, 1, 1);
+            if (layer == LAYER_CRATE)
+                Draw.Rect(slot.collider.shape.box.ToRect(), 3, Color(0.55, 0.33, 0.12, 1));
+            DrawShape(slot.collider.shape, color);
         }
 
-        // The walls the mover considered this frame (highlighted)
-        for (let wall in obstacles.walls) {
+        // The walls the player considered this frame (highlighted)
+        for (let wall in world.obstacles.walls) {
             Draw.Line(wall.start, wall.end, 2 * pixel, 4, Color(1, 0.6, 0.2, 0.8));
         }
 
-        // The mover, its slide steps and its last hit's normal
-        Draw.CircleOutline(mover, 1.5 * pixel, 5, Color(0.3, 1, 0.4, 1));
-        for (let step in 1..moverPath.len) {
-            Draw.Line(moverPath[step - 1], moverPath[step], thin, 6, Color(1, 1, 1, 1));
+        // The player, its slide steps and its last hit's normal
+        let body = world.Get(player).shape.circle;
+        Draw.CircleOutline(body, 1.5 * pixel, 5, Color(0.3, 1, 0.4, 1));
+        for (let step in 1..playerPath.len) {
+            Draw.Line(playerPath[step - 1], playerPath[step], thin, 6, Color(1, 1, 1, 1));
         }
-        if (moverNormal != Vec2(0, 0))
-            Draw.Line(mover.center, mover.center + moverNormal * (mover.radius + 12), thin, 6, Color(1, 0.3, 0.3, 1));
+        if (playerNormal != Vec2(0, 0))
+            Draw.Line(body.center, body.center + playerNormal * (body.radius + 12), thin, 6, Color(1, 0.3, 0.3, 1));
 
         // The aim: the ray to the hit, the hit's normal
         let aimEnd = aimHit.hasIntersection ? aimHit.point : aimRay.end;
@@ -327,7 +387,7 @@ extend PhysicsScene {
             Draw.Line(aimHit.point, aimHit.point + aimHit.normal * 20, thin, 7, Color(1, 1, 0.2, 1));
         }
 
-        // Shots with their trails, explosions
+        // Shots with their trails, explosions (with their blast)
         for (let shot in shots) {
             for (let i in 1..shot.trail.len) {
                 Draw.Line(shot.trail[i - 1], shot.trail[i], thin, 8, Color(1, 0.8, 0.3, 0.6));
@@ -339,7 +399,19 @@ extend PhysicsScene {
         for (let explosion in explosions) {
             let fade = 1 - explosion.age;
             Draw.CircleOutline(Circle(explosion.point, 4 + explosion.age * 30), thin, 9, Color(1, 0.5, 0.1, fade));
+            Draw.CircleOutline(Circle(explosion.point, PHYSICS_BLAST_RADIUS * cell), thin, 9, Color(1, 0.5, 0.1, fade * 0.3));
             Draw.Line(explosion.point, explosion.point + explosion.normal * 15, thin, 9, Color(1, 1, 0.2, fade));
+        }
+    }
+
+    void DrawShape(ColliderShape shape, Color color) {
+        switch (shape.case) {
+        case ColliderShape.Circle: Draw.CircleOutline(shape.circle, pixel, 3, color);
+        case ColliderShape.Box: DrawBoxOutline(shape.box, color);
+        case ColliderShape.OrientedBox:
+            for (let corner in 0..4) {
+                Draw.Line(shape.orientedBox.Corner(corner), shape.orientedBox.Corner((corner + 1) % 4), pixel, 3, color);
+            }
         }
     }
 
