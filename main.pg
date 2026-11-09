@@ -49,6 +49,7 @@ extend Susi {
 struct Playground {
     float time;
     GameEditor* editor;            // internal mode only, created on first use
+    PhysicsScene* physics;         // the physics debug scene (F2), internal mode only
     Susi susi;
     AnimationPlayer sorcyAnim;
     AudioStreamId music;           // M fades it out and in again
@@ -157,10 +158,25 @@ extend Playground {
         if (INTERNAL) {
             if (editor == null)
                 editor = New[GameEditor]();
-            if (Input.KeyPressed(Scancode.F1))
+            if (physics == null)
+                physics = New[PhysicsScene]();
+            // F1 and F2 switch between the scenes (one at a time)
+            if (Input.KeyPressed(Scancode.F1)) {
+                if (physics.isActive)
+                    physics.ToggleActive();
                 editor.ToggleActive();
+            }
+            if (Input.KeyPressed(Scancode.F2)) {
+                if (editor.isActive)
+                    editor.ToggleActive();
+                physics.ToggleActive();
+            }
             if (editor.isActive) {
                 editor.DoFrame();
+                return;
+            }
+            if (physics.isActive) {
+                physics.DoFrame();
                 return;
             }
         }
@@ -231,7 +247,7 @@ extend Playground {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // hope_playground (formerly DungeonTracks, ported from the C# version), for trying out hope's
 // features: Sorcy runs in circles, Susi (a 3D sprite on tracks) drives with the "move" action, and
-// in the internal mode F1 opens the tilemap editor.
+// in the internal mode F1 opens the tilemap editor, F2 the physics debug scene.
 //
 // The game is a module (hope/game): a platform layer hosts it (the targets of hope.pgproj).
 
