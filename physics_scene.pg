@@ -280,7 +280,7 @@ extend PhysicsScene {
         }
         for (let i = shots.len - 1; i >= 0; i--) {
             let shot = &shots[i];
-            let stopped = shot.Step(dt, &world, SHOT_MASK,
+            let step = shot.Step(dt, &world, SHOT_MASK,
                 (ProjectileHit* hit) => {
                     shot.trail.Add(hit.point);
                     if (!hit.isTile && hit.owner >= OWNER_CRATE)
@@ -296,7 +296,7 @@ extend PhysicsScene {
             );
             if (shot.trail.len > 64)
                 shot.trail.RemoveAt(0);
-            if (stopped || !tiles.bounds.Contains(shot.position)) {
+            if (step != ProjectileStep.Flying) {                 // exploded, or out of the world
                 shot.trail.Free();
                 shots.RemoveAt(i);
             }
