@@ -436,7 +436,7 @@ extend PhysicsScene {
     // in the query: the world lets it change what it finds)
     void Explode(Vec2 point, Vec2 normal) {
         explosions.Add(DebugExplosion(point, normal, 0));
-        Camera.AddShake(Shake.Random(PHYSICS_EXPLOSION_SHAKE * (cell / 24), 0.4));
+        Camera.AddShake(Shake.Random(PHYSICS_EXPLOSION_SHAKE * (cell / 24), 0.5, easing: Easing.CircIn));   // a hard hit that trails off
         world.ForEachOverlap(ColliderShape.Circle(circle: Circle(point, PHYSICS_BLAST_RADIUS * cell)), LAYER_WALLS | LAYER_CRATE | LAYER_HITBOX, (WorldOverlap* found) => {
             let vehicle = found.isTile ? null : VehicleOf(found.owner);
             if (vehicle != null) {
