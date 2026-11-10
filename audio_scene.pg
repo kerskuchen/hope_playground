@@ -34,9 +34,11 @@ extend AudioScene {
         Audio.globalPlaybackSpeed = 1;
     }
 
-    // The sine's falloff: silent (or at its minimum loudness) from half the window's diagonal on
+    // The sine's falloff by the window's shorter side: full loudness within a tenth of it, silent
+    // (or at its minimum loudness) from 45 % of it on (both circles fit the window)
     AudioFalloffParams SineFalloff() {
-        return AudioFalloffParams(curve: sineFalloff, minDistance: 20, maxDistance: ((Vec2)Input.windowDim).Length() * 0.5, minLoudness: isSineFloored ? 0.2 : 0, reverbAtMaxDistance: reverbRoom == 2 ? 0.9 : 0);
+        let side = (float)Min(Input.windowDim.x, Input.windowDim.y);
+        return AudioFalloffParams(curve: sineFalloff, minDistance: side * 0.1, maxDistance: side * 0.45, minLoudness: isSineFloored ? 0.2 : 0, reverbAtMaxDistance: reverbRoom == 2 ? 0.9 : 0);
     }
 
     void DoFrame() {
