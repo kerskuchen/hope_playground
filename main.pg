@@ -50,6 +50,7 @@ struct StartScene {
     float time;
     Susi susi;
     AnimationPlayer sorcyAnim;
+    bool showsGrid;                // 6: a world grid at the window's resolution (DrawSpace.ScreenWorld)
     AudioStreamId music;           // M fades it out and in again
     ShakeId rumble;                // 4: a continuous shake, on and off
     bool isFollowingSusi;          // C: the camera follows Susi
@@ -176,6 +177,29 @@ extend StartScene {
         Draw.Pixel(sorcyPos.pos, 21, Color.Red);
         Draw.Pixel(sorcy.GetAttachmentPos(0, sorcyPos), 21, Color.Green);
         Draw.Pixel(sorcy.GetAttachmentPos(1, sorcyPos), 21, Color.Orange);
+
+        // Translucent sorting: ghosty (translucent, depth 20) floats between a far sorcy (depth 15)
+        // and a near one (depth 25), drawn in the opposite order (near, ghosty, far): it must be
+        // in front of the far one and behind the near one
+        let idle = Draw.GetAnim("sorcy.idle").frames[0].sprite;
+        let ghostX = 175 + 55 * Sin(time * 0.02);
+        Draw.Sprite(idle, Transform(Vec2(230, 70)), 25);
+        Draw.Sprite(Draw.GetSprite(Format("ghosty_", (time / 6) as int % 8)), Transform(Vec2(ghostX, 66)), 20);
+        Draw.Sprite(idle, Transform(Vec2(150, 70)), 15);
+
+        // 6: the world's grid at the window's resolution (thin lines whatever the canvas)
+        if (Input.KeyPressed(Scancode.Alpha6))
+            showsGrid = !showsGrid;
+        if (showsGrid) {
+            let grid = DrawParams(color: Color(0.2, 1, 0.4, 0.6), space: DrawSpace.ScreenWorld);
+            for (let x = 0; x <= 320; x += 16) {
+                Draw.Line(Vec2(x, 0), Vec2(x, 180), 0.35, 90, grid);
+            }
+            for (let y = 0; y <= 180; y += 16) {
+                Draw.Line(Vec2(0, y), Vec2(320, y), 0.35, 90, grid);
+            }
+        }
+        Draw.LogLine("6 world grid at the window's resolution (", showsGrid, "); ghosty floats between a far and a near sorcy");
 
         time += 1;
 
