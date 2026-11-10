@@ -262,17 +262,18 @@ extend StartScene {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Game: one scene at a time, F1 the start scene, F2 the physics debug scene, F3 the tilemap
-// editor. A scene lives in its phase (hope/memory.pg): the start and the physics scene in the
-// level phase, the editor in the editor phase. Switching wipes the phase of the scene that goes
+// editor, F4 the navigation scene. A scene lives in its phase (hope/memory.pg): the start, the
+// physics and the navigation scene in the level phase, the editor in the editor phase. Switching wipes the phase of the scene that goes
 // and makes the next one in its phase; its frames allocate there too.
 
-enum Scene { Start, Physics, Editor }
+enum Scene { Start, Physics, Editor, Navigation }
 
 struct Playground {
     Scene scene;
     StartScene* start;             // the current scene's state (the others are null)
     PhysicsScene* physics;
     GameEditor* editor;
+    NavScene* navigation;
 }
 
 extend Playground {
@@ -314,6 +315,10 @@ extend Playground {
             physics = null;
             Memory.WipeLevel();
         }
+        if (navigation != null) {
+            navigation = null;
+            Memory.WipeLevel();
+        }
         if (editor != null) {
             editor.Leave();
             editor = null;
@@ -329,6 +334,10 @@ extend Playground {
             ScopeAllocLevel();
             physics = New[PhysicsScene]();
             Draw.clearColor = Color.Grey(0.12);
+        } else if (next == Scene.Navigation) {
+            ScopeAllocLevel();
+            navigation = New[NavScene]();
+            Draw.clearColor = Color.Grey(0.08);
         } else {
             ScopeAllocEditor();
             editor = New[GameEditor]();
@@ -343,7 +352,9 @@ extend Playground {
             SwitchTo(Scene.Physics);
         if (Input.KeyPressed(Scancode.F3) && scene != Scene.Editor)
             SwitchTo(Scene.Editor);
-        Draw.LogLine("F1 start, F2 physics, F3 editor | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
+        if (Input.KeyPressed(Scancode.F4) && scene != Scene.Navigation)
+            SwitchTo(Scene.Navigation);
+        Draw.LogLine("F1 start, F2 physics, F3 editor, F4 navigation | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
         if (scene == Scene.Editor) {
             ScopeAllocEditor();
             editor.DoFrame();
@@ -351,6 +362,8 @@ extend Playground {
             ScopeAllocLevel();
             if (scene == Scene.Physics)
                 physics.DoFrame();
+            else if (scene == Scene.Navigation)
+                navigation.DoFrame();
             else
                 start.DoFrame();
         }
@@ -361,7 +374,7 @@ extend Playground {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // hope_playground (formerly DungeonTracks, ported from the C# version), for trying out hope's
 // features: Sorcy runs in circles, Susi (a 3D sprite on tracks) drives with the "move" action, F2
-// switches to the physics debug scene, F3 to the tilemap editor, F1 back.
+// switches to the physics debug scene, F3 to the tilemap editor, F4 to the navigation scene, F1 back.
 //
 // The game is a module (hope/game): a platform layer hosts it (the targets of hope.pgproj).
 
