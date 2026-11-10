@@ -146,7 +146,7 @@ extend NavScene {
                 continue;
             let direction = toward / distance;
             // Away from every other agent within its size + 1 tiles (its own position is skipped)
-            agent.push = separates ? NavSeparation(agent.pos, (agent.size + 1) * NAV_TILE, positions.view) : Vec2(0, 0);
+            agent.push = separates ? NavSeparation(agent.pos, (agent.size + 1) * NAV_TILE, positions) : Vec2(0, 0);
             let steer = (direction + agent.push * 0.8).NormalizedOr(direction);
             let step = Min(NAV_SPEED * dt, distance);
             // Only where it still fits (this scene has no collision world): else along its path
