@@ -53,8 +53,8 @@ extend GameEditor {
     void RandomizeGround() {
         for (let y in 0..ground.h) {
             for (let x in 0..ground.w) {
-                ground.Set(x, y, random.Range(0, ground.tileset.count) as byte);
-                details.Set(x, y, random.Chance(0.4) ? random.Range(0, details.tileset.count) as byte : TILE_EMPTY);
+                ground.Set(x, y, (byte)random.Range(0, ground.tileset.count));
+                details.Set(x, y, random.Chance(0.4) ? (byte)random.Range(0, details.tileset.count) : TILE_EMPTY);
             }
         }
     }

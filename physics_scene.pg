@@ -145,12 +145,12 @@ extend PhysicsScene {
         vehicles.Add(DebugVehicle(center: Vec2(44, 5), halfDim: Vec2(1.8, 1), angle: 0, mass: 3));
         vehicles.Add(DebugVehicle(center: Vec2(56, 33), halfDim: Vec2(2.6, 1.5), angle: 10, mass: 10));
         // Crates on open cells (deterministic, away from the player's start)
-        let random = 12345 as uint;
+        let random = (uint)12345;
         while (crateCells.len < PHYSICS_CRATES) {
             random = random * 1103515245 + 12345;
-            let x = 1 + ((random >> 8) % ((PHYSICS_COLUMNS - 2) as uint)) as int;
+            let x = 1 + (int)((random >> 8) % (uint)(PHYSICS_COLUMNS - 2));
             random = random * 1103515245 + 12345;
-            let y = 1 + ((random >> 8) % ((PHYSICS_ROWS - 2) as uint)) as int;
+            let y = 1 + (int)((random >> 8) % (uint)(PHYSICS_ROWS - 2));
             if (solid.Get(x, y) || (Vec2(x, y) - Vec2(8, 12)).Length() < 4)
                 continue;
             crateCells.Add(Vec2(x + 0.5, y + 0.5));
@@ -423,7 +423,7 @@ extend PhysicsScene {
         let broken = crateBroken.Count((bool* isBroken) => *isBroken);
         Draw.LogLine("physics scene (F2): WASD move, mouse aim, space shoot, Q wide shots (", wideShots, "), E ram, left/right mouse add/remove tiles, 1/2 circle size");
         for (let i, v in vehicles) {
-            Draw.LogLine("vehicle ", i, " (mass ", v.mass, "): speed ", v.external.linear.Length() as int, " px/s, turning ", v.external.angular as int, " deg/s");
+            Draw.LogLine("vehicle ", i, " (mass ", v.mass, "): speed ", (int)v.external.linear.Length(), " px/s, turning ", (int)v.external.angular, " deg/s");
         }
         Draw.LogLine("circle radius ", body.radius, ", slide steps ", playerPath.len - 1, ", shots ", shots.len, ", colliders ", world.count,
             ", crates broken ", broken, "/", crateCells.len);

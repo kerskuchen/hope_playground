@@ -72,7 +72,7 @@ extend StartScene {
     // low-pass filter, K a minimum loudness, G slow motion (the global playback speed 0.5)
     // The sine's falloff: silent (or at its minimum loudness) from half the screen's diagonal on
     AudioFalloffParams SineFalloff() {
-        return AudioFalloffParams(curve: sineFalloff, minDistance: 20, maxDistance: (Input.windowDim as Vec2).Length() * 0.5, minLoudness: isSineFloored ? 0.2 : 0, reverbAtMaxDistance: reverbRoom == 2 ? 0.9 : 0);
+        return AudioFalloffParams(curve: sineFalloff, minDistance: 20, maxDistance: ((Vec2)Input.windowDim).Length() * 0.5, minLoudness: isSineFloored ? 0.2 : 0, reverbAtMaxDistance: reverbRoom == 2 ? 0.9 : 0);
     }
 
     void DoSpatialTest(Vec2 mouse) {
@@ -122,10 +122,10 @@ extend StartScene {
         Draw.LogLine("spatial test: T sine, F falloff (", sineFalloff, "), K minimum loudness (", isSineFloored, "), R reverb (", reverbRoom == 0 ? "dry" : (reverbRoom == 1 ? "small room" : "big hall, wetter far away"), "), L low-pass (", isSineFiltered, "), G slow motion (", Audio.globalPlaybackSpeed, "), Space coin");
         let info = Audio.GetStream(sine);
         if (info != null) {
-            Draw.LogLine("sine at ", mouse.Flooredi(), " moving ", sineVelocity.Flooredi(), " px/s: volume ", (info.volume * 100) as int, " %, pan ",
-                (info.pan * 100) as int, " %, reverb ", (info.reverbSend * 100) as int, " %, playback speed ", (info.playbackSpeed * 1000) as int / 1000.0, " (", (440 * info.playbackSpeed * Audio.globalPlaybackSpeed) as int, " Hz), low-pass ", (info.lowpass * 100) as int, " %");
+            Draw.LogLine("sine at ", mouse.Flooredi(), " moving ", sineVelocity.Flooredi(), " px/s: volume ", (int)(info.volume * 100), " %, pan ",
+                (int)(info.pan * 100), " %, reverb ", (int)(info.reverbSend * 100), " %, playback speed ", (int)(info.playbackSpeed * 1000) / 1000.0, " (", (int)(440 * info.playbackSpeed * Audio.globalPlaybackSpeed), " Hz), low-pass ", (int)(info.lowpass * 100), " %");
         }
-        Draw.LogLine("DSP time ", (Audio.dspTime * 10) as int / 10.0, " s, real ", (Audio.dspTimeReal * 10) as int / 10.0, " s");
+        Draw.LogLine("DSP time ", (int)(Audio.dspTime * 10) / 10.0, " s, real ", (int)(Audio.dspTimeReal * 10) / 10.0, " s");
     }
 
     init() {
@@ -208,7 +208,7 @@ extend StartScene {
         time += 1;
 
         // Audio: Space plays the coin at the mouse (spatial), M fades the music out and in again
-        let mouse = Input.cursors.screen - (Input.windowDim as Vec2) * 0.5;
+        let mouse = Input.cursors.screen - (Vec2)Input.windowDim * 0.5;
         if (Input.KeyPressed(Scancode.Space))
             Audio.SetReverbSend(Audio.PlaySpatial("sfx_coin_double1", mouse, falloff: SineFalloff()), reverbRoom == 0 ? 0 : 0.3);
         DoSpatialTest(mouse);
@@ -220,7 +220,7 @@ extend StartScene {
         }
         let musicInfo = Audio.GetStream(music);
         if (musicInfo != null)
-            Draw.LogLine("music ", (musicInfo.position * 10) as int / 10.0, " s (", musicInfo.percentFinished as int, " %)");
+            Draw.LogLine("music ", (int)(musicInfo.position * 10) / 10.0, " s (", (int)musicInfo.percentFinished, " %)");
 
         // Camera shakes: 1 a pendulum towards the mouse, 2 a random one, 3 a rotational one,
         // 4 a continuous rumble on and off (they add up)
@@ -237,7 +237,7 @@ extend StartScene {
                 rumble = Camera.AddShake(Shake.Random(1, 0, speed: 35));
             isRumbling = !isRumbling;
         }
-        Draw.LogLine("shakes: 1 pendulum (to the mouse), 2 random, 3 rotational, 4 rumble (", isRumbling, "): offset ", Camera.shakeOffset.Flooredi(), ", rotation ", (Camera.shakeRotation * 10) as int / 10.0);
+        Draw.LogLine("shakes: 1 pendulum (to the mouse), 2 random, 3 rotational, 4 rumble (", isRumbling, "): offset ", Camera.shakeOffset.Flooredi(), ", rotation ", (int)(Camera.shakeRotation * 10) / 10.0);
 
         susi.DoFrame();
 
