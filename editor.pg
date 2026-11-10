@@ -1,16 +1,17 @@
-// The tilemap editor (F3, in the editor phase): left mouse button sets tiles, right removes them
+// The tilemap editor (F3, in the editor phase): a ground layer (TilemapLayer, random tiles) and a
+// dual-grid layer: left mouse button sets its tiles, right removes them
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Tilemap
 
 // A tileset sprite cut into 4x4 tiles for the dual grid
-struct Tileset {
+struct TilesetDualgrid {
     Sprite* tileset;
     [SpriteGridSlice, 16] regions;
     float size;
 }
 
-extend Tileset {
+extend TilesetDualgrid {
     init(Sprite* tileset) {
         self.tileset = tileset;
         size = tileset.dim.x / 4;
@@ -30,16 +31,16 @@ extend Tileset {
 [int, 16] NEIGHBOR_MASK_TO_TILE_INDEX = [0, 4, 3, 5, 1, 13, 8, 6, 12, 2, 7, 11, 15, 9, 14, 10];
 
 // Uses the dual-grid system as explained by jess::codes in https://www.youtube.com/watch?v=jEWFSv3ivTg
-struct TilemapLayer {
-    Tileset tileset;
+struct TilemapDualgrid {
+    TilesetDualgrid tileset;
     Grid[bool] tilesLogic;
     Grid[byte] tilesDisplay;
     float depth;
 }
 
-extend TilemapLayer {
+extend TilemapDualgrid {
     init(Sprite* tileset, int width, int height, float depth) {
-        self.tileset = Tileset(tileset);
+        self.tileset = TilesetDualgrid(tileset);
         tilesLogic = Grid[bool](width, height);
         tilesDisplay = Grid[byte](width, height);
         self.depth = depth;
@@ -74,7 +75,7 @@ extend TilemapLayer {
 }
 
 struct Tilemap {
-    List[TilemapLayer] layers;
+    List[TilemapDualgrid] layers;
     float depth;
 }
 
@@ -90,20 +91,40 @@ extend Tilemap {
 // Editor
 
 struct GameEditor {
-    TilemapLayer tilemap;
+    TilemapLayer ground;           // random ground tiles (R: again)
+    TilemapDualgrid tilemap;
+    Random random;
 }
 
 extend GameEditor {
     init() {
-        tilemap = TilemapLayer(Draw.GetSprite("tileset_test"), 16, 16, 10);
+        random = Random(1);
+        ground = TilemapLayer(Tileset(Draw.GetSprite("tiles_ground"), Vec2i(16, 16)), 16, 16, depth: 1);
+        RandomizeGround();
+        tilemap = TilemapDualgrid(Draw.GetSprite("tileset_test"), 16, 16, 10);
+    }
+
+    void RandomizeGround() {
+        for (let y in 0..ground.h) {
+            for (let x in 0..ground.w) {
+                ground.Set(x, y, random.Range(0, ground.tileset.count) as byte);
+            }
+        }
     }
 
     void DoFrame() {
+        Camera.isCentered = false;
+        Camera.rotation = 0;
+        Camera.allowPanning = true;                // middle mouse button
+        Camera.allowZooming = true;                // wheel
+        Draw.LogLine("tilemap editor (F3): left/right mouse set/remove tiles, R new ground, middle mouse pan, wheel zoom (", Camera.zoom, ")");
+        if (Input.KeyPressed(Scancode.R))
+            RandomizeGround();
         if (Input.MouseDown(MouseButton.Left))
             tilemap.SetWorld(Input.cursors.world, true);
         if (Input.MouseDown(MouseButton.Right))
             tilemap.SetWorld(Input.cursors.world, false);
+        ground.Render(Camera.viewportRect);
         tilemap.DoFrame();
     }
-
 }
