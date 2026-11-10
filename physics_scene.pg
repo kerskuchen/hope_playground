@@ -4,7 +4,7 @@
 //
 // Everything is a collider on its layer: obstacles (circles and boxes, blue) block the circle and
 // shots, vehicles (a navigation circle, blue, and an oriented hitbox, purple: light, medium and
-// heavy) are pushed and turned by what hits them (external velocities, impulse.pg), crates
+// heavy) are pushed and turned by what hits them (external velocities, hope/physics.pg), crates
 // (orange) break when the circle runs into them, when a shot hits them and in an explosion's
 // blast. A blast also
 // breaks the wall tiles in it (not the border); F1 then F2 builds the scene again.
@@ -266,14 +266,15 @@ extend PhysicsScene {
         let body = world.Get(player).shape.circle;
         let ramVelocity = ramDirection * PHYSICS_RAM_SPEED * (cell / 24);
         let motion = ramVelocity * dt;
-        let stop = world.CircleCastThrough(body, motion, LAYER_WALLS | LAYER_OBSTACLE | LAYER_HITBOX | LAYER_CRATE, OWNER_PLAYER,
+        let stop = world.CircleCastThrough(body, motion, LAYER_WALLS | LAYER_OBSTACLE | LAYER_HITBOX | LAYER_CRATE,
             (WorldHit* hit) => {
                 if (!hit.isTile && hit.owner >= OWNER_CRATE) {
                     BreakCrate(hit.owner);
                     return true;                   // on through it
                 }
                 return false;
-            }
+            },
+            [player]                               // (not its own circle)
         );
         ramTime -= dt;
         if (!stop.hasIntersection) {
