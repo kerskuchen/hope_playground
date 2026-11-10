@@ -50,6 +50,7 @@ struct StartScene {
     float time;
     Susi susi;
     AnimationPlayer sorcyAnim;
+    AnimationPlayer ghostyAnim;
     bool showsGrid;                // 6: a world grid at the window's resolution (DrawSpace.ScreenWorld)
     AudioStreamId music;           // M fades it out and in again
     ShakeId rumble;                // 4: a continuous shake, on and off
@@ -130,6 +131,7 @@ extend StartScene {
     init() {
         susi = Susi();
         sorcyAnim = AnimationPlayer(Draw.GetAnim("sorcy.run"));
+        ghostyAnim = AnimationPlayer(Draw.GetAnim("ghosty.default"));
         music = Audio.Play("level1-step1", AudioTrack.Music, volume: 0.7, loop: true, fadeIn: 1);
     }
 
@@ -183,8 +185,10 @@ extend StartScene {
         // in front of the far one and behind the near one
         let idle = Draw.GetAnim("sorcy.idle").frames[0].sprite;
         let ghostX = 175 + 55 * Sin(time * 0.02);
+        let movesLeft = Cos(time * 0.02) < 0;              // (the asset looks to the right)
+        ghostyAnim.Update();
         Draw.Sprite(idle, Transform(Vec2(230, 70)), 25);
-        Draw.Sprite(Draw.GetSprite(Format("ghosty_", (time / 6) as int % 8)), Transform(Vec2(ghostX, 66)), 20);
+        Draw.Sprite(ghostyAnim.CurSprite(), Transform(Vec2(ghostX, 66)), 20, flipHorizontal: movesLeft);
         Draw.Sprite(idle, Transform(Vec2(150, 70)), 15);
 
         // 6: the world's grid at the window's resolution (thin lines whatever the canvas)
