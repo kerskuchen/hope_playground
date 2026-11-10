@@ -51,6 +51,8 @@ struct StartScene {
     Susi susi;
     AnimationPlayer sorcyAnim;
     AudioStreamId music;           // M fades it out and in again
+    ShakeId rumble;                // 4: a continuous shake, on and off
+    bool isRumbling;
     // The spatial audio test (T): a 440 Hz sine at the mouse, the listener in the screen's center
     AudioStreamId sine;
     Vec2 sinePosition;
@@ -131,6 +133,7 @@ extend StartScene {
 
     // Before the scene goes: its streams stop
     void Leave() {
+        Camera.StopShakes();
         Audio.Stop(music, fadeOut: 0.3);
         if (sine.value != 0)
             Audio.Stop(sine, fadeOut: 0.05);
@@ -177,6 +180,23 @@ extend StartScene {
         let musicInfo = Audio.GetStream(music);
         if (musicInfo != null)
             Draw.LogLine("music ", (musicInfo.position * 10) as int / 10.0, " s (", musicInfo.percentFinished as int, " %)");
+
+        // Camera shakes: 1 a pendulum towards the mouse, 2 a random one, 3 a rotational one,
+        // 4 a continuous rumble on and off (they add up)
+        if (Input.KeyPressed(Scancode.Alpha1))
+            Camera.AddShake(Shake.Pendulum(mouse, 4, 0.5));
+        if (Input.KeyPressed(Scancode.Alpha2))
+            Camera.AddShake(Shake.Random(4, 0.6));
+        if (Input.KeyPressed(Scancode.Alpha3))
+            Camera.AddShake(Shake.Rotational(3, 0.8));
+        if (Input.KeyPressed(Scancode.Alpha4)) {
+            if (isRumbling)
+                Camera.StopShake(rumble, 0.5);
+            else
+                rumble = Camera.AddShake(Shake.Random(1, 0, speed: 35));
+            isRumbling = !isRumbling;
+        }
+        Draw.LogLine("shakes: 1 pendulum (to the mouse), 2 random, 3 rotational, 4 rumble (", isRumbling, "): offset ", Camera.shakeOffset.Flooredi(), ", rotation ", (Camera.shakeRotation * 10) as int / 10.0);
 
         susi.DoFrame();
 

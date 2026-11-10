@@ -39,6 +39,9 @@ const float PHYSICS_RAM_TIME = 0.3;                // seconds (or to what stops 
 const float PHYSICS_RAM_RESTITUTION_VEHICLE = 0.2; // how much a ram bounces back from a vehicle
 const float PHYSICS_RAM_RESTITUTION_WALL = 0.5;    // from a wall or an obstacle (more)
 const float PHYSICS_SLIDE_RESTITUTION = 0.3;       // something drifting into a wall
+// Camera shakes (pixels for cells of 24)
+const float PHYSICS_EXPLOSION_SHAKE = 5;
+const float PHYSICS_RAM_SHAKE = 8;                 // a full-speed ram into a wall
 
 // The scene's layers
 const uint LAYER_WALLS = 1;
@@ -296,6 +299,9 @@ extend PhysicsScene {
             PushVehicle(vehicle, -normal * impulse, stop.enter - normal * body.radius);
         playerExternal.linear = ramVelocity;
         playerExternal.ApplyLinearImpulse(normal * impulse, PHYSICS_PLAYER_MASS);
+        // The screen swings along the ram, by how hard it hit
+        let strength = Min(impulse / (PHYSICS_PLAYER_MASS * PHYSICS_RAM_SPEED * (cell / 24)), 1.5);
+        Camera.AddShake(Shake.Pendulum(ramDirection, PHYSICS_RAM_SHAKE * (cell / 24) * strength, 0.3));
     }
 
     void DoFrame() {
@@ -387,8 +393,10 @@ extend PhysicsScene {
                     if (!hit.isTile && hit.owner >= OWNER_CRATE)
                         BreakCrate(hit.owner);
                     let vehicle = hit.isTile ? null : VehicleOf(hit.owner);
-                    if (vehicle != null)
+                    if (vehicle != null) {
                         PushVehicle(vehicle, hit.direction * PHYSICS_SHOT_IMPULSE * (cell / 24), hit.contact);
+                        Camera.AddShake(Shake.Pendulum(hit.direction, 2 * (cell / 24), 0.15, speed: 40));    // a kick along the shot
+                    }
                     shot.velocity = shot.velocity * PHYSICS_SHOT_SPEED_KEPT;
                     if (!hit.startsInside && hit.impactAngle < PHYSICS_SHOT_BOUNCE_ANGLE && shot.velocity.Length() >= PHYSICS_SHOT_MIN_SPEED * (cell / 24)) {
                         shot.bounces++;
@@ -428,6 +436,7 @@ extend PhysicsScene {
     // in the query: the world lets it change what it finds)
     void Explode(Vec2 point, Vec2 normal) {
         explosions.Add(DebugExplosion(point, normal, 0));
+        Camera.AddShake(Shake.Random(PHYSICS_EXPLOSION_SHAKE * (cell / 24), 0.4));
         world.ForEachOverlap(ColliderShape.Circle(circle: Circle(point, PHYSICS_BLAST_RADIUS * cell)), LAYER_WALLS | LAYER_CRATE | LAYER_HITBOX, (WorldOverlap* found) => {
             let vehicle = found.isTile ? null : VehicleOf(found.owner);
             if (vehicle != null) {
