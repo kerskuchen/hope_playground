@@ -52,6 +52,7 @@ struct StartScene {
     AnimationPlayer sorcyAnim;
     AudioStreamId music;           // M fades it out and in again
     ShakeId rumble;                // 4: a continuous shake, on and off
+    bool isFollowingSusi;          // C: the camera follows Susi
     bool isRumbling;
     // The spatial audio test (T): a 440 Hz sine at the mouse, the listener in the screen's center
     AudioStreamId sine;
@@ -134,6 +135,7 @@ extend StartScene {
     // Before the scene goes: its streams stop
     void Leave() {
         Camera.StopShakes();
+        Camera.StopFollowing();
         Audio.Stop(music, fadeOut: 0.3);
         if (sine.value != 0)
             Audio.Stop(sine, fadeOut: 0.05);
@@ -153,6 +155,17 @@ extend StartScene {
             Camera.pos -= Vec2(0, 0.1);
         if (Input.KeyDown(Scancode.Down))
             Camera.pos += Vec2(0, 0.1);
+
+        // C: the camera follows Susi (glides to keep her in the middle of the canvas: the camera
+        // is not centered, its pos is the canvas's top left)
+        if (Input.KeyPressed(Scancode.C)) {
+            isFollowingSusi = !isFollowingSusi;
+            if (!isFollowingSusi)
+                Camera.StopFollowing();
+        }
+        if (isFollowingSusi)
+            Camera.target = susi.tracks.xform.pos - Camera.viewportDim * (0.5 / Camera.zoom);
+        Draw.LogLine("C camera follows Susi (", isFollowingSusi, ")");
 
         Draw.Sprite(Draw.GetSprite("background"), Vec2(0, 0), 0);
 
