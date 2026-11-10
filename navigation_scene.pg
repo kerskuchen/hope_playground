@@ -8,6 +8,8 @@
 //     right mouse       paint the terrain chosen with 1 .. 5 (floor, wall, water, low wall, breakable)
 //     Tab               the next agent (its nodes and path are highlighted)
 //     N                 its nodes on/off
+//     S                 separation on/off (agents steer away from the others near them; the
+//                       white lines: each one's push)
 //     middle mouse      pan, wheel zoom
 
 const byte NAV_FLOOR = 0;
@@ -58,6 +60,7 @@ struct NavAgent {
     Color color;
     bool breaksWalls;              // the ram: breakable walls it touches break
     int nav;                       // its agent in the scheduler
+    Vec2 push;                     // its separation this frame (drawn)
 }
 
 struct NavScene {
@@ -72,6 +75,7 @@ struct NavScene {
     byte brush;
     int selected;
     bool showsNodes = true;
+    bool separates = true;         // S
 }
 
 extend NavScene {
@@ -119,6 +123,8 @@ extend NavScene {
             selected = (selected + 1) % agents.len;
         if (Input.KeyPressed(Scancode.N))
             showsNodes = !showsNodes;
+        if (Input.KeyPressed(Scancode.S))
+            separates = !separates;
 
         // Every agent asks every frame; the scheduler plans what is needed
         let dt = Input.deltaTime;
@@ -139,8 +145,9 @@ extend NavScene {
             if (distance < 0.01)
                 continue;
             let direction = toward / distance;
-            let apart = NavSeparation(agent.pos, (agent.size + 1) * NAV_TILE, positions.view);
-            let steer = (direction + apart * 0.8).NormalizedOr(direction);
+            // Away from every other agent within its size + 1 tiles (its own position is skipped)
+            agent.push = separates ? NavSeparation(agent.pos, (agent.size + 1) * NAV_TILE, positions.view) : Vec2(0, 0);
+            let steer = (direction + agent.push * 0.8).NormalizedOr(direction);
             let step = Min(NAV_SPEED * dt, distance);
             // Only where it still fits (this scene has no collision world): else along its path
             let moved = agent.pos + steer * step;
@@ -154,7 +161,7 @@ extend NavScene {
             Draw.LogLine("stuck and planned again: ", planner.stuckReplans);
 
         Render(cursor);
-        Draw.LogLine("navigation scene (F4): left mouse target, right mouse paint ", BrushName(brush), " (1 floor, 2 wall, 3 water, 4 low wall, 5 breakable), Tab agent, N nodes, middle mouse pan, wheel zoom");
+        Draw.LogLine("navigation scene (F4): left mouse target, right mouse paint ", BrushName(brush), " (1 floor, 2 wall, 3 water, 4 low wall, 5 breakable), Tab agent, N nodes, S separation (", separates, "), middle mouse pan, wheel zoom");
         if (planner.plansLastFrame > 0)
             Draw.LogSticky(60, Color.White, "planned ", planner.plansLastFrame, " path(s) in ", FormatFloat(planner.timeLastFrame * 1000, 3), " ms (", planner.waiting, " waiting)");
         for (let i, agent in agents) {
@@ -205,6 +212,8 @@ extend NavScene {
             let path = planner.PathOf(agent.nav);
             if (path != null)
                 path.Draw(agent.pos, i == selected ? 6 : 5, pathColor);
+            if (separates && agent.push != Vec2(0, 0))
+                Draw.Line(agent.pos, agent.pos + agent.push * 2 * NAV_TILE, 1.5, 7, Color.White);
         }
         // The target and the cursor's cell
         Draw.Line(target - Vec2(5, 5), target + Vec2(5, 5), 1.5, 7, Color.White);
