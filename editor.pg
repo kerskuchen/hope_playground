@@ -128,8 +128,8 @@ extend GameEditor {
             tilemap.SetWorld(Input.cursors.world, true);
         if (Input.MouseDown(MouseButton.Right))
             tilemap.SetWorld(Input.cursors.world, false);
-        ground.Render(Camera.viewportRect);
-        details.Render(Camera.viewportRect);
+        ground.Draw(Camera.viewportRect);
+        details.Draw(Camera.viewportRect);
         tilemap.DoFrame();
     }
 }
