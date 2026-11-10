@@ -1,4 +1,5 @@
-// The tilemap editor (F3, in the editor phase): a ground layer (TilemapLayer, random tiles) and a
+// The tilemap editor (F3, in the editor phase): ground layers (TilemapLayer: random ground tiles,
+// random details on top from a trimmed tileset) and a
 // dual-grid layer: left mouse button sets its tiles, right removes them
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -92,6 +93,7 @@ extend Tilemap {
 
 struct GameEditor {
     TilemapLayer ground;           // random ground tiles (R: again)
+    TilemapLayer details;          // on top: random details on some cells (a trimmed tileset)
     TilemapDualgrid tilemap;
     Random random;
 }
@@ -100,6 +102,7 @@ extend GameEditor {
     init() {
         random = Random(1);
         ground = TilemapLayer(Tileset(Draw.GetSprite("tiles_ground"), Vec2i(16, 16)), 16, 16, depth: 1);
+        details = TilemapLayer(Tileset(Draw.GetSprite("tiles_ground_details"), Vec2i(16, 16)), 16, 16, depth: 2);
         RandomizeGround();
         tilemap = TilemapDualgrid(Draw.GetSprite("tileset_test"), 16, 16, 10);
     }
@@ -108,6 +111,7 @@ extend GameEditor {
         for (let y in 0..ground.h) {
             for (let x in 0..ground.w) {
                 ground.Set(x, y, random.Range(0, ground.tileset.count) as byte);
+                details.Set(x, y, random.Chance(0.4) ? random.Range(0, details.tileset.count) as byte : TILE_EMPTY);
             }
         }
     }
@@ -125,6 +129,7 @@ extend GameEditor {
         if (Input.MouseDown(MouseButton.Right))
             tilemap.SetWorld(Input.cursors.world, false);
         ground.Render(Camera.viewportRect);
+        details.Render(Camera.viewportRect);
         tilemap.DoFrame();
     }
 }
