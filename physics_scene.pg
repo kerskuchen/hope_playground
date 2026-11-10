@@ -3,8 +3,10 @@
 // the cells are as big as the map can be on the screen.
 //
 // Everything is a collider on its layer: obstacles (circles and boxes, blue) block the circle and
-// shots, hitboxes (oriented boxes, some turning, purple) only stop shots, crates (orange) break
-// when the circle runs into them, when a shot hits them and in an explosion's blast. A blast also
+// shots, vehicles (a navigation circle, blue, and an oriented hitbox, purple: light, medium and
+// heavy) are pushed and turned by what hits them (external velocities, impulse.pg), crates
+// (orange) break when the circle runs into them, when a shot hits them and in an explosion's
+// blast. A blast also
 // breaks the wall tiles in it (not the border); F1 then F2 builds the scene again.
 //
 //     WASD              move the circle (it slides along the walls and the obstacles)
@@ -12,6 +14,8 @@
 //     space             shoot (a projectile: bounces when grazing and fast enough, loses speed
 //                       with every bounce, explodes when too slow or hitting head on)
 //     Q                 wide shots on/off (a circle: it does not fit through narrow gaps)
+//     E                 ram towards the mouse: a dash in a straight line through crates, to a
+//                       wall, an obstacle or a vehicle; both bounce off by their masses
 //     left/right mouse  add/remove tiles
 //     1, 2              smaller/bigger circle
 
@@ -26,6 +30,15 @@ const float PHYSICS_SHOT_BOUNCE_ANGLE = 35;        // grazing (degrees) below th
 const float PHYSICS_SHOT_SPEED_KEPT = 0.75;        // per bounce
 const float PHYSICS_BLAST_RADIUS = 1.5;            // in cells: crates and wall tiles in it break
 const float PHYSICS_WIDE_SHOT_RADIUS = 0.4;        // in cells
+// Impulses (mass * pixels / s for cells of 24; they scale with the cells)
+const float PHYSICS_SHOT_IMPULSE = 120;            // a shot's hit, along its flight
+const float PHYSICS_BLAST_IMPULSE = 250;           // an explosion's, away from it
+const float PHYSICS_PLAYER_MASS = 3;
+const float PHYSICS_RAM_SPEED = 1100;
+const float PHYSICS_RAM_TIME = 0.3;                // seconds (or to what stops it)
+const float PHYSICS_RAM_RESTITUTION_VEHICLE = 0.2; // how much a ram bounces back from a vehicle
+const float PHYSICS_RAM_RESTITUTION_WALL = 0.5;    // from a wall or an obstacle (more)
+const float PHYSICS_SLIDE_RESTITUTION = 0.3;       // something drifting into a wall
 
 // The scene's layers
 const uint LAYER_WALLS = 1;
@@ -47,12 +60,14 @@ struct DebugShot : Projectile {
     int bounces;
 }
 
-// An oriented box of the scene, in cells, turning by 'spin' degrees per second
-struct DebugOrientedBox {
-    Vec2 center;
-    Vec2 halfDim;
+// A vehicle of the scene: its hitbox (an oriented box) and its navigation circle; it only moves
+// by what hits it (it has no steering of its own)
+struct DebugVehicle {
+    Vec2 center;                   // in cells (the level is kept in cells: Layout)
+    Vec2 halfDim;                  // in cells
     float angle;
-    float spin;
+    float mass;
+    ExternalVelocity external;     // pixels / s, degrees / s
 }
 
 // Where a projectile exploded, drawn for a while
@@ -69,14 +84,18 @@ struct PhysicsScene {
     // The level in cells (the world gets them in pixels)
     List[Circle] circleCells;
     List[Box] boxCells;
-    List[DebugOrientedBox] orientedCells;
+    List[DebugVehicle] vehicles;
     List[Vec2] crateCells;         // crate centers
     List[bool] crateBroken;
     // The world and the colliders the scene changes
     CollisionWorld world;
     bool hasWorld;
     ColliderId player;
-    List[ColliderId] hitboxes;     // per oriented box
+    List[ColliderId] hitboxes;     // per vehicle
+    List[ColliderId] vehicleBodies;  // per vehicle: its navigation circle
+    ExternalVelocity playerExternal;
+    float ramTime;                 // > 0: ramming
+    Vec2 ramDirection;
     List[ColliderId] crates;       // per crate (None: broken)
     // The player's last slide, the shots
     List[Vec2] playerPath;
@@ -119,9 +138,9 @@ extend PhysicsScene {
         circleCells.Add(Circle(Vec2(12.5, 29), 1.7));
         circleCells.Add(Circle(Vec2(50, 25), 1));
         boxCells.Add(Box(Vec2(29, 31), Vec2(34, 33)));
-        orientedCells.Add(DebugOrientedBox(Vec2(10, 10), Vec2(3, 0.75), 30, 0));
-        orientedCells.Add(DebugOrientedBox(Vec2(44, 5), Vec2(2.5, 1), 0, 20));
-        orientedCells.Add(DebugOrientedBox(Vec2(55, 33), Vec2(1.5, 1.5), 10, -45));
+        vehicles.Add(DebugVehicle(center: Vec2(10, 6), halfDim: Vec2(1.2, 0.7), angle: 30, mass: 1));
+        vehicles.Add(DebugVehicle(center: Vec2(44, 5), halfDim: Vec2(1.8, 1), angle: 0, mass: 3));
+        vehicles.Add(DebugVehicle(center: Vec2(56, 33), halfDim: Vec2(2.6, 1.5), angle: 10, mass: 10));
         // Crates on open cells (deterministic, away from the player's start)
         let random = 12345 as uint;
         while (crateCells.len < PHYSICS_CRATES) {
@@ -170,7 +189,7 @@ extend PhysicsScene {
         world = CollisionWorld(tiles.bounds, cell * 3, &tiles, LAYER_WALLS);
         hasWorld = true;
         player = world.Add(Collider(ColliderShape.Circle(circle: Circle(ToWorld(playerCell), playerRadius * cell)),
-            LAYER_NAVIGATION, LAYER_WALLS | LAYER_OBSTACLE | LAYER_CRATE, OWNER_PLAYER));
+            LAYER_NAVIGATION, LAYER_WALLS | LAYER_OBSTACLE | LAYER_CRATE | LAYER_NAVIGATION, OWNER_PLAYER));
         for (let i, c in circleCells) {
             world.Add(Collider(ColliderShape.Circle(circle: Circle(ToWorld(c.center), c.radius * cell)), LAYER_OBSTACLE, 0, OWNER_OBSTACLE + i));
         }
@@ -178,8 +197,11 @@ extend PhysicsScene {
             world.Add(Collider(ColliderShape.Box(box: Box(ToWorld(b.min), ToWorld(b.max))), LAYER_OBSTACLE, 0, OWNER_OBSTACLE + circleCells.len + i));
         }
         hitboxes.Clear();
-        for (let i, o in orientedCells) {
-            hitboxes.Add(world.Add(Collider(ColliderShape.OrientedBox(orientedBox: OrientedBox(ToWorld(o.center), o.halfDim * cell, o.angle)), LAYER_HITBOX, 0, OWNER_HITBOX + i)));
+        vehicleBodies.Clear();
+        for (let i, v in vehicles) {
+            hitboxes.Add(world.Add(Collider(ColliderShape.OrientedBox(orientedBox: OrientedBox(ToWorld(v.center), v.halfDim * cell, v.angle)), LAYER_HITBOX, 0, OWNER_HITBOX + i)));
+            vehicleBodies.Add(world.Add(Collider(ColliderShape.Circle(circle: Circle(ToWorld(v.center), Min(v.halfDim.x, v.halfDim.y) * cell)),
+                LAYER_NAVIGATION, LAYER_WALLS | LAYER_OBSTACLE | LAYER_CRATE | LAYER_NAVIGATION, OWNER_HITBOX + i)));
         }
         crates.Clear();
         for (let i, center in crateCells) {
@@ -204,7 +226,75 @@ extend PhysicsScene {
 
     // What an owner is, for the log
     string OwnerName(int owner) {
-        return owner >= OWNER_CRATE ? "crate" : owner >= OWNER_HITBOX ? "hitbox" : owner >= OWNER_OBSTACLE ? "obstacle" : "player";
+        return owner >= OWNER_CRATE ? "crate" : owner >= OWNER_HITBOX ? "vehicle" : owner >= OWNER_OBSTACLE ? "obstacle" : "player";
+    }
+
+    // The vehicle an owner is (null: none)
+    DebugVehicle* VehicleOf(int owner) {
+        let index = owner - OWNER_HITBOX;
+        return 0 <= index && index < vehicles.len ? &vehicles[index] : null;
+    }
+
+    // An impulse on a vehicle at 'point' (its hitbox: pushed and turned)
+    void PushVehicle(DebugVehicle* vehicle, Vec2 impulse, Vec2 point) {
+        let halfDim = vehicle.halfDim * cell;
+        vehicle.external.ApplyImpulse(impulse, point, ToWorld(vehicle.center), vehicle.mass, Inertia.Box(vehicle.mass, halfDim));
+    }
+
+    // The vehicles drift and turn by their external velocities until drag stops them; a wall or
+    // another body they drift into stops that part (bouncing a little)
+    void MoveVehicles(float dt) {
+        for (let i, v in vehicles) {
+            if (!v.external.isResting) {
+                let slide = world.Slide(vehicleBodies[i], v.external.linear * dt);
+                if (slide.hasHit)
+                    v.external.HitSurface(slide.lastNormal, PHYSICS_SLIDE_RESTITUTION);
+                v.center = (slide.center - tiles.origin) / cell;
+                v.angle += v.external.angular * dt;
+                v.external.Damp(dt);
+            }
+            world.SetShape(hitboxes[i], ColliderShape.OrientedBox(orientedBox: OrientedBox(ToWorld(v.center), v.halfDim * cell, v.angle)));
+        }
+    }
+
+    // A ram's step: the player's circle along a straight line (a cast through the world, not a
+    // slide): through crates (they break), to a wall, an obstacle or a vehicle. There both bounce
+    // off: an impulse along the hit's normal from how fast they close in, the restitution and
+    // their masses (a wall: infinitely heavy). After it the ram's velocity is the player's
+    // external velocity (it drifts on, or back).
+    void RamStep(float dt) {
+        let body = world.Get(player).shape.circle;
+        let ramVelocity = ramDirection * PHYSICS_RAM_SPEED * (cell / 24);
+        let motion = ramVelocity * dt;
+        let stop = world.CircleCastThrough(body, motion, LAYER_WALLS | LAYER_OBSTACLE | LAYER_HITBOX | LAYER_CRATE, OWNER_PLAYER,
+            (WorldHit* hit) => {
+                if (!hit.isTile && hit.owner >= OWNER_CRATE) {
+                    BreakCrate(hit.owner);
+                    return true;                   // on through it
+                }
+                return false;
+            }
+        );
+        ramTime -= dt;
+        if (!stop.hasIntersection) {
+            world.MoveTo(player, body.center + motion);
+            if (ramTime <= 0)
+                playerExternal.linear = ramVelocity * 0.3;   // the dash ends: coasting out
+            return;
+        }
+        world.MoveTo(player, stop.enter + stop.normalEnter * SLIDE_SKIN);
+        ramTime = 0;
+        let normal = stop.normalEnter;             // out of what it hit, towards the player
+        let vehicle = stop.isTile ? null : VehicleOf(stop.owner);
+        let otherVelocity = vehicle != null ? vehicle.external.linear : Vec2(0, 0);
+        let closing = Max(Vec2.Dot(ramVelocity - otherVelocity, -normal), 0.0);
+        let restitution = vehicle != null ? PHYSICS_RAM_RESTITUTION_VEHICLE : PHYSICS_RAM_RESTITUTION_WALL;
+        let inverseMasses = 1 / PHYSICS_PLAYER_MASS + (vehicle != null ? 1 / vehicle.mass : 0);
+        let impulse = (1 + restitution) * closing / inverseMasses;
+        if (vehicle != null)
+            PushVehicle(vehicle, -normal * impulse, stop.enter - normal * body.radius);
+        playerExternal.linear = ramVelocity;
+        playerExternal.ApplyLinearImpulse(normal * impulse, PHYSICS_PLAYER_MASS);
     }
 
     void DoFrame() {
@@ -217,11 +307,7 @@ extend PhysicsScene {
         Camera.allowZooming = false;
         let dt = Input.deltaTime;
         Layout();
-        // The turning hitboxes
-        for (let i, o in orientedCells) {
-            o.angle += o.spin * dt;
-            world.SetShape(hitboxes[i], ColliderShape.OrientedBox(orientedBox: OrientedBox(ToWorld(o.center), o.halfDim * cell, o.angle)));
-        }
+        MoveVehicles(dt);
         let cursor = Input.cursors.world;
 
         // Tiles
@@ -249,11 +335,23 @@ extend PhysicsScene {
             direction.y -= 1;
         if (Input.KeyDown(Scancode.S))
             direction.y += 1;
-        let motion = direction.NormalizedOr(Vec2(0, 0)) * PHYSICS_MOVE_SPEED * (cell / 24) * dt;
+        // E rams towards the mouse; while ramming there is no steering
+        if (Input.KeyPressed(Scancode.E) && ramTime <= 0) {
+            ramTime = PHYSICS_RAM_TIME;
+            ramDirection = (cursor - body.center).NormalizedOr(Vec2(1, 0));
+        }
         playerPath.Clear();
         touched.Clear();
-        let slide = world.Slide(player, motion, &touched, &playerPath);
-        playerNormal = slide.lastNormal;
+        if (ramTime > 0) {
+            RamStep(dt);
+        } else {
+            let motion = (direction.NormalizedOr(Vec2(0, 0)) * PHYSICS_MOVE_SPEED * (cell / 24) + playerExternal.linear) * dt;
+            let slide = world.Slide(player, motion, &touched, &playerPath);
+            playerNormal = slide.lastNormal;
+            if (slide.hasHit)
+                playerExternal.HitSurface(slide.lastNormal, PHYSICS_SLIDE_RESTITUTION);
+            playerExternal.Damp(dt);
+        }
         for (let hit in touched) {
             if (!hit.isTile && hit.owner >= OWNER_CRATE)
                 BreakCrate(hit.owner);
@@ -287,6 +385,9 @@ extend PhysicsScene {
                     shot.trail.Add(hit.point);
                     if (!hit.isTile && hit.owner >= OWNER_CRATE)
                         BreakCrate(hit.owner);
+                    let vehicle = hit.isTile ? null : VehicleOf(hit.owner);
+                    if (vehicle != null)
+                        PushVehicle(vehicle, hit.direction * PHYSICS_SHOT_IMPULSE * (cell / 24), hit.contact);
                     shot.velocity = shot.velocity * PHYSICS_SHOT_SPEED_KEPT;
                     if (!hit.startsInside && hit.impactAngle < PHYSICS_SHOT_BOUNCE_ANGLE && shot.velocity.Length() >= PHYSICS_SHOT_MIN_SPEED * (cell / 24)) {
                         shot.bounces++;
@@ -311,7 +412,10 @@ extend PhysicsScene {
 
         Render(cursor, aimRay, &aimHit);
         let broken = crateBroken.Count((bool* isBroken) => *isBroken);
-        Draw.LogLine("physics scene (F2): WASD move, mouse aim, space shoot, Q wide shots (", wideShots, "), left/right mouse add/remove tiles, 1/2 circle size");
+        Draw.LogLine("physics scene (F2): WASD move, mouse aim, space shoot, Q wide shots (", wideShots, "), E ram, left/right mouse add/remove tiles, 1/2 circle size");
+        for (let i, v in vehicles) {
+            Draw.LogLine("vehicle ", i, " (mass ", v.mass, "): speed ", v.external.linear.Length() as int, " px/s, turning ", v.external.angular as int, " deg/s");
+        }
         Draw.LogLine("circle radius ", body.radius, ", slide steps ", playerPath.len - 1, ", shots ", shots.len, ", colliders ", world.count,
             ", crates broken ", broken, "/", crateCells.len);
         if (aimHit.hasIntersection)
@@ -323,7 +427,14 @@ extend PhysicsScene {
     // in the query: the world lets it change what it finds)
     void Explode(Vec2 point, Vec2 normal) {
         explosions.Add(DebugExplosion(point, normal, 0));
-        world.ForEachOverlap(ColliderShape.Circle(circle: Circle(point, PHYSICS_BLAST_RADIUS * cell)), LAYER_WALLS | LAYER_CRATE, (WorldOverlap* found) => {
+        world.ForEachOverlap(ColliderShape.Circle(circle: Circle(point, PHYSICS_BLAST_RADIUS * cell)), LAYER_WALLS | LAYER_CRATE | LAYER_HITBOX, (WorldOverlap* found) => {
+            let vehicle = found.isTile ? null : VehicleOf(found.owner);
+            if (vehicle != null) {
+                // Away from the blast, through its center (it only moves)
+                let away = (ToWorld(vehicle.center) - point).NormalizedOr(Vec2(0, -1));
+                vehicle.external.ApplyLinearImpulse(away * PHYSICS_BLAST_IMPULSE * (cell / 24), vehicle.mass);
+                return;
+            }
             if (!found.isTile) {
                 BreakCrate(found.owner);
                 return;
@@ -377,7 +488,14 @@ extend PhysicsScene {
 
         // The player, its slide steps and its last hit's normal
         let body = world.Get(player).shape.circle;
-        Draw.CircleOutline(body, 1.5 * pixel, 5, Color(0.3, 1, 0.4, 1));
+        Draw.CircleOutline(body, 1.5 * pixel, 5, ramTime > 0 ? Color(1, 0.3, 0.3, 1) : Color(0.3, 1, 0.4, 1));
+        // The external velocities (where they drift)
+        if (!playerExternal.isResting)
+            Draw.Line(body.center, body.center + playerExternal.linear * 0.1, thin, 6, Color(0.3, 1, 1, 1));
+        for (let v in vehicles) {
+            if (!v.external.isResting)
+                Draw.Line(ToWorld(v.center), ToWorld(v.center) + v.external.linear * 0.1, thin, 6, Color(0.3, 1, 1, 1));
+        }
         for (let step in 1..playerPath.len) {
             Draw.Line(playerPath[step - 1], playerPath[step], thin, 6, Color(1, 1, 1, 1));
         }
