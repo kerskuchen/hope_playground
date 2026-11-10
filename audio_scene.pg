@@ -1,7 +1,10 @@
-// The audio scene (F6, in the level phase): the music and the spatial audio test. The listener is
-// the window's center; positions are window pixels relative to it.
+// The audio scene (F6, in the level phase): music in layers on the beat grid and the spatial
+// audio test. The listener is the window's center; positions are window pixels relative to it.
 //
-//     M                 the music fades out and in again
+//     M                 the music (MusicLayers: level1-step1 .. 3 at 100 BPM, from the next
+//                       measure) on, or fading out
+//     1, 2, 3           its intensity: crossfades over the half beat before the next measure
+//     B                 a metronome (AudioPulse): a beep on every beat, higher on a measure's first
 //     Space             the coin at the mouse (spatial)
 //     T                 a 440 Hz sine at the mouse: pan, distance and Doppler can be heard
 //     F                 the sine's falloff (linear, inverse)
@@ -11,7 +14,11 @@
 //     G                 slow motion (the global playback speed 0.5)
 
 struct AudioScene {
-    AudioStreamId music;
+    MusicLayers music;
+    bool hasMusic;
+    int bpm;
+    AudioPulse metronome;
+    bool isTicking;                // B
     AudioStreamId sine;
     Vec2 sinePosition;
     Vec2 sineVelocity;             // smoothed
@@ -23,12 +30,20 @@ struct AudioScene {
 
 extend AudioScene {
     init() {
-        music = Audio.Play("level1-step1", AudioTrack.Music, volume: 0.7, loop: true, fadeIn: 1);
+        bpm = Audio.RecordingBpm("level1-step1");
+        metronome = AudioPulse(AudioBeat.Beat, bpm);
+        StartMusic();
+    }
+
+    void StartMusic() {
+        music = MusicLayers(["level1-step1", "level1-step2", "level1-step3"], volume: 0.7, fadeIn: 1);
+        hasMusic = true;
     }
 
     // Before the scene goes: its streams stop
     void Leave() {
-        Audio.Stop(music, fadeOut: 0.3);
+        if (hasMusic)
+            music.Stop(fadeOut: 0.3);
         if (sine.value != 0)
             Audio.Stop(sine, fadeOut: 0.05);
         Audio.globalPlaybackSpeed = 1;
@@ -46,17 +61,39 @@ extend AudioScene {
         if (Input.KeyPressed(Scancode.Space))
             Audio.SetReverbSend(Audio.PlaySpatial("sfx_coin_double1", mouse, falloff: SineFalloff()), reverbRoom == 0 ? 0 : 0.3);
         DoSpatialTest(mouse);
-        if (Input.KeyPressed(Scancode.M)) {
-            if (Audio.IsFinished(music) || Audio.GetStream(music) == null || Audio.GetStream(music).volume < 0.01)
-                music = Audio.Play("level1-step1", AudioTrack.Music, volume: 0.7, loop: true, fadeIn: 1);
-            else
-                Audio.Stop(music, fadeOut: 1);
-        }
-        let musicInfo = Audio.GetStream(music);
-        if (musicInfo != null)
-            Draw.LogLine("M music ", (int)(musicInfo.position * 10) / 10.0, " s (", (int)musicInfo.percentFinished, " %)");
+        DoMusic();
         Draw.LogLine("DSP time ", (int)(Audio.dspTime * 10) / 10.0, " s, real ", (int)(Audio.dspTimeReal * 10) / 10.0, " s");
         Render(mouse);
+    }
+
+    // The music in layers and the metronome on its beats
+    void DoMusic() {
+        if (Input.KeyPressed(Scancode.M)) {
+            if (hasMusic) {
+                music.Stop(fadeOut: 1);
+                music.Free();
+                hasMusic = false;
+            } else {
+                StartMusic();
+            }
+        }
+        for (let level in 0..3) {
+            if (hasMusic && Input.KeyPressed((Scancode)((int)Scancode.Alpha1 + level)))
+                music.SetIntensity(level);
+        }
+        if (Input.KeyPressed(Scancode.B)) {
+            isTicking = !isTicking;
+            metronome = AudioPulse(AudioBeat.Beat, bpm);
+        }
+        // Each beat scheduled ahead at its exact time: a short beep (an octave higher on a measure's first)
+        for (let beat = isTicking ? metronome.Poll() : AudioPulseBeat(); beat.isDue; beat = metronome.Poll()) {
+            let first = beat.index % 4 == 0;
+            let tick = Audio.Play("debug_sine440", AudioTrack.Sound, volume: 0.25, playbackSpeed: first ? 2 : 1, start: AudioTime.At(beat.time), fadeIn: 0.005);
+            Audio.Stop(tick, fadeOut: 0.03, at: AudioTime.At(beat.time + 0.06));
+        }
+        let beatNow = Audio.IndexAt(AudioBeat.Beat, Audio.dspTime, bpm);
+        Draw.LogLine("M music (", hasMusic, "), 1 2 3 intensity (", hasMusic ? music.intensity + 1 : 0, "), B metronome (", isTicking, "): ", bpm, " BPM, measure ",
+            Audio.IndexAt(AudioBeat.Measure, Audio.dspTime, bpm), " beat ", beatNow % 4 + 1);
     }
 
     void DoSpatialTest(Vec2 mouse) {
@@ -111,10 +148,18 @@ extend AudioScene {
         }
     }
 
-    // In window pixels: the listener in the middle, the falloff's distances around it, the sine
+    // In window pixels: the listener in the middle, the falloff's distances around it, the sine;
+    // the beats of the measure at the bottom (the current one lit; the intensity's color)
     void Render(Vec2 mouse) {
         let center = (Vec2)Input.windowDim * 0.5;
         let screen = (Color color) => DrawParams(color: color, space: DrawSpace.Screen);
+        let beatNow = (int)(Audio.IndexAt(AudioBeat.Beat, Audio.dspTime, bpm) % 4);
+        let level = hasMusic ? music.intensity : -1;
+        let lit = level == 0 ? Color(0.4, 1, 0.5, 1) : level == 1 ? Color(1, 0.85, 0.3, 1) : level == 2 ? Color(1, 0.35, 0.3, 1) : Color(0.7, 0.7, 0.7, 1);
+        for (let i in 0..4) {
+            let box = Rect(Vec2(center.x - 90 + i * 46, Input.windowDim.y - 70), Vec2(36, 36));
+            Draw.Rect(box, 2, screen(i == beatNow ? lit : Color(0.25, 0.25, 0.25, 1)));
+        }
         let falloff = SineFalloff();
         Draw.CircleOutline(Circle(center, falloff.minDistance), 1, 2, screen(Color(0.4, 1, 0.4, 0.8)));
         Draw.CircleOutline(Circle(center, falloff.maxDistance), 1, 2, screen(Color(1, 0.4, 0.4, 0.6)));
