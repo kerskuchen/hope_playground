@@ -125,27 +125,33 @@ extend NavScene {
         for (let agent in agents) {
             planner.Request(agent.nav, agent.pos, target);
         }
-        planner.Update();
+        planner.Update(dt);
+        // Where the others are (separation: agents on the same path keep apart)
+        let positions = List[Vec2]();
+        defer positions.Free();
         for (let agent in agents) {
-            // Straight at the next waypoint
-            let step = NAV_SPEED * dt;
-            while (step > 0 && !planner.HasArrived(agent.nav, agent.pos, 0.01)) {
-                let heading = planner.NextWaypoint(agent.nav, agent.pos, 0.01);
-                let toward = heading - agent.pos;
-                let distance = toward.Length();
-                if (distance <= step) {
-                    agent.pos = heading;
-                    step -= distance;
-                } else {
-                    agent.pos += toward * (step / distance);
-                    step = 0;
-                }
-                if (distance == 0)
-                    break;
-            }
+            positions.Add(agent.pos);
+        }
+        for (let agent in agents) {
+            let heading = planner.NextWaypoint(agent.nav, agent.pos, 1);
+            let toward = heading - agent.pos;
+            let distance = toward.Length();
+            if (distance < 0.01)
+                continue;
+            let direction = toward / distance;
+            let apart = NavSeparation(agent.pos, (agent.size + 1) * NAV_TILE, positions.view);
+            let steer = (direction + apart * 0.8).NormalizedOr(direction);
+            let step = Min(NAV_SPEED * dt, distance);
+            // Only where it still fits (this scene has no collision world): else along its path
+            let moved = agent.pos + steer * step;
+            if (!nav.IsWalkable(agent.profile, agent.size, nav.NodeAt(agent.size, moved)))
+                moved = agent.pos + direction * step;
+            agent.pos = moved;
             if (agent.breaksWalls)
                 BreakWalls(agent);
         }
+        if (planner.stuckReplans > 0)
+            Draw.LogLine("stuck and planned again: ", planner.stuckReplans);
 
         Render(cursor);
         Draw.LogLine("navigation scene (F4): left mouse target, right mouse paint ", BrushName(brush), " (1 floor, 2 wall, 3 water, 4 low wall, 5 breakable), Tab agent, N nodes, middle mouse pan, wheel zoom");
