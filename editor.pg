@@ -1,11 +1,16 @@
 // The tilemap editor (F3, in the editor phase): ground layers (TilemapLayer: random ground tiles,
 // random details on top from a trimmed tileset) and walls (TilemapDualgrid: left mouse button
-// sets their cells, right removes them; the drawn tiles follow)
+// sets their cells, right removes them; the drawn tiles follow). Between them a Decalmap: space
+// paints a scorch mark at the cursor, T drags tire tracks, F scatters 500 scorches, C clears.
+// (No decal art yet: the scorch is a dynamic sprite itself, painted from the untextured pixel.)
 
 struct GameEditor {
     TilemapLayer ground;           // random ground tiles (R: again)
     TilemapLayer details;          // on top: random details on some cells (a trimmed tileset)
     TilemapDualgrid walls;
+    Decalmap decals;               // above the ground, below the walls (chunks of 128 px: 2 x 2, their seams show it works)
+    DynamicSprite* scorch;         // the placeholder scorch mark
+    Vec2 lastTrack;                // T: where the last tire track was painted
     bool showsCells;               // D: the walls' solid cells
     Random random;
 }
@@ -26,6 +31,37 @@ extend GameEditor {
         walls.Set(14, 5, true);
         walls.Set(12, 11, true);
         walls.Set(13, 12, true);                   // only touching diagonally
+        decals = Decalmap(16 * 16, 16 * 16, depth: 3, chunkSize: 128);
+        scorch = MakeScorch();
+    }
+
+    // A 24 x 24 blotch: dark, translucent squares turned around the middle
+    DynamicSprite* MakeScorch() {
+        let mark = Draw.CreateDynamicSprite(24, 24);
+        let untextured = Draw.GetSprite("untextured");
+        let shape = Random(7);
+        for (let i in 0..14) {
+            let size = shape.Range(5.0, 13.0);
+            let at = Vec2(12, 12) + Vec2(shape.Range(-4.0, 4.0), shape.Range(-4.0, 4.0));
+            Draw.SpriteToDynamic(mark, untextured, Transform(at, shape.Range(0.0, 90.0), Vec2(size, size)), DrawParams(color: Color(0.05, 0.04, 0.03, 0.3)));
+        }
+        return mark;
+    }
+
+    void PaintScorch(Vec2 at) {
+        let scale = random.Range(0.7, 1.4);
+        // (the sprite's pivot is its left top: turned and scaled around the middle)
+        let angle = random.Range(0.0, 360.0);
+        let radians = angle * DegToRad;
+        let half = 12 * scale;
+        let middle = Vec2(Cos(radians) * half - Sin(radians) * half, Sin(radians) * half + Cos(radians) * half);
+        decals.Add(scorch.sprite, Transform(at - middle, angle, Vec2(scale, scale)), DrawParams(color: Color(1, 1, 1, random.Range(0.6, 1.0))));
+    }
+
+    // Leaving the editor (its phase is wiped): the decal map's and the scorch's atlas regions back
+    void Leave() {
+        decals.Free();
+        Draw.FreeDynamicSprite(scorch);
     }
 
     void RandomizeGround() {
@@ -43,10 +79,35 @@ extend GameEditor {
         Camera.allowPanning = true;                // middle mouse button
         Camera.allowZooming = true;                // wheel
         Draw.LogLine("tilemap editor (F3): left/right mouse set/remove walls, R new ground, D show cells (", showsCells, "), middle mouse pan, wheel zoom (", Camera.zoom, ")");
+        Draw.LogLine("decals: space scorch, T drag tire tracks, F 500 scorches, C clear (waiting ", decals.pendingCount, ")");
         if (Input.KeyPressed(Scancode.R))
             RandomizeGround();
         if (Input.KeyPressed(Scancode.D))
             showsCells = !showsCells;
+        let cursor = Input.cursors.world;
+        if (Input.KeyPressed(Scancode.Space))
+            PaintScorch(cursor);
+        if (Input.KeyPressed(Scancode.F)) {
+            for (let i in 0..500) {
+                PaintScorch(Vec2(random.Range(0.0, 256.0), random.Range(0.0, 256.0)));
+            }
+        }
+        // Tire tracks: two rows of small marks across the way the cursor moves
+        if (Input.KeyPressed(Scancode.T))
+            lastTrack = cursor;
+        if (Input.KeyDown(Scancode.T) && (cursor - lastTrack).Length() >= 3) {
+            let along = (cursor - lastTrack).Normalized();
+            let side = Vec2(-along.y, along.x);
+            let angle = Atan2(along.y, along.x) / DegToRad;
+            let track = DrawParams(color: Color(0.06, 0.05, 0.04, 0.5));
+            decals.Add(Draw.GetSprite("untextured"), Transform(cursor - side * 5, angle, Vec2(3, 2)), track);
+            decals.Add(Draw.GetSprite("untextured"), Transform(cursor + side * 4, angle, Vec2(3, 2)), track);
+            lastTrack = cursor;
+        }
+        if (Input.KeyPressed(Scancode.C)) {
+            decals.Free();
+            decals = Decalmap(16 * 16, 16 * 16, depth: 3, chunkSize: 128);   // (takes the freed chunks again)
+        }
         let cell = walls.WorldToCell(Input.cursors.world, walls.tileSize, walls.origin);
         if (Input.MouseDown(MouseButton.Left))
             walls.Set(cell, true);
@@ -54,6 +115,7 @@ extend GameEditor {
             walls.Set(cell, false);
         ground.Draw(Camera.viewportRect);
         details.Draw(Camera.viewportRect);
+        decals.Draw(Camera.viewportRect);
         walls.Draw(Camera.viewportRect);
         if (showsCells) {
             for (let y in 0..walls.h) {

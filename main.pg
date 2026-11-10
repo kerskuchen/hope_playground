@@ -315,6 +315,7 @@ extend Playground {
             Memory.WipeLevel();
         }
         if (editor != null) {
+            editor.Leave();
             editor = null;
             Memory.WipeEditor();
         }
