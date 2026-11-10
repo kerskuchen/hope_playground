@@ -1,100 +1,12 @@
 // The tilemap editor (F3, in the editor phase): ground layers (TilemapLayer: random ground tiles,
-// random details on top from a trimmed tileset) and a
-// dual-grid layer: left mouse button sets its tiles, right removes them
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Tilemap
-
-// A tileset sprite cut into 4x4 tiles for the dual grid
-struct TilesetDualgrid {
-    Sprite* tileset;
-    [SpriteGridSlice, 16] regions;
-    float size;
-}
-
-extend TilesetDualgrid {
-    init(Sprite* tileset) {
-        self.tileset = tileset;
-        size = tileset.dim.x / 4;
-        for (let index in 0..16) {
-            regions[index] = SpriteGridSlice(tileset, 4, 4, index / 4, index % 4);
-        }
-    }
-
-    SpriteGridSlice* GetSpriteForNeighborMask(bool leftTop, bool rightTop, bool leftBottom, bool rightBottom) {
-        let mask = (leftTop ? 8 : 0) | (rightTop ? 4 : 0) | (leftBottom ? 2 : 0) | (rightBottom ? 1 : 0);
-        return &regions[NEIGHBOR_MASK_TO_TILE_INDEX[mask]];
-    }
-}
-
-// The tile index for each neighbor mask (occupied corners: left-top 8, right-top 4,
-// left-bottom 2, right-bottom 1), as laid out in the tileset sprite
-[int, 16] NEIGHBOR_MASK_TO_TILE_INDEX = [0, 4, 3, 5, 1, 13, 8, 6, 12, 2, 7, 11, 15, 9, 14, 10];
-
-// Uses the dual-grid system as explained by jess::codes in https://www.youtube.com/watch?v=jEWFSv3ivTg
-struct TilemapDualgrid {
-    TilesetDualgrid tileset;
-    Grid[bool] tilesLogic;
-    Grid[byte] tilesDisplay;
-    float depth;
-}
-
-extend TilemapDualgrid {
-    init(Sprite* tileset, int width, int height, float depth) {
-        self.tileset = TilesetDualgrid(tileset);
-        tilesLogic = Grid[bool](width, height);
-        tilesDisplay = Grid[byte](width, height);
-        self.depth = depth;
-    }
-
-    void Set(int x, int y, bool occupied) { tilesLogic.Set(x, y, occupied); }
-
-    void SetWorld(Vec2 worldPos, bool occupied) {
-        let cell = tilesLogic.WorldToCell(worldPos, tileset.size);
-        if (tilesLogic.rect.Contains(cell))
-            tilesLogic.Set(cell, occupied);
-    }
-
-    void DoFrame() {
-        for (let y in 0..tilesLogic.h) {
-            for (let x in 0..tilesLogic.w) {
-                if (tilesLogic.Get(x, y))
-                    Draw.Rect(Vec2(x, y) * tileset.size, Vec2(tileset.size), depth, Color.Red);
-            }
-        }
-        // TODO (as in the C# version): tilesDisplay is not computed from tilesLogic yet
-        for (let y in 0..tilesDisplay.h) {
-            for (let x in 0..tilesDisplay.w) {
-                let tile = tilesDisplay.Get(x, y) % 16;
-                if (tile != 0) {
-                    let slice = &tileset.regions[tile];
-                    Draw.SpriteSlice(slice, slice.colIndex, slice.rowIndex, Vec2(x, y) * tileset.size, depth);
-                }
-            }
-        }
-    }
-}
-
-struct Tilemap {
-    List[TilemapDualgrid] layers;
-    float depth;
-}
-
-extend Tilemap {
-    void DoFrame() {
-        for (let layer in layers) {
-            layer.DoFrame();
-        }
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Editor
+// random details on top from a trimmed tileset) and walls (TilemapDualgrid: left mouse button
+// sets their cells, right removes them; the drawn tiles follow)
 
 struct GameEditor {
     TilemapLayer ground;           // random ground tiles (R: again)
     TilemapLayer details;          // on top: random details on some cells (a trimmed tileset)
-    TilemapDualgrid tilemap;
+    TilemapDualgrid walls;
+    bool showsCells;               // D: the walls' solid cells
     Random random;
 }
 
@@ -104,7 +16,16 @@ extend GameEditor {
         ground = TilemapLayer(Tileset(Draw.GetSprite("tiles_ground"), Vec2i(16, 16)), 16, 16, depth: 1);
         details = TilemapLayer(Tileset(Draw.GetSprite("tiles_ground_details"), Vec2i(16, 16)), 16, 16, depth: 2);
         RandomizeGround();
-        tilemap = TilemapDualgrid(Draw.GetSprite("tileset_test"), 16, 16, 10);
+        walls = TilemapDualgrid(TilesetDualgrid(Draw.GetSprite("tileset_test")), 16, 16, depth: 10);
+        // A room (with a Grid helper, then Refresh) and a few single cells (Set refreshes)
+        walls.DrawRect(Recti(2, 2, 9, 7), false, true);
+        walls.Set(6, 2, false);                    // a door
+        walls.Refresh();
+        walls.Set(13, 4, true);
+        walls.Set(13, 5, true);
+        walls.Set(14, 5, true);
+        walls.Set(12, 11, true);
+        walls.Set(13, 12, true);                   // only touching diagonally
     }
 
     void RandomizeGround() {
@@ -121,15 +42,26 @@ extend GameEditor {
         Camera.rotation = 0;
         Camera.allowPanning = true;                // middle mouse button
         Camera.allowZooming = true;                // wheel
-        Draw.LogLine("tilemap editor (F3): left/right mouse set/remove tiles, R new ground, middle mouse pan, wheel zoom (", Camera.zoom, ")");
+        Draw.LogLine("tilemap editor (F3): left/right mouse set/remove walls, R new ground, D show cells (", showsCells, "), middle mouse pan, wheel zoom (", Camera.zoom, ")");
         if (Input.KeyPressed(Scancode.R))
             RandomizeGround();
+        if (Input.KeyPressed(Scancode.D))
+            showsCells = !showsCells;
+        let cell = walls.WorldToCell(Input.cursors.world, walls.tileSize, walls.origin);
         if (Input.MouseDown(MouseButton.Left))
-            tilemap.SetWorld(Input.cursors.world, true);
+            walls.Set(cell, true);
         if (Input.MouseDown(MouseButton.Right))
-            tilemap.SetWorld(Input.cursors.world, false);
+            walls.Set(cell, false);
         ground.Draw(Camera.viewportRect);
         details.Draw(Camera.viewportRect);
-        tilemap.DoFrame();
+        walls.Draw(Camera.viewportRect);
+        if (showsCells) {
+            for (let y in 0..walls.h) {
+                for (let x in 0..walls.w) {
+                    if (walls.Get(x, y))
+                        Draw.Rect(walls.CellToWorldRect(Vec2i(x, y), walls.tileSize, walls.origin), 11, Color(1, 0, 0, 0.35));
+                }
+            }
+        }
     }
 }
