@@ -4,12 +4,14 @@
 //
 // Everything is a collider on its layer: obstacles (circles and boxes, blue) block the circle and
 // shots, hitboxes (oriented boxes, some turning, purple) only stop shots, crates (orange) break
-// when the circle runs into them, when a shot hits them and in an explosion's blast.
+// when the circle runs into them, when a shot hits them and in an explosion's blast. A blast also
+// breaks the wall tiles in it (not the border); F1 then F2 builds the scene again.
 //
 //     WASD              move the circle (it slides along the walls and the obstacles)
 //     mouse             aim: the ray to the first hit, its normal
 //     space             shoot (a projectile: bounces when grazing and fast enough, loses speed
 //                       with every bounce, explodes when too slow or hitting head on)
+//     Q                 wide shots on/off (a circle: it does not fit through narrow gaps)
 //     left/right mouse  add/remove tiles
 //     1, 2              smaller/bigger circle
 
@@ -22,7 +24,8 @@ const float PHYSICS_SHOT_SPEED = 1500;
 const float PHYSICS_SHOT_MIN_SPEED = 250;          // slower explodes
 const float PHYSICS_SHOT_BOUNCE_ANGLE = 35;        // grazing (degrees) below this bounces
 const float PHYSICS_SHOT_SPEED_KEPT = 0.75;        // per bounce
-const float PHYSICS_BLAST_RADIUS = 1.5;            // in cells: crates in it break
+const float PHYSICS_BLAST_RADIUS = 1.5;            // in cells: crates and wall tiles in it break
+const float PHYSICS_WIDE_SHOT_RADIUS = 0.4;        // in cells
 
 // The scene's layers
 const uint LAYER_WALLS = 1;
@@ -81,6 +84,7 @@ struct PhysicsScene {
     List[WorldHit] touched;
     List[DebugShot] shots;
     List[DebugExplosion] explosions;
+    bool wideShots;                // Q
     float pixel = 1;               // the lines' width
 }
 
@@ -257,18 +261,22 @@ extend PhysicsScene {
         body = world.Get(player).shape.circle;
 
         // Aiming: a ray to the cursor and on
+        if (Input.KeyPressed(Scancode.Q))
+            wideShots = !wideShots;
+        let shotRadius = wideShots ? PHYSICS_WIDE_SHOT_RADIUS * cell : 0.0;
         let aim = (cursor - body.center).NormalizedOr(Vec2(1, 0));
-        let muzzle = body.center + aim * (body.radius + 4);
+        let muzzle = body.center + aim * (body.radius + shotRadius + 4);
         let aimRay = Line(muzzle, muzzle + aim * 3000);
         ProjectileHit aimHit;
-        aimHit.WorldHit = world.Raycast(aimRay, SHOT_MASK);
+        aimHit.WorldHit = wideShots ? world.CircleCast(Circle(muzzle, shotRadius), aimRay.end - aimRay.start, SHOT_MASK) : world.Raycast(aimRay, SHOT_MASK);
         aimHit.direction = aim;
+        aimHit.radius = shotRadius;
 
         // Shooting: every hit costs speed; grazing and still fast it bounces, else it explodes
         // (also when it starts inside something: the scene's choice). Crates it hits break, so
         // does every crate in the blast.
         if (Input.KeyPressed(Scancode.Space)) {
-            let shot = DebugShot(position: muzzle, velocity: aim * PHYSICS_SHOT_SPEED * (cell / 24));
+            let shot = DebugShot(position: muzzle, velocity: aim * PHYSICS_SHOT_SPEED * (cell / 24), radius: shotRadius);
             shot.trail.Add(muzzle);
             shots.Add(shot);
         }
@@ -303,7 +311,7 @@ extend PhysicsScene {
 
         Render(cursor, aimRay, &aimHit);
         let broken = crateBroken.Count((bool* isBroken) => *isBroken);
-        Draw.LogLine("physics scene (F2): WASD move, mouse aim, space shoot, left/right mouse add/remove tiles, 1/2 circle size");
+        Draw.LogLine("physics scene (F2): WASD move, mouse aim, space shoot, Q wide shots (", wideShots, "), left/right mouse add/remove tiles, 1/2 circle size");
         Draw.LogLine("circle radius ", body.radius, ", slide steps ", playerPath.len - 1, ", shots ", shots.len, ", colliders ", world.count,
             ", crates broken ", broken, "/", crateCells.len);
         if (aimHit.hasIntersection)
@@ -311,16 +319,19 @@ extend PhysicsScene {
                 " impact angle ", FormatFloat(aimHit.impactAngle, 1), aimHit.startsInside ? " (starts inside)" : "");
     }
 
-    // An explosion: drawn for a while, the crates in its blast break
+    // An explosion: drawn for a while, the crates and the wall tiles in its blast break (right
+    // in the query: the world lets it change what it finds)
     void Explode(Vec2 point, Vec2 normal) {
         explosions.Add(DebugExplosion(point, normal, 0));
-        let blasted = List[int](allocator: context.temp);
-        world.ForEachOverlap(ColliderShape.Circle(circle: Circle(point, PHYSICS_BLAST_RADIUS * cell)), LAYER_CRATE, (ColliderId id, Collider* collider) => {
-            blasted.Add(collider.owner);
+        world.ForEachOverlap(ColliderShape.Circle(circle: Circle(point, PHYSICS_BLAST_RADIUS * cell)), LAYER_WALLS | LAYER_CRATE, (WorldOverlap* found) => {
+            if (!found.isTile) {
+                BreakCrate(found.owner);
+                return;
+            }
+            let border = found.cell.x == 0 || found.cell.y == 0 || found.cell.x == solid.w - 1 || found.cell.y == solid.h - 1;
+            if (!border)
+                solid.Set(found.cell.x, found.cell.y, false);
         });
-        for (let owner in blasted) {
-            BreakCrate(*owner);
-        }
     }
 
     void Render(Vec2 cursor, Line aimRay, ProjectileHit* aimHit) {
@@ -377,8 +388,8 @@ extend PhysicsScene {
         let aimEnd = aimHit.hasIntersection ? aimHit.point : aimRay.end;
         Draw.Line(aimRay.start, aimEnd, thin, 7, Color(1, 0.2, 0.8, 0.8));
         if (aimHit.hasIntersection) {
-            Draw.CircleOutline(Circle(aimHit.point, 3), thin, 7, Color(1, 0.2, 0.8, 1));
-            Draw.Line(aimHit.point, aimHit.point + aimHit.normal * 20, thin, 7, Color(1, 1, 0.2, 1));
+            Draw.CircleOutline(Circle(aimHit.point, Max(aimHit.radius, 3.0)), thin, 7, Color(1, 0.2, 0.8, 1));
+            Draw.Line(aimHit.contact, aimHit.contact + aimHit.normal * 20, thin, 7, Color(1, 1, 0.2, 1));
         }
 
         // Shots with their trails, explosions (with their blast)
@@ -388,6 +399,8 @@ extend PhysicsScene {
             }
             if (shot.trail.len > 0)
                 Draw.Line(*shot.trail.last, shot.position, thin, 8, Color(1, 0.8, 0.3, 0.6));
+            if (shot.radius > 0)
+                Draw.CircleOutline(Circle(shot.position, shot.radius), thin, 9, Color(1, 0.9, 0.4, 1));
             Draw.Circle(shot.position, 2.5, 9, Color(1, 0.9, 0.4, 1));
         }
         for (let explosion in explosions) {
