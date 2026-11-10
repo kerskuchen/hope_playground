@@ -44,7 +44,8 @@ extend Susi {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// The start scene (F1): Sorcy runs in circles, Susi drives, the audio tests
+// The start scene (F1): Sorcy runs in circles, Susi drives, the camera tests (the audio tests:
+// the audio scene, F6)
 
 struct StartScene {
     float time;
@@ -52,96 +53,22 @@ struct StartScene {
     AnimationPlayer sorcyAnim;
     AnimationPlayer ghostyAnim;
     bool showsGrid;                // 6: a world grid at the window's resolution (DrawSpace.ScreenWorld)
-    AudioStreamId music;           // M fades it out and in again
     ShakeId rumble;                // 4: a continuous shake, on and off
     bool isFollowingSusi;          // C: the camera follows Susi
     bool isRumbling;
-    // The spatial audio test (T): a 440 Hz sine at the mouse, the listener in the screen's center
-    AudioStreamId sine;
-    Vec2 sinePosition;
-    Vec2 sineVelocity;             // smoothed
-    AudioFalloffCurve sineFalloff; // F switches it
-    bool isSineFloored;            // K: a minimum loudness of 0.2
-    int reverbRoom;                // R: 0 dry, 1 a small room, 2 a big hall (the farther, the wetter)
-    bool isSineFiltered;           // L
 }
 
 extend StartScene {
-    // T: a 440 Hz sine at the mouse (position and velocity relative to the screen's center, where
-    // the listener is), so pan, distance and Doppler can be heard; F switches the falloff, L the
-    // low-pass filter, K a minimum loudness, G slow motion (the global playback speed 0.5)
-    // The sine's falloff: silent (or at its minimum loudness) from half the screen's diagonal on
-    AudioFalloffParams SineFalloff() {
-        return AudioFalloffParams(curve: sineFalloff, minDistance: 20, maxDistance: ((Vec2)Input.windowDim).Length() * 0.5, minLoudness: isSineFloored ? 0.2 : 0, reverbAtMaxDistance: reverbRoom == 2 ? 0.9 : 0);
-    }
-
-    void DoSpatialTest(Vec2 mouse) {
-        let settings = Audio.spatialSettings;
-        settings.panWidth = Input.windowDim.x * 0.5;
-        Audio.SetListener(Vec2.Zero, Vec2.Zero);
-        let dt = Max(Input.deltaTimeReal, 0.001);
-        let velocity = (mouse - sinePosition) * (1 / dt);
-        sineVelocity = Vec2.Lerp(sineVelocity, velocity, 0.3);        // smoothed: the mouse moves in steps
-        sinePosition = mouse;
-        let isPlaying = sine.value != 0 && !Audio.IsFinished(sine);
-        let restart = false;
-        if (Input.KeyPressed(Scancode.F)) {
-            sineFalloff = sineFalloff == AudioFalloffCurve.Linear ? AudioFalloffCurve.Inverse : AudioFalloffCurve.Linear;
-            restart = isPlaying;                  // the falloff is the stream's from its start
-        }
-        if (Input.KeyPressed(Scancode.K)) {
-            isSineFloored = !isSineFloored;
-            restart = isPlaying;
-        }
-        if (Input.KeyPressed(Scancode.R)) {
-            reverbRoom = (reverbRoom + 1) % 3;
-            if (reverbRoom == 1)
-                Audio.SetReverb(AudioReverbParams(roomSize: 0.3, damping: 0.7, wetGain: 1, preDelay: 0.005));
-            if (reverbRoom == 2)
-                Audio.SetReverb(AudioReverbParams(roomSize: 0.92, damping: 0.25, wetGain: 1, preDelay: 0.04));
-            restart = isPlaying;                  // (the distance's reverb is the falloff's)
-        }
-        if (Input.KeyPressed(Scancode.T) || restart) {
-            if (isPlaying) {
-                Audio.Stop(sine, fadeOut: 0.05);
-                sine = AudioStreamId(0);
-            }
-            if (!isPlaying || restart) {
-                sine = Audio.PlaySpatial("debug_sine440", sinePosition, sineVelocity, SineFalloff(), volume: 0.5, loop: true, fadeIn: 0.05);
-                Audio.SetLowpass(sine, isSineFiltered ? 0.6 : 0);
-                Audio.SetReverbSend(sine, reverbRoom == 0 ? 0 : 0.3);
-            }
-        }
-        if (Input.KeyPressed(Scancode.L)) {
-            isSineFiltered = !isSineFiltered;
-            Audio.SetLowpass(sine, isSineFiltered ? 0.6 : 0, rampDuration: 0.3);
-        }
-        if (Input.KeyPressed(Scancode.G))
-            Audio.globalPlaybackSpeed = Audio.globalPlaybackSpeed < 1 ? 1 : 0.5;
-        Audio.SetPosition(sine, sinePosition, sineVelocity);
-        Draw.LogLine("spatial test: T sine, F falloff (", sineFalloff, "), K minimum loudness (", isSineFloored, "), R reverb (", reverbRoom == 0 ? "dry" : (reverbRoom == 1 ? "small room" : "big hall, wetter far away"), "), L low-pass (", isSineFiltered, "), G slow motion (", Audio.globalPlaybackSpeed, "), Space coin");
-        let info = Audio.GetStream(sine);
-        if (info != null) {
-            Draw.LogLine("sine at ", mouse.Flooredi(), " moving ", sineVelocity.Flooredi(), " px/s: volume ", (int)(info.volume * 100), " %, pan ",
-                (int)(info.pan * 100), " %, reverb ", (int)(info.reverbSend * 100), " %, playback speed ", (int)(info.playbackSpeed * 1000) / 1000.0, " (", (int)(440 * info.playbackSpeed * Audio.globalPlaybackSpeed), " Hz), low-pass ", (int)(info.lowpass * 100), " %");
-        }
-        Draw.LogLine("DSP time ", (int)(Audio.dspTime * 10) / 10.0, " s, real ", (int)(Audio.dspTimeReal * 10) / 10.0, " s");
-    }
-
     init() {
         susi = Susi();
         sorcyAnim = AnimationPlayer(Draw.GetAnim("sorcy.run"));
         ghostyAnim = AnimationPlayer(Draw.GetAnim("ghosty.default"));
-        music = Audio.Play("level1-step1", AudioTrack.Music, volume: 0.7, loop: true, fadeIn: 1);
     }
 
-    // Before the scene goes: its streams stop
+    // Before the scene goes: its camera effects stop
     void Leave() {
         Camera.StopShakes();
         Camera.StopFollowing();
-        Audio.Stop(music, fadeOut: 0.3);
-        if (sine.value != 0)
-            Audio.Stop(sine, fadeOut: 0.05);
     }
 
     void DoFrame() {
@@ -207,20 +134,8 @@ extend StartScene {
 
         time += 1;
 
-        // Audio: Space plays the coin at the mouse (spatial), M fades the music out and in again
+        // (the mouse relative to the window's center: the pendulum shake's direction)
         let mouse = Input.cursors.screen - (Vec2)Input.windowDim * 0.5;
-        if (Input.KeyPressed(Scancode.Space))
-            Audio.SetReverbSend(Audio.PlaySpatial("sfx_coin_double1", mouse, falloff: SineFalloff()), reverbRoom == 0 ? 0 : 0.3);
-        DoSpatialTest(mouse);
-        if (Input.KeyPressed(Scancode.M)) {
-            if (Audio.IsFinished(music) || Audio.GetStream(music) == null || Audio.GetStream(music).volume < 0.01)
-                music = Audio.Play("level1-step1", AudioTrack.Music, volume: 0.7, loop: true, fadeIn: 1);
-            else
-                Audio.Stop(music, fadeOut: 1);
-        }
-        let musicInfo = Audio.GetStream(music);
-        if (musicInfo != null)
-            Draw.LogLine("music ", (int)(musicInfo.position * 10) / 10.0, " s (", (int)musicInfo.percentFinished, " %)");
 
         // Camera shakes: 1 a pendulum towards the mouse, 2 a random one, 3 a rotational one,
         // 4 a continuous rumble on and off (they add up)
@@ -262,11 +177,11 @@ extend StartScene {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Game: one scene at a time, F1 the start scene, F2 the physics debug scene, F3 the tilemap
-// editor, F4 the navigation scene. A scene lives in its phase (hope/memory.pg): the start, the
-// physics and the navigation scene in the level phase, the editor in the editor phase. Switching wipes the phase of the scene that goes
+// editor, F4 the navigation scene, F6 the audio scene. A scene lives in its phase (hope/core.pg):
+// the start, the physics, the navigation and the audio scene in the level phase, the editor in the editor phase. Switching wipes the phase of the scene that goes
 // and makes the next one in its phase; its frames allocate there too.
 
-enum Scene { Start, Physics, Editor, Navigation }
+enum Scene { Start, Physics, Editor, Navigation, Audio }
 
 struct Playground {
     Scene scene;
@@ -274,6 +189,7 @@ struct Playground {
     PhysicsScene* physics;
     GameEditor* editor;
     NavScene* navigation;
+    AudioScene* audio;
 }
 
 extend Playground {
@@ -319,6 +235,11 @@ extend Playground {
             navigation = null;
             Memory.WipeLevel();
         }
+        if (audio != null) {
+            audio.Leave();
+            audio = null;
+            Memory.WipeLevel();
+        }
         if (editor != null) {
             editor.Leave();
             editor = null;
@@ -338,6 +259,10 @@ extend Playground {
             ScopeAllocLevel();
             navigation = New[NavScene]();
             Draw.clearColor = Color.Grey(0.08);
+        } else if (next == Scene.Audio) {
+            ScopeAllocLevel();
+            audio = New[AudioScene]();
+            Draw.clearColor = Color.Grey(0.1);
         } else {
             ScopeAllocEditor();
             editor = New[GameEditor]();
@@ -354,7 +279,9 @@ extend Playground {
             SwitchTo(Scene.Editor);
         if (Input.KeyPressed(Scancode.F4) && scene != Scene.Navigation)
             SwitchTo(Scene.Navigation);
-        Draw.LogLine("F1 start, F2 physics, F3 editor, F4 navigation | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
+        if (Input.KeyPressed(Scancode.F6) && scene != Scene.Audio)
+            SwitchTo(Scene.Audio);
+        Draw.LogLine("F1 start, F2 physics, F3 editor, F4 navigation, F6 audio | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
         if (scene == Scene.Editor) {
             ScopeAllocEditor();
             editor.DoFrame();
@@ -364,6 +291,8 @@ extend Playground {
                 physics.DoFrame();
             else if (scene == Scene.Navigation)
                 navigation.DoFrame();
+            else if (scene == Scene.Audio)
+                audio.DoFrame();
             else
                 start.DoFrame();
         }
@@ -374,7 +303,8 @@ extend Playground {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // hope_playground (formerly DungeonTracks, ported from the C# version), for trying out hope's
 // features: Sorcy runs in circles, Susi (a 3D sprite on tracks) drives with the "move" action, F2
-// switches to the physics debug scene, F3 to the tilemap editor, F4 to the navigation scene, F1 back.
+// switches to the physics debug scene, F3 to the tilemap editor, F4 to the navigation scene, F6 to
+// the audio scene, F1 back.
 //
 // The game is a module (hope/game): a platform layer hosts it (the targets of hope.pgproj).
 

@@ -1,0 +1,126 @@
+// The audio scene (F6, in the level phase): the music and the spatial audio test. The listener is
+// the window's center; positions are window pixels relative to it.
+//
+//     M                 the music fades out and in again
+//     Space             the coin at the mouse (spatial)
+//     T                 a 440 Hz sine at the mouse: pan, distance and Doppler can be heard
+//     F                 the sine's falloff (linear, inverse)
+//     K                 a minimum loudness of 0.2
+//     R                 reverb: dry, a small room, a big hall (the farther, the wetter)
+//     L                 the sine's low-pass filter
+//     G                 slow motion (the global playback speed 0.5)
+
+struct AudioScene {
+    AudioStreamId music;
+    AudioStreamId sine;
+    Vec2 sinePosition;
+    Vec2 sineVelocity;             // smoothed
+    AudioFalloffCurve sineFalloff; // F switches it
+    bool isSineFloored;            // K: a minimum loudness of 0.2
+    int reverbRoom;                // R: 0 dry, 1 a small room, 2 a big hall (the farther, the wetter)
+    bool isSineFiltered;           // L
+}
+
+extend AudioScene {
+    init() {
+        music = Audio.Play("level1-step1", AudioTrack.Music, volume: 0.7, loop: true, fadeIn: 1);
+    }
+
+    // Before the scene goes: its streams stop
+    void Leave() {
+        Audio.Stop(music, fadeOut: 0.3);
+        if (sine.value != 0)
+            Audio.Stop(sine, fadeOut: 0.05);
+        Audio.globalPlaybackSpeed = 1;
+    }
+
+    // The sine's falloff: silent (or at its minimum loudness) from half the window's diagonal on
+    AudioFalloffParams SineFalloff() {
+        return AudioFalloffParams(curve: sineFalloff, minDistance: 20, maxDistance: ((Vec2)Input.windowDim).Length() * 0.5, minLoudness: isSineFloored ? 0.2 : 0, reverbAtMaxDistance: reverbRoom == 2 ? 0.9 : 0);
+    }
+
+    void DoFrame() {
+        let mouse = Input.cursors.screen - (Vec2)Input.windowDim * 0.5;
+        if (Input.KeyPressed(Scancode.Space))
+            Audio.SetReverbSend(Audio.PlaySpatial("sfx_coin_double1", mouse, falloff: SineFalloff()), reverbRoom == 0 ? 0 : 0.3);
+        DoSpatialTest(mouse);
+        if (Input.KeyPressed(Scancode.M)) {
+            if (Audio.IsFinished(music) || Audio.GetStream(music) == null || Audio.GetStream(music).volume < 0.01)
+                music = Audio.Play("level1-step1", AudioTrack.Music, volume: 0.7, loop: true, fadeIn: 1);
+            else
+                Audio.Stop(music, fadeOut: 1);
+        }
+        let musicInfo = Audio.GetStream(music);
+        if (musicInfo != null)
+            Draw.LogLine("M music ", (int)(musicInfo.position * 10) / 10.0, " s (", (int)musicInfo.percentFinished, " %)");
+        Draw.LogLine("DSP time ", (int)(Audio.dspTime * 10) / 10.0, " s, real ", (int)(Audio.dspTimeReal * 10) / 10.0, " s");
+        Render(mouse);
+    }
+
+    void DoSpatialTest(Vec2 mouse) {
+        let settings = Audio.spatialSettings;
+        settings.panWidth = Input.windowDim.x * 0.5;
+        Audio.SetListener(Vec2.Zero, Vec2.Zero);
+        let dt = Max(Input.deltaTimeReal, 0.001);
+        let velocity = (mouse - sinePosition) * (1 / dt);
+        sineVelocity = Vec2.Lerp(sineVelocity, velocity, 0.3);        // smoothed: the mouse moves in steps
+        sinePosition = mouse;
+        let isPlaying = sine.value != 0 && !Audio.IsFinished(sine);
+        let restart = false;
+        if (Input.KeyPressed(Scancode.F)) {
+            sineFalloff = sineFalloff == AudioFalloffCurve.Linear ? AudioFalloffCurve.Inverse : AudioFalloffCurve.Linear;
+            restart = isPlaying;                  // the falloff is the stream's from its start
+        }
+        if (Input.KeyPressed(Scancode.K)) {
+            isSineFloored = !isSineFloored;
+            restart = isPlaying;
+        }
+        if (Input.KeyPressed(Scancode.R)) {
+            reverbRoom = (reverbRoom + 1) % 3;
+            if (reverbRoom == 1)
+                Audio.SetReverb(AudioReverbParams(roomSize: 0.3, damping: 0.7, wetGain: 1, preDelay: 0.005));
+            if (reverbRoom == 2)
+                Audio.SetReverb(AudioReverbParams(roomSize: 0.92, damping: 0.25, wetGain: 1, preDelay: 0.04));
+            restart = isPlaying;                  // (the distance's reverb is the falloff's)
+        }
+        if (Input.KeyPressed(Scancode.T) || restart) {
+            if (isPlaying) {
+                Audio.Stop(sine, fadeOut: 0.05);
+                sine = AudioStreamId(0);
+            }
+            if (!isPlaying || restart) {
+                sine = Audio.PlaySpatial("debug_sine440", sinePosition, sineVelocity, SineFalloff(), volume: 0.5, loop: true, fadeIn: 0.05);
+                Audio.SetLowpass(sine, isSineFiltered ? 0.6 : 0);
+                Audio.SetReverbSend(sine, reverbRoom == 0 ? 0 : 0.3);
+            }
+        }
+        if (Input.KeyPressed(Scancode.L)) {
+            isSineFiltered = !isSineFiltered;
+            Audio.SetLowpass(sine, isSineFiltered ? 0.6 : 0, rampDuration: 0.3);
+        }
+        if (Input.KeyPressed(Scancode.G))
+            Audio.globalPlaybackSpeed = Audio.globalPlaybackSpeed < 1 ? 1 : 0.5;
+        Audio.SetPosition(sine, sinePosition, sineVelocity);
+        Draw.LogLine("audio scene (F6): T sine, F falloff (", sineFalloff, "), K minimum loudness (", isSineFloored, "), R reverb (", reverbRoom == 0 ? "dry" : (reverbRoom == 1 ? "small room" : "big hall, wetter far away"), "), L low-pass (", isSineFiltered, "), G slow motion (", Audio.globalPlaybackSpeed, "), Space coin");
+        let info = Audio.GetStream(sine);
+        if (info != null) {
+            Draw.LogLine("sine at ", mouse.Flooredi(), " moving ", sineVelocity.Flooredi(), " px/s: volume ", (int)(info.volume * 100), " %, pan ",
+                (int)(info.pan * 100), " %, reverb ", (int)(info.reverbSend * 100), " %, playback speed ", (int)(info.playbackSpeed * 1000) / 1000.0, " (", (int)(440 * info.playbackSpeed * Audio.globalPlaybackSpeed), " Hz), low-pass ", (int)(info.lowpass * 100), " %");
+        }
+    }
+
+    // In window pixels: the listener in the middle, the falloff's distances around it, the sine
+    void Render(Vec2 mouse) {
+        let center = (Vec2)Input.windowDim * 0.5;
+        let screen = (Color color) => DrawParams(color: color, space: DrawSpace.Screen);
+        let falloff = SineFalloff();
+        Draw.CircleOutline(Circle(center, falloff.minDistance), 1, 2, screen(Color(0.4, 1, 0.4, 0.8)));
+        Draw.CircleOutline(Circle(center, falloff.maxDistance), 1, 2, screen(Color(1, 0.4, 0.4, 0.6)));
+        Draw.Line(center - Vec2(8, 0), center + Vec2(8, 0), 1, 3, screen(Color.White));
+        Draw.Line(center - Vec2(0, 8), center + Vec2(0, 8), 1, 3, screen(Color.White));
+        let isPlaying = sine.value != 0 && !Audio.IsFinished(sine);
+        Draw.Circle(Circle(center + mouse, 5), 3, screen(isPlaying ? Color(1, 0.9, 0.3, 1) : Color(0.5, 0.5, 0.5, 0.8)));
+        if (isPlaying)
+            Draw.Line(center + mouse, center + mouse + sineVelocity * 0.1, 1, 3, screen(Color(0.3, 1, 1, 1)));
+    }
+}

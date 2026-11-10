@@ -6,9 +6,17 @@ DungeonTracks). Its own git repository next to `../hope` and `../piggi` in `~/Pr
 README, "Versions"). Open `hope_playground.code-workspace` in VS Code: the game and hope, each
 committed on its own.
 
-Sorcy runs in circles, Susi (a 3D sprite on tracks) drives
-with WASD, the arrow keys or a gamepad, the camera pans with the middle mouse button and zooms
-with the wheel. Escape quits, F11 toggles fullscreen.
+The scenes (each file's header lists its keys):
+
+- F1 the start scene (`main.pg`): Sorcy runs in circles, Susi (a 3D sprite on tracks) drives with
+  WASD, the arrow keys or a gamepad; camera shakes, following, translucent sorting
+- F2 the physics scene (`physics_scene.pg`): hope's collision world, shots, rams, impulses
+- F3 the tilemap editor (`editor.pg`): ground layers, dual-grid walls, a decal map
+- F4 the navigation scene (`navigation_scene.pg`): agents of three sizes and four profiles
+- F6 the audio scene (`audio_scene.pg`): the music and the spatial audio test
+
+The camera pans with the middle mouse button and zooms with the wheel. Escape quits, F11 toggles
+fullscreen.
 
 ```
 piggi run .                    # desktop: build/desktop/hope_playground
@@ -21,9 +29,6 @@ The project file is `{ "references": ["../hope"], "kind": "game" }`: hope define
 
 The internal target runs in the internal mode: it bakes `assets/` into `build/graphics.dat` with
 Bakie (part of hope's host), rebakes every second while it runs and reloads
-the pack when it changes, and loads the game code again when it is rebuilt. F1 toggles the
-tilemap editor (left mouse button sets tiles, right removes them), F5 restarts the game.
+the pack when it changes, and loads the game code again when it is rebuilt. F5 restarts the game.
 
-`assets/fonts/` holds the BDF fonts and the packs Fontuna bakes from them (hope's README). Like the C# version, the editor keeps the camera's 20°
-rotation from the game, and the dual-grid display tiles are not computed yet (only the logic
-tiles are drawn, as red squares).
+`assets/fonts/` holds the BDF fonts and the packs Fontuna bakes from them (hope's README).
