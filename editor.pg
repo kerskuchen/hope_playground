@@ -1,4 +1,4 @@
-// The tilemap editor (internal mode, F1): left mouse button sets tiles, right removes them
+// The tilemap editor (F3, in the editor phase): left mouse button sets tiles, right removes them
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Tilemap
@@ -90,7 +90,6 @@ extend Tilemap {
 // Editor
 
 struct GameEditor {
-    bool isActive;
     TilemapLayer tilemap;
 }
 
@@ -107,9 +106,4 @@ extend GameEditor {
         tilemap.DoFrame();
     }
 
-    void ToggleActive() {
-        isActive = !isActive;
-        Draw.isCanvasFree = isActive;
-        Draw.clearColor = isActive ? Color.Grey(0.3) : Color.Black;
-    }
 }

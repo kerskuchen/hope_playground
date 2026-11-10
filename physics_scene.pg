@@ -1,4 +1,4 @@
-// The physics debug scene (internal mode, F2): hope's CollisionWorld to play with. A free canvas
+// The physics debug scene (F2, in the level phase): hope's CollisionWorld to play with. A free canvas
 // (the screen's resolution, world units are pixels), so the lines show the shapes as they are;
 // the cells are as big as the map can be on the screen.
 //
@@ -60,7 +60,6 @@ struct DebugExplosion {
 }
 
 struct PhysicsScene {
-    bool isActive;
     Grid[bool] solid;
     TileCollision tiles;
     float cell;                    // the cell size: the map fits the screen (Layout)
@@ -133,11 +132,6 @@ extend PhysicsScene {
         }
     }
 
-    void ToggleActive() {
-        isActive = !isActive;
-        Draw.isCanvasFree = isActive;
-        Draw.clearColor = isActive ? Color.Grey(0.12) : Color.Black;
-    }
 
     // The cell size and the map's position from the screen (the map below the log lines); on a
     // change the world is built again (the player goes along)

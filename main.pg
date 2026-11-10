@@ -44,12 +44,10 @@ extend Susi {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// Game
+// The start scene (F1): Sorcy runs in circles, Susi drives, the audio tests
 
-struct Playground {
+struct StartScene {
     float time;
-    GameEditor* editor;            // internal mode only, created on first use
-    PhysicsScene* physics;         // the physics debug scene (F2), internal mode only
     Susi susi;
     AnimationPlayer sorcyAnim;
     AudioStreamId music;           // M fades it out and in again
@@ -63,7 +61,7 @@ struct Playground {
     bool isSineFiltered;           // L
 }
 
-extend Playground {
+extend StartScene {
     // T: a 440 Hz sine at the mouse (position and velocity relative to the screen's center, where
     // the listener is), so pan, distance and Doppler can be heard; F switches the falloff, L the
     // low-pass filter, K a minimum loudness, G slow motion (the global playback speed 0.5)
@@ -129,58 +127,16 @@ extend Playground {
         susi = Susi();
         sorcyAnim = AnimationPlayer(Draw.GetAnim("sorcy.run"));
         music = Audio.Play("level1-step1", AudioTrack.Music, volume: 0.7, loop: true, fadeIn: 1);
+    }
 
-        Input.RegisterAction("move", InputActionType.AxisRadial2D);
-        Input.AddActionBinding("move", InputActionBinding(GamepadAxis2D.LeftStick, 0.1));
-        Input.AddActionBinding("move", InputActionBinding(GamepadButton.MoveLeft, GamepadButton.MoveRight, GamepadButton.MoveUp, GamepadButton.MoveDown));
-        Input.AddActionBinding("move", InputActionBinding(Scancode.A, Scancode.D, Scancode.W, Scancode.S));
-        Input.AddActionBinding("move", InputActionBinding(Scancode.Left, Scancode.Right, Scancode.Up, Scancode.Down));
-
-        Input.RegisterAction("look", InputActionType.AxisSquare2D);
-        Input.AddActionBinding("look", InputActionBinding(GamepadAxis2D.RightStick, 0.1));
-        Input.AddActionBinding("look", InputActionBinding(Scancode.Kp4, Scancode.Kp6, Scancode.Kp8, Scancode.Kp5));
-
-        Input.RegisterAction("attack_1", InputActionType.ButtonTrigger);
-        Input.AddActionBinding("attack_1", InputActionBinding(MouseButton.Left));
-        Input.AddActionBinding("attack_1", InputActionBinding(GamepadButton.LeftShoulder));
-
-        Input.RegisterAction("attack_2", InputActionType.ButtonTrigger);
-        Input.AddActionBinding("attack_2", InputActionBinding(MouseButton.Left));
-        Input.AddActionBinding("attack_2", InputActionBinding(GamepadButton.RightShoulder));
-
-        Input.RegisterAction("attack_3", InputActionType.ButtonTrigger);
-        Input.AddActionBinding("attack_3", InputActionBinding(MouseButton.Middle));
-        Input.AddActionBinding("attack_3", InputActionBinding(GamepadAxis.LeftShoulderTrigger, 0.5));
-        Input.AddActionBinding("attack_3", InputActionBinding(GamepadAxis.RightShoulderTrigger, 0.5));
+    // Before the scene goes: its streams stop
+    void Leave() {
+        Audio.Stop(music, fadeOut: 0.3);
+        if (sine.value != 0)
+            Audio.Stop(sine, fadeOut: 0.05);
     }
 
     void DoFrame() {
-        if (INTERNAL) {
-            if (editor == null)
-                editor = New[GameEditor]();
-            if (physics == null)
-                physics = New[PhysicsScene]();
-            // F1 and F2 switch between the scenes (one at a time)
-            if (Input.KeyPressed(Scancode.F1)) {
-                if (physics.isActive)
-                    physics.ToggleActive();
-                editor.ToggleActive();
-            }
-            if (Input.KeyPressed(Scancode.F2)) {
-                if (editor.isActive)
-                    editor.ToggleActive();
-                physics.ToggleActive();
-            }
-            if (editor.isActive) {
-                editor.DoFrame();
-                return;
-            }
-            if (physics.isActive) {
-                physics.DoFrame();
-                return;
-            }
-        }
-
         Camera.isCentered = false;
         Camera.allowPanning = true;
         Camera.allowZooming = true;
@@ -243,19 +199,118 @@ extend Playground {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Game: one scene at a time, F1 the start scene, F2 the physics debug scene, F3 the tilemap
+// editor. A scene lives in its phase (hope/memory.pg): the start and the physics scene in the
+// level phase, the editor in the editor phase. Switching wipes the phase of the scene that goes
+// and makes the next one in its phase; its frames allocate there too.
+
+enum Scene { Start, Physics, Editor }
+
+struct Playground {
+    Scene scene;
+    StartScene* start;             // the current scene's state (the others are null)
+    PhysicsScene* physics;
+    GameEditor* editor;
+}
+
+extend Playground {
+    init() {
+        Input.RegisterAction("move", InputActionType.AxisRadial2D);
+        Input.AddActionBinding("move", InputActionBinding(GamepadAxis2D.LeftStick, 0.1));
+        Input.AddActionBinding("move", InputActionBinding(GamepadButton.MoveLeft, GamepadButton.MoveRight, GamepadButton.MoveUp, GamepadButton.MoveDown));
+        Input.AddActionBinding("move", InputActionBinding(Scancode.A, Scancode.D, Scancode.W, Scancode.S));
+        Input.AddActionBinding("move", InputActionBinding(Scancode.Left, Scancode.Right, Scancode.Up, Scancode.Down));
+
+        Input.RegisterAction("look", InputActionType.AxisSquare2D);
+        Input.AddActionBinding("look", InputActionBinding(GamepadAxis2D.RightStick, 0.1));
+        Input.AddActionBinding("look", InputActionBinding(Scancode.Kp4, Scancode.Kp6, Scancode.Kp8, Scancode.Kp5));
+
+        Input.RegisterAction("attack_1", InputActionType.ButtonTrigger);
+        Input.AddActionBinding("attack_1", InputActionBinding(MouseButton.Left));
+        Input.AddActionBinding("attack_1", InputActionBinding(GamepadButton.LeftShoulder));
+
+        Input.RegisterAction("attack_2", InputActionType.ButtonTrigger);
+        Input.AddActionBinding("attack_2", InputActionBinding(MouseButton.Left));
+        Input.AddActionBinding("attack_2", InputActionBinding(GamepadButton.RightShoulder));
+
+        Input.RegisterAction("attack_3", InputActionType.ButtonTrigger);
+        Input.AddActionBinding("attack_3", InputActionBinding(MouseButton.Middle));
+        Input.AddActionBinding("attack_3", InputActionBinding(GamepadAxis.LeftShoulderTrigger, 0.5));
+        Input.AddActionBinding("attack_3", InputActionBinding(GamepadAxis.RightShoulderTrigger, 0.5));
+
+        SwitchTo(Scene.Start);
+    }
+
+    void SwitchTo(Scene next) {
+        // The scene that goes, with everything in its phase
+        if (start != null) {
+            start.Leave();
+            start = null;
+            Memory.WipeLevel();
+        }
+        if (physics != null) {
+            physics = null;
+            Memory.WipeLevel();
+        }
+        if (editor != null) {
+            editor = null;
+            Memory.WipeEditor();
+        }
+        scene = next;
+        Draw.isCanvasFree = next != Scene.Start;
+        if (next == Scene.Start) {
+            ScopeAllocLevel();
+            start = New[StartScene]();
+            Draw.clearColor = Color.Black;
+        } else if (next == Scene.Physics) {
+            ScopeAllocLevel();
+            physics = New[PhysicsScene]();
+            Draw.clearColor = Color.Grey(0.12);
+        } else {
+            ScopeAllocEditor();
+            editor = New[GameEditor]();
+            Draw.clearColor = Color.Grey(0.3);
+        }
+    }
+
+    void DoFrame() {
+        if (Input.KeyPressed(Scancode.F1) && scene != Scene.Start)
+            SwitchTo(Scene.Start);
+        if (Input.KeyPressed(Scancode.F2) && scene != Scene.Physics)
+            SwitchTo(Scene.Physics);
+        if (Input.KeyPressed(Scancode.F3) && scene != Scene.Editor)
+            SwitchTo(Scene.Editor);
+        Draw.LogLine("F1 start, F2 physics, F3 editor | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
+        if (scene == Scene.Editor) {
+            ScopeAllocEditor();
+            editor.DoFrame();
+        } else {
+            ScopeAllocLevel();
+            if (scene == Scene.Physics)
+                physics.DoFrame();
+            else
+                start.DoFrame();
+        }
+    }
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // hope_playground (formerly DungeonTracks, ported from the C# version), for trying out hope's
-// features: Sorcy runs in circles, Susi (a 3D sprite on tracks) drives with the "move" action, and
-// in the internal mode F1 opens the tilemap editor, F2 the physics debug scene.
+// features: Sorcy runs in circles, Susi (a 3D sprite on tracks) drives with the "move" action, F2
+// switches to the physics debug scene, F3 to the tilemap editor, F1 back.
 //
 // The game is a module (hope/game): a platform layer hosts it (the targets of hope.pgproj).
 
 
 Playground* playground = null;
 
-// Also on F5 (the runtime restarts the game in the internal mode)
-void CreateGame() { playground = New[Playground](); }
+// Also on F5 (the runtime restarts the game in the internal mode; it wipes the level phase)
+void CreateGame() {
+    Memory.WipeEditor();                       // (the previous playground's editor scene)
+    playground = New[Playground]();
+}
 void DoFrame() { playground.DoFrame(); }
 Game GameMain() {
     return Game(info: AppInfo("hope playground", "hope_playground", "0.01", 320, 180), Create: CreateGame, DoFrame: DoFrame);
