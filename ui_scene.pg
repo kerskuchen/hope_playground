@@ -4,9 +4,10 @@
 // keys (arrows/WASD, Enter/Space, Escape) and a gamepad work; the screens are a stack, only the
 // top one is drawn, Escape (or Back) goes back to where the focus was. The options are the
 // playground's Settings (main.pg), saved with hope's Storage when the options screen is left
-// (Storage.Write writes the file at once: not while a slider is dragged).
+// (Storage.Write writes the file at once: not while a slider is dragged). The controls are
+// hope's Ui.Controls: the player's bindings, saved with each change (hope/controls.pg).
 
-enum MenuScreen { Title, Options, Credits }
+enum MenuScreen { Title, Options, Controls, Credits }
 
 struct UiScene {
     UiScreens[MenuScreen] screens;
@@ -30,6 +31,7 @@ extend UiScene {
         switch (screens.top) {
         case MenuScreen.Title: TitleScreen();
         case MenuScreen.Options: OptionsScreen();
+        case MenuScreen.Controls: ControlsScreen();
         case MenuScreen.Credits: CreditsScreen();
         }
     }
@@ -66,12 +68,38 @@ extend UiScene {
             settings.Apply();
             playground.areSettingsChanged = true;
         }
-        Ui.Button("Controls", enabled: false);  // (rebinding comes with the storage)
+        if (Ui.Button("Controls"))
+            screens.Push(MenuScreen.Controls);
         Ui.Space(2);
         if (Ui.Button("Back") || Ui.cancelPressed) {
             playground.SaveSettings();
             screens.Pop();
         }
+    }
+
+    void ControlsScreen() {
+        [ControlsRow, 9] rows = [
+            ControlsRow("Move up", "move", ControlsPart.Up),
+            ControlsRow("Move down", "move", ControlsPart.Down),
+            ControlsRow("Move left", "move", ControlsPart.Left),
+            ControlsRow("Move right", "move", ControlsPart.Right),
+            ControlsRow("Move", "move", ControlsPart.Stick),
+            ControlsRow("Look", "look", ControlsPart.Stick),
+            ControlsRow("Attack 1", "attack_1"),
+            ControlsRow("Attack 2", "attack_2"),
+            ControlsRow("Attack 3", "attack_3"),
+        ];
+        Ui.Panel(UiAnchor.Center, 316, 170);
+        Ui.Label("Controls", UiAlign.Center, Ui.style.textFocused);
+        {
+            Ui.Scroll(Ui.area.h - Ui.ButtonHeight() - Ui.style.spacing);
+            Ui.Controls(rows, labelPart: 0.25);
+        }
+        Ui.Columns(2);
+        if (Ui.Button("Reset"))
+            Input.ResetBindings();
+        if (Ui.Button("Back") || Ui.cancelPressed)
+            screens.Pop();
     }
 
     void CreditsScreen() {

@@ -18,7 +18,8 @@ The scenes (each file's header lists its keys):
   DungeonTracks' mood (its ambient and torch measured in the game jam's Let's Play)
 - F8 the UI scene (`ui_scene.pg`, the fixed canvas): a title screen, options (volumes,
   fullscreen; saved with hope's Storage (the value `settings` in `storage.json`) when the options screen is left: `build/user/` in the internal mode,
-  localStorage on the web) and the scrolling credits with hope's UI (`hope/ui.pg`), on test sprites in
+  localStorage on the web), the controls (hope's `Ui.Controls`: click a binding, press the new
+  key or button; saved as the value `bindings` at once, Reset brings the game's back) and the scrolling credits with hope's UI (`hope/ui.pg`), on test sprites in
   `assets/ui/` (made by a script: rounded boxes with attach0/attach1 for the 9-slices); the
   mouse, the keys and a gamepad
 
