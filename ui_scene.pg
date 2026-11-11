@@ -1,0 +1,83 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// The UI scene (F8): a game's menus with hope's UI (hope/ui.pg) on the fixed canvas: a title
+// screen, options (volumes, fullscreen), the credits (gamePack.credits, scrolling). The mouse, the
+// keys (arrows/WASD, Enter/Space, Escape) and a gamepad work; the screens are a stack, only the
+// top one is drawn, Escape (or Back) goes back to where the focus was.
+
+enum MenuScreen { Title, Options, Credits }
+
+struct UiScene {
+    UiScreens[MenuScreen] screens;
+    float music = 1;
+    float sounds = 1;
+    bool showsHints = true;
+    bool wantsToPlay;              // 'Play': the playground switches to the start scene after the frame
+    int plays;
+}
+
+extend UiScene {
+    init() {
+        screens.Reset(MenuScreen.Title);
+        Camera.rotation = 0;                   // (the start scene turns it)
+    }
+
+    void Leave() {
+        screens.Free();
+    }
+
+    void DoFrame() {
+        if (showsHints)
+            Draw.LogLine("UI scene (F8): mouse, arrows/WASD + Enter/Space + Escape, or a gamepad (d-pad/stick, A, B)");
+        switch (screens.top) {
+        case MenuScreen.Title: TitleScreen();
+        case MenuScreen.Options: OptionsScreen();
+        case MenuScreen.Credits: CreditsScreen();
+        }
+    }
+
+    void TitleScreen() {
+        {
+            Ui.WithFont("ark-pixel-12px-proportional_bordered", 2);
+            Ui.Area(UiAnchor.Top, 300, 0, Vec2i(0, 18));
+            Ui.Label("hope playground", UiAlign.Center);
+        }
+        Ui.Panel(UiAnchor.Center, 110, 0, Vec2i(0, 18));
+        if (Ui.Button("Play"))
+            wantsToPlay = true;
+        if (Ui.Button("Options"))
+            screens.Push(MenuScreen.Options);
+        if (Ui.Button("Credits"))
+            screens.Push(MenuScreen.Credits);
+        if (Ui.Button("Quit"))
+            Window.Quit();
+    }
+
+    void OptionsScreen() {
+        Ui.Panel(UiAnchor.Center, 220);
+        Ui.Label("Options", UiAlign.Center, Ui.style.textFocused);
+        Ui.Space(2);
+        if (Ui.Slider("Music", &music, 0, 1, 0.1))
+            Audio.SetTrackGain(AudioTrack.Music, music);
+        if (Ui.Slider("Sounds", &sounds, 0, 1, 0.1))
+            Audio.SetTrackGain(AudioTrack.Sound, sounds);
+        let fullscreen = Window.isFullscreen;
+        if (Ui.Checkbox("Fullscreen", &fullscreen))
+            Window.isFullscreen = fullscreen;
+        Ui.Checkbox("Show hints", &showsHints);
+        Ui.Button("Controls", enabled: false);  // (rebinding comes with the storage)
+        Ui.Space(2);
+        if (Ui.Button("Back") || Ui.cancelPressed)
+            screens.Pop();
+    }
+
+    void CreditsScreen() {
+        Ui.Panel(UiAnchor.Center, 280, 164);
+        Ui.Label("Credits", UiAlign.Center, Ui.style.textFocused);
+        {
+            Ui.Scroll(Ui.area.h - Ui.ButtonHeight() - Ui.style.spacing);
+            Ui.Text(gamePack.credits);
+        }
+        if (Ui.Button("Back") || Ui.cancelPressed)
+            screens.Pop();
+    }
+}

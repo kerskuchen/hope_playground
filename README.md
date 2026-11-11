@@ -16,9 +16,13 @@ The scenes (each file's header lists its keys):
 - F6 the audio scene (`audio_scene.pg`): music layers on the beat grid and the spatial audio test
 - F7 the lighting scene (`lighting_scene.pg`, the fixed 320 x 180 canvas): lights and shadows in
   DungeonTracks' mood (its ambient and torch measured in the game jam's Let's Play)
+- F8 the UI scene (`ui_scene.pg`, the fixed canvas): a title screen, options (volumes,
+  fullscreen) and the scrolling credits with hope's UI (`hope/ui.pg`), on test sprites in
+  `assets/ui/` (made by a script: rounded boxes with attach0/attach1 for the 9-slices); the
+  mouse, the keys and a gamepad
 
-The camera pans with the middle mouse button and zooms with the wheel. Escape quits, F11 toggles
-fullscreen.
+The camera pans with the middle mouse button and zooms with the wheel. Escape quits (in the UI
+scene it goes back), F11 toggles fullscreen.
 
 ```
 piggi run .                    # desktop: build/desktop/hope_playground

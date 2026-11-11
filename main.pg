@@ -177,12 +177,12 @@ extend StartScene {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Game: one scene at a time, F1 the start scene, F2 the physics debug scene, F3 the tilemap
-// editor, F4 the navigation scene, F6 the audio scene, F7 the lighting scene. A scene lives in its
-// phase (hope/core.pg): the start, the physics, the navigation, the audio and the lighting scene
-// in the level phase, the editor in the editor phase. Switching wipes the phase of the scene that goes
+// editor, F4 the navigation scene, F6 the audio scene, F7 the lighting scene, F8 the UI scene. A
+// scene lives in its phase (hope/core.pg): the start, the physics, the navigation, the audio, the
+// lighting and the UI scene in the level phase, the editor in the editor phase. Switching wipes the phase of the scene that goes
 // and makes the next one in its phase; its frames allocate there too.
 
-enum Scene { Start, Physics, Editor, Navigation, Audio, Lighting }
+enum Scene { Start, Physics, Editor, Navigation, Audio, Lighting, Ui }
 
 struct Playground {
     Scene scene;
@@ -192,6 +192,7 @@ struct Playground {
     NavScene* navigation;
     AudioScene* audio;
     LightingScene* lighting;
+    UiScene* ui;
 }
 
 extend Playground {
@@ -247,13 +248,18 @@ extend Playground {
             lighting = null;
             Memory.WipeLevel();
         }
+        if (ui != null) {
+            ui.Leave();
+            ui = null;
+            Memory.WipeLevel();
+        }
         if (editor != null) {
             editor.Leave();
             editor = null;
             Memory.WipeEditor();
         }
         scene = next;
-        Draw.isCanvasFree = next != Scene.Start && next != Scene.Lighting;    // (the games' fixed canvas)
+        Draw.isCanvasFree = next != Scene.Start && next != Scene.Lighting && next != Scene.Ui;    // (the games' fixed canvas)
         if (next == Scene.Start) {
             ScopeAllocLevel();
             start = New[StartScene]();
@@ -274,6 +280,10 @@ extend Playground {
             ScopeAllocLevel();
             lighting = New[LightingScene]();
             Draw.clearColor = Color.Black;
+        } else if (next == Scene.Ui) {
+            ScopeAllocLevel();
+            ui = New[UiScene]();
+            Draw.clearColor = Color(0.09, 0.07, 0.13, 1);
         } else {
             ScopeAllocEditor();
             editor = New[GameEditor]();
@@ -294,7 +304,11 @@ extend Playground {
             SwitchTo(Scene.Audio);
         if (Input.KeyPressed(Scancode.F7) && scene != Scene.Lighting)
             SwitchTo(Scene.Lighting);
-        Draw.LogLine("F1 start, F2 physics, F3 editor, F4 navigation, F6 audio, F7 lighting | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
+        if (Input.KeyPressed(Scancode.F8) && scene != Scene.Ui)
+            SwitchTo(Scene.Ui);
+        if (Input.KeyPressed(Scancode.Escape) && scene != Scene.Ui)
+            Window.Quit();                         // (in the UI scene Escape goes back)
+        Draw.LogLine("F1 start, F2 physics, F3 editor, F4 navigation, F6 audio, F7 lighting, F8 UI | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
         if (scene == Scene.Editor) {
             ScopeAllocEditor();
             editor.DoFrame();
@@ -308,9 +322,13 @@ extend Playground {
                 audio.DoFrame();
             else if (scene == Scene.Lighting)
                 lighting.DoFrame();
+            else if (scene == Scene.Ui)
+                ui.DoFrame();
             else
                 start.DoFrame();
         }
+        if (ui != null && ui.wantsToPlay)
+            SwitchTo(Scene.Start);                 // (after the scene's frame: it is wiped)
     }
 }
 
