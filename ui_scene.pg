@@ -4,7 +4,7 @@
 // keys (arrows/WASD, Enter/Space, Escape) and a gamepad work; the screens are a stack, only the
 // top one is drawn, Escape (or Back) goes back to where the focus was. The options are the
 // playground's Settings (main.pg), saved with hope's Storage when the options screen is left
-// (SaveSync writes at once: not while a slider is dragged).
+// (Storage.Write writes the file at once: not while a slider is dragged).
 
 enum MenuScreen { Title, Options, Credits }
 

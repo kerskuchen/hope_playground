@@ -184,7 +184,7 @@ extend StartScene {
 
 enum Scene { Start, Physics, Editor, Navigation, Audio, Lighting, Ui }
 
-// The player's settings (the UI scene's options), kept with hope's Storage ('settings.json')
+// The player's settings (the UI scene's options), kept with hope's Storage (the value 'settings')
 @Serializable
 struct Settings {
     @Serialize float music = 1;
@@ -214,7 +214,7 @@ struct Playground {
 
 extend Playground {
     init() {
-        Storage.Load("settings.json", &settings);      // (none yet: the defaults)
+        Storage.Read("settings", &settings);           // (none yet: the defaults)
         settings.Apply();
 
         Input.RegisterAction("move", InputActionType.AxisRadial2D);
@@ -313,7 +313,7 @@ extend Playground {
     }
 
     void SaveSettings() {
-        if (areSettingsChanged && Storage.SaveSync("settings.json", settings))
+        if (areSettingsChanged && Storage.Write("settings", settings))
             areSettingsChanged = false;
     }
 
