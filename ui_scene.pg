@@ -3,7 +3,8 @@
 // screen, options (volumes, fullscreen), the credits (gamePack.credits, scrolling). The mouse, the
 // keys (arrows/WASD, Enter/Space, Escape) and a gamepad work; the screens are a stack, only the
 // top one is drawn, Escape (or Back) goes back to where the focus was. The options are the
-// playground's Settings (main.pg), saved with hope's Storage when they change.
+// playground's Settings (main.pg), saved with hope's Storage when the options screen is left
+// (SaveSync writes at once: not while a slider is dragged).
 
 enum MenuScreen { Title, Options, Credits }
 
@@ -63,12 +64,14 @@ extend UiScene {
         changed = Ui.Checkbox("Show hints", &settings.showsHints) || changed;
         if (changed) {
             settings.Apply();
-            Storage.Save("settings.json", *settings);   // (written a moment later)
+            playground.areSettingsChanged = true;
         }
         Ui.Button("Controls", enabled: false);  // (rebinding comes with the storage)
         Ui.Space(2);
-        if (Ui.Button("Back") || Ui.cancelPressed)
+        if (Ui.Button("Back") || Ui.cancelPressed) {
+            playground.SaveSettings();
             screens.Pop();
+        }
     }
 
     void CreditsScreen() {

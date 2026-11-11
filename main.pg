@@ -209,6 +209,7 @@ struct Playground {
     LightingScene* lighting;
     UiScene* ui;
     Settings settings;
+    bool areSettingsChanged;       // not saved yet (SaveSettings: leaving the options, the UI scene)
 }
 
 extend Playground {
@@ -268,6 +269,7 @@ extend Playground {
             Memory.WipeLevel();
         }
         if (ui != null) {
+            SaveSettings();
             ui.Leave();
             ui = null;
             Memory.WipeLevel();
@@ -308,6 +310,11 @@ extend Playground {
             editor = New[GameEditor]();
             Draw.clearColor = Color.Grey(0.3);
         }
+    }
+
+    void SaveSettings() {
+        if (areSettingsChanged && Storage.SaveSync("settings.json", settings))
+            areSettingsChanged = false;
     }
 
     void DoFrame() {
