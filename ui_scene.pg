@@ -98,6 +98,7 @@ extend UiScene {
         Ui.Columns(2);
         if (Ui.Button("Reset"))
             Input.ResetBindings();
+        Ui.FocusByDefault();
         if (Ui.Button("Back") || Ui.cancelPressed)
             screens.Pop();
     }
@@ -109,6 +110,7 @@ extend UiScene {
             Ui.Scroll(Ui.area.h - Ui.ButtonHeight() - Ui.style.spacing);
             Ui.Text(gamePack.credits);
         }
+        Ui.FocusByDefault();
         if (Ui.Button("Back") || Ui.cancelPressed)
             screens.Pop();
     }
