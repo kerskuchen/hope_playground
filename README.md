@@ -30,7 +30,7 @@ scene it goes back), F11 toggles fullscreen.
 piggi run .                    # desktop: build/desktop/hope_playground
 piggi run . --target=internal  # hot reloading (build again while it runs)
 piggi run . --target=web       # the browser: http://localhost:8000/
-../hope/publish.sh .           # release builds in publish/<target>/
+../hope/tools/publish.sh .           # release builds in publish/<target>/
 ```
 
 The project file is `{ "references": ["../hope"], "kind": "game" }`: hope defines the targets.
