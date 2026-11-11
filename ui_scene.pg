@@ -2,15 +2,13 @@
 // The UI scene (F8): a game's menus with hope's UI (hope/ui.pg) on the fixed canvas: a title
 // screen, options (volumes, fullscreen), the credits (gamePack.credits, scrolling). The mouse, the
 // keys (arrows/WASD, Enter/Space, Escape) and a gamepad work; the screens are a stack, only the
-// top one is drawn, Escape (or Back) goes back to where the focus was.
+// top one is drawn, Escape (or Back) goes back to where the focus was. The options are the
+// playground's Settings (main.pg), saved with hope's Storage when they change.
 
 enum MenuScreen { Title, Options, Credits }
 
 struct UiScene {
     UiScreens[MenuScreen] screens;
-    float music = 1;
-    float sounds = 1;
-    bool showsHints = true;
     bool wantsToPlay;              // 'Play': the playground switches to the start scene after the frame
     int plays;
 }
@@ -26,7 +24,7 @@ extend UiScene {
     }
 
     void DoFrame() {
-        if (showsHints)
+        if (playground.settings.showsHints)
             Draw.LogLine("UI scene (F8): mouse, arrows/WASD + Enter/Space + Escape, or a gamepad (d-pad/stick, A, B)");
         switch (screens.top) {
         case MenuScreen.Title: TitleScreen();
@@ -56,14 +54,17 @@ extend UiScene {
         Ui.Panel(UiAnchor.Center, 220);
         Ui.Label("Options", UiAlign.Center, Ui.style.textFocused);
         Ui.Space(2);
-        if (Ui.Slider("Music", &music, 0, 1, 0.1))
-            Audio.SetTrackGain(AudioTrack.Music, music);
-        if (Ui.Slider("Sounds", &sounds, 0, 1, 0.1))
-            Audio.SetTrackGain(AudioTrack.Sound, sounds);
+        let settings = &playground.settings;
+        let changed = Ui.Slider("Music", &settings.music, 0, 1, 0.1);
+        changed = Ui.Slider("Sounds", &settings.sounds, 0, 1, 0.1) || changed;
         let fullscreen = Window.isFullscreen;
         if (Ui.Checkbox("Fullscreen", &fullscreen))
             Window.isFullscreen = fullscreen;
-        Ui.Checkbox("Show hints", &showsHints);
+        changed = Ui.Checkbox("Show hints", &settings.showsHints) || changed;
+        if (changed) {
+            settings.Apply();
+            Storage.Save("settings.json", *settings);   // (written a moment later)
+        }
         Ui.Button("Controls", enabled: false);  // (rebinding comes with the storage)
         Ui.Space(2);
         if (Ui.Button("Back") || Ui.cancelPressed)

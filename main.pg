@@ -184,6 +184,21 @@ extend StartScene {
 
 enum Scene { Start, Physics, Editor, Navigation, Audio, Lighting, Ui }
 
+// The player's settings (the UI scene's options), kept with hope's Storage ('settings.json')
+@Serializable
+struct Settings {
+    @Serialize float music = 1;
+    @Serialize float sounds = 1;
+    @Serialize bool showsHints = true;
+}
+
+extend Settings {
+    void Apply() {
+        Audio.SetTrackGain(AudioTrack.Music, music);
+        Audio.SetTrackGain(AudioTrack.Sound, sounds);
+    }
+}
+
 struct Playground {
     Scene scene;
     StartScene* start;             // the current scene's state (the others are null)
@@ -193,10 +208,14 @@ struct Playground {
     AudioScene* audio;
     LightingScene* lighting;
     UiScene* ui;
+    Settings settings;
 }
 
 extend Playground {
     init() {
+        Storage.Load("settings.json", &settings);      // (none yet: the defaults)
+        settings.Apply();
+
         Input.RegisterAction("move", InputActionType.AxisRadial2D);
         Input.AddActionBinding("move", InputActionBinding(GamepadAxis2D.LeftStick, 0.1));
         Input.AddActionBinding("move", InputActionBinding(GamepadButton.MoveLeft, GamepadButton.MoveRight, GamepadButton.MoveUp, GamepadButton.MoveDown));
