@@ -13,7 +13,9 @@ The scenes (each file's header lists its keys):
 - F2 the physics scene (`physics_scene.pg`): hope's collision world, shots, rams, impulses
 - F3 the tilemap editor (`editor.pg`): ground layers, dual-grid walls, a decal map
 - F4 the navigation scene (`navigation_scene.pg`): agents of three sizes and four profiles
-- F6 the audio scene (`audio_scene.pg`): the music and the spatial audio test
+- F6 the audio scene (`audio_scene.pg`): music layers on the beat grid and the spatial audio test
+- F7 the lighting scene (`lighting_scene.pg`, the fixed 320 x 180 canvas): lights and shadows in
+  DungeonTracks' mood (its ambient and torch measured in the game jam's Let's Play)
 
 The camera pans with the middle mouse button and zooms with the wheel. Escape quits, F11 toggles
 fullscreen.

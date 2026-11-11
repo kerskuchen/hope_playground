@@ -177,11 +177,12 @@ extend StartScene {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Game: one scene at a time, F1 the start scene, F2 the physics debug scene, F3 the tilemap
-// editor, F4 the navigation scene, F6 the audio scene. A scene lives in its phase (hope/core.pg):
-// the start, the physics, the navigation and the audio scene in the level phase, the editor in the editor phase. Switching wipes the phase of the scene that goes
+// editor, F4 the navigation scene, F6 the audio scene, F7 the lighting scene. A scene lives in its
+// phase (hope/core.pg): the start, the physics, the navigation, the audio and the lighting scene
+// in the level phase, the editor in the editor phase. Switching wipes the phase of the scene that goes
 // and makes the next one in its phase; its frames allocate there too.
 
-enum Scene { Start, Physics, Editor, Navigation, Audio }
+enum Scene { Start, Physics, Editor, Navigation, Audio, Lighting }
 
 struct Playground {
     Scene scene;
@@ -190,6 +191,7 @@ struct Playground {
     GameEditor* editor;
     NavScene* navigation;
     AudioScene* audio;
+    LightingScene* lighting;
 }
 
 extend Playground {
@@ -240,13 +242,18 @@ extend Playground {
             audio = null;
             Memory.WipeLevel();
         }
+        if (lighting != null) {
+            lighting.Leave();
+            lighting = null;
+            Memory.WipeLevel();
+        }
         if (editor != null) {
             editor.Leave();
             editor = null;
             Memory.WipeEditor();
         }
         scene = next;
-        Draw.isCanvasFree = next != Scene.Start;
+        Draw.isCanvasFree = next != Scene.Start && next != Scene.Lighting;    // (the games' fixed canvas)
         if (next == Scene.Start) {
             ScopeAllocLevel();
             start = New[StartScene]();
@@ -263,6 +270,10 @@ extend Playground {
             ScopeAllocLevel();
             audio = New[AudioScene]();
             Draw.clearColor = Color.Grey(0.1);
+        } else if (next == Scene.Lighting) {
+            ScopeAllocLevel();
+            lighting = New[LightingScene]();
+            Draw.clearColor = Color.Black;
         } else {
             ScopeAllocEditor();
             editor = New[GameEditor]();
@@ -281,7 +292,9 @@ extend Playground {
             SwitchTo(Scene.Navigation);
         if (Input.KeyPressed(Scancode.F6) && scene != Scene.Audio)
             SwitchTo(Scene.Audio);
-        Draw.LogLine("F1 start, F2 physics, F3 editor, F4 navigation, F6 audio | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
+        if (Input.KeyPressed(Scancode.F7) && scene != Scene.Lighting)
+            SwitchTo(Scene.Lighting);
+        Draw.LogLine("F1 start, F2 physics, F3 editor, F4 navigation, F6 audio, F7 lighting | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
         if (scene == Scene.Editor) {
             ScopeAllocEditor();
             editor.DoFrame();
@@ -293,6 +306,8 @@ extend Playground {
                 navigation.DoFrame();
             else if (scene == Scene.Audio)
                 audio.DoFrame();
+            else if (scene == Scene.Lighting)
+                lighting.DoFrame();
             else
                 start.DoFrame();
         }

@@ -1,0 +1,287 @@
+// The lighting scene (F7, in the level phase, the fixed 320 x 180 canvas): hope's lights and
+// shadows (lighting.pg) in DungeonTracks' mood. The floor (16 px tiles) and the walls (an 8 px
+// occluder grid, tall 3/4 sprites: the front lit from the ground in front of the wall, the top at
+// the ambient) under a lavender ambient; Susi carries a flickering torch, projectiles carry
+// small lights and burst at the walls.
+//
+//     WASD              drive Susi (the turret follows the mouse)
+//     left mouse        shoot
+//     right mouse       a wall on/off (the shadows follow)
+//     L                 a brazier at the mouse (a flickering light that stays)
+//     K                 60 moving lights on/off (a stress test)
+//     1                 lighting on/off
+//     2                 the walls: wall_dungeon (DungeonTracks' colors) / wall_soil
+
+const float LIGHTING_TILE = 8;                     // the occluder grid (the walls)
+const int LIGHTING_COLUMNS = 40;
+const int LIGHTING_ROWS = 23;
+// DungeonTracks' ambient and torch, measured in the Let's Play (44 .. 47 s): the unlit floor over
+// the lit one, and the light that brings the floor back to its own colors
+Color LIGHTING_AMBIENT = Color(0.455, 0.484, 0.579, 1);
+Color LIGHTING_TORCH = Color(0.55, 0.5, 0.42, 1);
+
+// '#' a wall, '.' floor (40 x 23 tiles of 8 px: the canvas, the bottom row below it)
+[string, 23] LIGHTING_MAP = [
+    "########################################",
+    "#.....................#................#",
+    "#.....................#................#",
+    "#.....................#.......##.......#",
+    "#......##.............#.......##.......#",
+    "#......##.............#................#",
+    "#..........................#...........#",
+    "#..........................#...........#",
+    "#.....................#....#...........#",
+    "#.....................#................#",
+    "#######.....###########................#",
+    "#.....................#.......####.....#",
+    "#.....................#................#",
+    "#..........#..........#................#",
+    "#..........#..........#................#",
+    "#......................................#",
+    "#......................................#",
+    "#.....................#.......#........#",
+    "#.....##..............#.......#........#",
+    "#.....##..............#.......#........#",
+    "#.....................#................#",
+    "#.....................#................#",
+    "########################################",
+];
+
+struct Shot {
+    Vec2 pos;
+    Vec2 velocity;
+}
+
+// A light that flares up and fades (a projectile's burst)
+struct Flash {
+    Vec2 pos;
+    float age;
+}
+
+struct Brazier {
+    Vec2 pos;
+    LightFlicker flicker;
+}
+
+struct Wanderer {
+    Vec2 pos;
+    Vec2 velocity;
+    Color color;
+}
+
+struct LightingScene {
+    OccluderMap walls;
+    TilemapLayer floor;
+    SpriteGridSlice wallSlices;          // the wall sprite's 4 rows of 8 px: the top, 3 of the front
+    bool usesSoilWall;
+    Sprite* light;
+    AnimationPlayer tracksAnim;
+    Sprite3D* turret;
+    Vec2 tankPos;                        // where it stands (the middle of its tracks)
+    float tankAngle;
+    LightFlicker torch;
+    List[Shot] projectiles;
+    List[Flash] flashes;
+    List[Brazier] braziers;
+    List[Wanderer] wanderers;
+    bool isLit = true;
+    float cooldown;
+    Random random;
+    double lightTime;                    // the last frame's lights (computing their polygons)
+}
+
+extend LightingScene {
+    init() {
+        random = Random(4);
+        walls = OccluderMap(LIGHTING_COLUMNS, LIGHTING_ROWS, LIGHTING_TILE);
+        for (let y in 0..LIGHTING_ROWS) {
+            for (let x in 0..LIGHTING_COLUMNS) {
+                walls.Set(x, y, LIGHTING_MAP[y][x] == '#');
+            }
+        }
+        floor = TilemapLayer(Tileset(Draw.GetSprite("floor_dungeon"), Vec2i(16, 16)), 20, 12, depth: 1);
+        floor.Fill(0);
+        floor.Refresh();
+        SetWallSprite(false);
+        light = Draw.GetSprite("light_torch");
+        tracksAnim = AnimationPlayer(Draw.GetAnim("susi.run"));
+        turret = Draw.GetSprite3D("susi_turret");
+        tankPos = Vec2(60, 120);
+        torch = LightFlicker(1);
+    }
+
+    void SetWallSprite(bool soil) {
+        usesSoilWall = soil;
+        wallSlices = SpriteGridSlice(Draw.GetSprite(soil ? "wall_soil" : "wall_dungeon"), 1, 4, 0, 0);
+    }
+
+    // Before the scene goes: lighting off for the others
+    void Leave() {
+        Draw.isLightingEnabled = false;
+    }
+
+    // The depth of something whose ground is at 'groundY' (the further down, the nearer)
+    float DepthAt(float groundY) { return 10 + groundY * 0.2; }
+
+    bool IsBlockedAt(Vec2 pos) {
+        let cell = walls.WorldToCell(pos, LIGHTING_TILE, walls.origin);
+        return walls.Blocks(cell.x, cell.y);
+    }
+
+    // The tank's footprint (10 x 10 around 'pos') free of walls
+    bool FitsAt(Vec2 pos) {
+        for (let corner in [Vec2(-5, -5), Vec2(5, -5), Vec2(-5, 5), Vec2(5, 5)]) {
+            if (IsBlockedAt(pos + *corner))
+                return false;
+        }
+        return true;
+    }
+
+    void DoFrame() {
+        Camera.isCentered = false;
+        Camera.pos = Vec2(0, 0);
+        Camera.zoom = 1;
+        Camera.rotation = 0;
+        Camera.allowPanning = false;
+        Camera.allowZooming = false;
+        let dt = Input.deltaTime;
+        let cursor = Input.cursors.world;
+        if (Input.KeyPressed(Scancode.Alpha1))
+            isLit = !isLit;
+        if (Input.KeyPressed(Scancode.Alpha2))
+            SetWallSprite(!usesSoilWall);
+        Draw.isLightingEnabled = isLit;
+        Draw.ambientLight = LIGHTING_AMBIENT;
+
+        // Susi: drives, collides with the walls (one axis at a time: it slides along them)
+        let move = Input.ActionValue2D("move");
+        let step = move * 60 * dt;
+        if (FitsAt(tankPos + Vec2(step.x, 0)))
+            tankPos.x += step.x;
+        if (FitsAt(tankPos + Vec2(0, step.y)))
+            tankPos.y += step.y;
+        if (move.Length() > 0.1) {
+            tankAngle = Atan2(move.y, move.x) / DegToRad;
+            tracksAnim.Update();
+        }
+        let aim = cursor - tankPos;
+        let turretAngle = Atan2(aim.y, aim.x) / DegToRad;
+
+        // Shooting, the projectiles (a burst where they hit a wall)
+        cooldown -= dt;
+        if (Input.MouseDown(MouseButton.Left) && cooldown <= 0) {
+            cooldown = 0.15;
+            projectiles.Add(Shot(tankPos, aim.NormalizedOr(Vec2(1, 0)) * 220));
+        }
+        for (let i = projectiles.len - 1; i >= 0; i--) {
+            projectiles[i].pos += projectiles[i].velocity * dt;
+            if (IsBlockedAt(projectiles[i].pos)) {
+                flashes.Add(Flash(projectiles[i].pos - projectiles[i].velocity.NormalizedOr(Vec2(1, 0)) * 2, 0));
+                projectiles.RemoveAt(i);
+            }
+        }
+        for (let i = flashes.len - 1; i >= 0; i--) {
+            flashes[i].age += dt;
+            if (flashes[i].age > 0.35)
+                flashes.RemoveAt(i);
+        }
+
+        // Walls on and off, braziers, the stress test
+        if (Input.MousePressed(MouseButton.Right)) {
+            let cell = walls.WorldToCell(cursor, LIGHTING_TILE, walls.origin);
+            let inside = 0 < cell.x && cell.x < LIGHTING_COLUMNS - 1 && 0 < cell.y && cell.y < LIGHTING_ROWS - 1;
+            if (inside)
+                walls.Set(cell, !walls.Get(cell.x, cell.y));
+        }
+        if (Input.KeyPressed(Scancode.L))
+            braziers.Add(Brazier(cursor, LightFlicker((ulong)braziers.len + 7)));
+        if (Input.KeyPressed(Scancode.K)) {
+            if (wanderers.len > 0) {
+                wanderers.Clear();
+            } else {
+                for (let i in 0..60) {
+                    let hue = random.Range(0, 3);
+                    let color = hue == 0 ? Color(0.35, 0.18, 0.08, 1) : hue == 1 ? Color(0.12, 0.2, 0.35, 1) : Color(0.3, 0.3, 0.12, 1);
+                    wanderers.Add(Wanderer(Vec2(random.Range(16.0, 304.0), random.Range(16.0, 160.0)), Vec2(random.Range(-40.0, 40.0), random.Range(-40.0, 40.0)), color));
+                }
+            }
+        }
+        for (let w in wanderers) {
+            w.pos += w.velocity * dt;
+            if (w.pos.x < 10 || 310 < w.pos.x)
+                w.velocity.x = -w.velocity.x;
+            if (w.pos.y < 10 || 170 < w.pos.y)
+                w.velocity.y = -w.velocity.y;
+        }
+
+        DrawLights(dt);
+        DrawWorld(turretAngle);
+        Draw.LogLine("lighting scene (F7): WASD drive, left mouse shoot, right mouse wall on/off, L brazier, K 60 lights (", wanderers.len > 0, "), 1 lighting (", isLit, "), 2 walls (", usesSoilWall ? "wall_soil" : "wall_dungeon", ")");
+        Draw.LogLine("lights ", 1 + projectiles.len + flashes.len + braziers.len + wanderers.len, ": polygons and drawing ", FormatFloat((float)(lightTime * 1000), 3), " ms");
+    }
+
+    // Every light into the light map (DrawSpace.Light), each through its visibility polygon
+    void DrawLights(float dt) {
+        let timer = PerformanceTimer();
+        torch.Update(dt);
+        walls.DrawLight(light, tankPos, torch.rotation, 1.35 * torch.scale, LIGHTING_TORCH);
+        for (let shot in projectiles) {
+            walls.DrawLight(light, shot.pos, 0, 0.28, Color(0.55, 0.42, 0.18, 1));
+        }
+        for (let flash in flashes) {
+            let t = flash.age / 0.35;
+            walls.DrawLight(light, flash.pos, flash.age * 400, 0.45 + 0.25 * t, Color(0.9, 0.65, 0.3, 1) * (1 - t));
+        }
+        for (let brazier in braziers) {
+            brazier.flicker.Update(dt);
+            walls.DrawLight(light, brazier.pos, brazier.flicker.rotation, 0.6 * brazier.flicker.scale, Color(0.5, 0.36, 0.2, 1));
+        }
+        for (let w in wanderers) {
+            walls.DrawLight(light, w.pos, 0, 0.35, w.color);
+        }
+        lightTime = timer.PeekTime();
+    }
+
+    void DrawWorld(float turretAngle) {
+        floor.Draw(Camera.viewportRect);
+        // The walls: the front's three rows lit at the ground in front of the wall (the row of
+        // pixels below its footprint), the top at the ambient (DungeonTracks' dark tops)
+        for (let y in 0..LIGHTING_ROWS) {
+            for (let x in 0..LIGHTING_COLUMNS) {
+                if (!walls.Get(x, y))
+                    continue;
+                let pos = Vec2(x, y) * LIGHTING_TILE;
+                let bottom = pos.y + LIGHTING_TILE;
+                let depth = DepthAt(bottom);
+                let front = DrawParams(lightAnchor: LightAnchor.Base(bottom + 0.5));
+                Draw.SpriteSlice(&wallSlices, 0, 0, pos - Vec2(0, 24), depth, DrawParams(light: LightMode.Ambient));
+                for (let row in 1..4) {
+                    Draw.SpriteSlice(&wallSlices, 0, row, pos - Vec2(0, 24 - row * 8), depth, front);
+                }
+            }
+        }
+        // Susi: lit where she stands; the turret on her 4 layers
+        let tank = DrawParams(lightAnchor: LightAnchor.At(tankPos));
+        let depth = DepthAt(tankPos.y + 5);
+        let tracks = Transform(tankPos, tankAngle);
+        Draw.Sprite3D(tracksAnim.CurSprite3D(), tracks, depth, tank);
+        Draw.Sprite3D(turret, Transform(tankPos - Vec2(0, 4), turretAngle), depth + 1, tank);
+        // Projectiles and flashes: bright, unlit
+        let glow = DrawParams(color: Color(1, 0.9, 0.55, 1), light: LightMode.Unlit);
+        for (let shot in projectiles) {
+            Draw.Rect(Rect(shot.pos - Vec2(1, 1), Vec2(2, 2)), DepthAt(shot.pos.y) + 2, glow);
+        }
+        for (let brazier in braziers) {
+            Draw.Rect(Rect(brazier.pos - Vec2(1.5, 1.5), Vec2(3, 3)), DepthAt(brazier.pos.y), DrawParams(color: Color(1, 0.7, 0.3, 1), light: LightMode.Unlit));
+        }
+    }
+
+    void Free() {
+        walls.Free();
+        floor.Free();
+        projectiles.Free();
+        flashes.Free();
+        braziers.Free();
+        wanderers.Free();
+    }
+}
