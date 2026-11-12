@@ -107,3 +107,12 @@ make("ui_button_hovered", 12, 12, function(img) box(img, 0, 0, 12, 12, hovered) 
 make("ui_checkbox_hovered", 12, 12, function(img) box(img, 0, 0, 12, 12, { outline = rgb("6f5ca0"), light = track.light, shadow = track.shadow, fill = rgb("271e36") }) end, { 3, 3, 8, 8 })
 make("ui_checkbox_checked_hovered", 12, 12, function(img) box(img, 0, 0, 12, 12, hovered) check(img) end, { 3, 3, 8, 8 })
 make("ui_slider_knob_hovered", 6, 12, function(img) box(img, 0, 0, 6, 12, hovered) end, nil)
+
+-- Toggled (a toggle that is on: the selected tool, a mode): teal, unlike the others' purple;
+-- hovered lighter, focused with the gold outline
+local toggled = { outline = outline, light = rgb("6fc2ae"), shadow = rgb("1f5a50"), fill = rgb("3c8f7f") }
+local toggledHovered = { outline = outline, light = rgb("8ad6c3"), shadow = rgb("2a6b60"), fill = rgb("4ea593") }
+local toggledFocused = { outline = gold, light = rgb("8ad6c3"), shadow = rgb("2a6b60"), fill = rgb("4ea593") }
+make("ui_button_toggled", 12, 12, function(img) box(img, 0, 0, 12, 12, toggled) end, { 3, 3, 8, 8 })
+make("ui_button_toggled_hovered", 12, 12, function(img) box(img, 0, 0, 12, 12, toggledHovered) end, { 3, 3, 8, 8 })
+make("ui_button_toggled_focused", 12, 12, function(img) box(img, 0, 0, 12, 12, toggledFocused) end, { 3, 3, 8, 8 })

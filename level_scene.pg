@@ -20,7 +20,8 @@
 //                   N random                  (Tiles layers) each cell's tile from the tileset's
 //                                             shuffle bag (each tile in it once per round, as often
 //                                             as it was put in): in the palette a left click puts
-//                                             a tile in, a right click takes one out; the brush of
+//                                             a tile in, a right click takes one out (Shift: 5,
+//                                             Ctrl: 10); the brush of
 //                                             any size, the line and the rectangle paint from it,
 //                                             the preview shows the tiles that come next;
 //                                             (Decals layers) each placed decal's angle, scale and
@@ -737,7 +738,7 @@ extend LevelScene {
         }
         let bounds = data.cameraBounds;
         Ui.Label(bounds.w > 0 ? TFormat("camera bounds ", bounds.x, " ", bounds.y, " ", bounds.w, " x ", bounds.h) : "camera bounds: the level", UiAlign.Left);
-        if (Ui.Button(tool == EditorTool.Bounds ? "> Camera bounds C" : "Camera bounds C"))
+        if (Ui.Button("Camera bounds C", isToggled: tool == EditorTool.Bounds))
             tool = tool == EditorTool.Bounds ? EditorTool.Brush : EditorTool.Bounds;
     }
 
@@ -1478,28 +1479,17 @@ extend LevelScene {
         needsRoll = false;
     }
 
-    // A random range in a row: its name and values, a slider for each end (the other end follows:
-    // from <= to); true when it changed
+    // A random range in a row: its name and values, a slider with a knob for each end (hope's
+    // RangeSlider: they meet, they do not cross); true when it changed
     bool RangeRow(string name, Vec2* range, float min, float max, float step, int id) {
-        Ui.Columns(3, 0.44);
-        if (step >= 1)
-            Ui.Label(TFormat(name, " ", (int)Round(range.x), "..", (int)Round(range.y)), UiAlign.Left);
-        else
-            Ui.Label(TFormat(name, " ", FormatFloat(range.x, 2), "..", FormatFloat(range.y, 2)), UiAlign.Left);
+        let label = step >= 1 ? TFormat(name, " ", (int)Round(range.x), "..", (int)Round(range.y)) : TFormat(name, " ", FormatFloat(range.x, 2), "..", FormatFloat(range.y, 2));
         let from = range.x;
         let to = range.y;
-        let isChanged = false;
-        if (Ui.Slider("", &from, min, max, step, id: id * 2)) {
-            range.x = Round(from * 100) / 100;
-            range.y = Max(range.y, range.x);
-            isChanged = true;
-        }
-        if (Ui.Slider("", &to, min, max, step, id: id * 2 + 1)) {
-            range.y = Round(to * 100) / 100;
-            range.x = Min(range.x, range.y);
-            isChanged = true;
-        }
-        return isChanged;
+        if (!Ui.RangeSlider(label, &from, &to, min, max, step, id: id))
+            return false;
+        range.x = Round(from * 100) / 100;
+        range.y = Round(to * 100) / 100;
+        return true;
     }
 
     // The selected Decals layer changed: a step ('merges': joins the last one of its name: a key
@@ -1560,7 +1550,7 @@ extend LevelScene {
         if (!isSelected) {
             Ui.Columns(2, 0.6);
             Ui.Label(TFormat("next: ", target.sprite), UiAlign.Left);
-            if (Ui.Button(isDecalRandom ? "> Random N" : "Random N")) {
+            if (Ui.Button("Random N", isToggled: isDecalRandom)) {
                 isDecalRandom = !isDecalRandom;
                 needsRoll = true;
             }
@@ -1646,7 +1636,7 @@ extend LevelScene {
         if (!Ui.isVisible)
             return false;
         let box = Recti(rect.x, rect.y, rect.h, rect.h);
-        Ui.DrawButton(Recti(rect.x + box.w + 2, rect.y, rect.w - box.w - 2, rect.h), isCurrent ? TFormat("> ", name) : name, interaction, true, UiAlign.Left);
+        Ui.DrawButton(Recti(rect.x + box.w + 2, rect.y, rect.w - box.w - 2, rect.h), name, interaction, true, UiAlign.Left, isCurrent);
         Ui.DrawRect(box, Color(0.05, 0.05, 0.07, 1));
         let sprite = Draw.SpriteOrMissing(name, Vec2i(16, 16));
         let quad = sprite.ToQuad(Transform(Vec2(0, 0), 0, Vec2(1, 1)));
@@ -1699,8 +1689,8 @@ extend LevelScene {
         Ui.Space(2);
         for (let index, layer in data.layers) {
             Ui.Columns(2, 0.86);           // (the button, its shown checkbox)
-            let label = TFormat(index == selected ? "> " : "", layer.name, "  (", layer.case, ", ", TileSizeOf(layer), " px)", layer.isLocked ? " locked" : "");
-            if (Ui.Button(label, id: index, align: UiAlign.Left))
+            let label = TFormat(layer.name, "  (", layer.case, ", ", TileSizeOf(layer), " px)", layer.isLocked ? " locked" : "");
+            if (Ui.Button(label, id: index, align: UiAlign.Left, isToggled: index == selected))
                 selected = index;
             let shown = !layer.isHidden;
             if (Ui.Checkbox("", &shown, id: index)) {
@@ -1722,19 +1712,19 @@ extend LevelScene {
         Ui.Panel(UiAnchor.LeftBottom, Max(240 * EditorTextScale, paletteWidth + 2 * Ui.style.padding), 0, Vec2i(8, -8));
         if (layer.case == LevelLayer.Decals) {
             Ui.Columns(2);
-            if (Ui.Button(tool == EditorTool.Place ? "> Place V" : "Place V"))
+            if (Ui.Button("Place V", isToggled: tool == EditorTool.Place))
                 tool = EditorTool.Place;
-            if (Ui.Button(tool == EditorTool.Select ? "> Select V" : "Select V"))
+            if (Ui.Button("Select V", isToggled: tool == EditorTool.Select))
                 tool = EditorTool.Select;
         } else {
             Ui.Columns(4);
-            if (Ui.Button(tool == EditorTool.Brush ? "> Brush B" : "Brush B"))
+            if (Ui.Button("Brush B", isToggled: tool == EditorTool.Brush))
                 tool = EditorTool.Brush;
-            if (Ui.Button(tool == EditorTool.Line ? "> Line L" : "Line L"))
+            if (Ui.Button("Line L", isToggled: tool == EditorTool.Line))
                 tool = EditorTool.Line;
-            if (Ui.Button(tool == EditorTool.Rect ? "> Rect R" : "Rect R"))
+            if (Ui.Button("Rect R", isToggled: tool == EditorTool.Rect))
                 tool = EditorTool.Rect;
-            if (Ui.Button(tool == EditorTool.Pick ? "> Pick I" : "Pick I"))
+            if (Ui.Button("Pick I", isToggled: tool == EditorTool.Pick))
                 tool = EditorTool.Pick;
         }
         {
@@ -1759,10 +1749,9 @@ extend LevelScene {
             {
                 // (the brush's shape; random tiles from the bag: Tiles layers)
                 Ui.Columns(2);
-                if (Ui.Button(isBrushRound ? "round" : "square", id: 100))
-                    isBrushRound = !isBrushRound;
+                Ui.Toggle("Round", &isBrushRound, id: 100);
                 let canRandom = layer.case == LevelLayer.Tiles;
-                if (Ui.Button(isRandom && canRandom ? "> Random N" : "Random N", id: 100, enabled: canRandom))
+                if (Ui.Button("Random N", id: 100, enabled: canRandom, isToggled: isRandom && canRandom))
                     isRandom = !isRandom;
             }
         }
@@ -1770,7 +1759,7 @@ extend LevelScene {
             let active = ActiveStamp(layer);
             if (isRandom) {
                 Ui.Label(TFormat(layer.tileset, ": random, ", TileBagOf(layer.tileset).len, " in the bag"), UiAlign.Left);
-                Ui.Label("palette: left puts in, right takes out", UiAlign.Left, Ui.style.textDisabled);
+                Ui.Label("palette: left in, right out (Shift 5, Ctrl 10)", UiAlign.Left, Ui.style.textDisabled);
             } else if (active == null)
                 Ui.Label(TFormat(layer.tileset, ": tile ", tile), UiAlign.Left);
             else if (stampSlot >= 0)
@@ -1798,8 +1787,8 @@ extend LevelScene {
                 let slot = row * 5 + column;
                 let tiles = &stamps.slots[slot];
                 let key = StampSet.KeyOf(slot);
-                let label = tiles.w == 0 ? TFormat(key, ": -") : TFormat(active != null && stampSlot == slot ? "> " : "", key, ": ", tiles.w, "x", tiles.h);
-                if (Ui.Button(label, id: slot, enabled: tiles.w > 0, align: UiAlign.Left))
+                let label = tiles.w == 0 ? TFormat(key, ": -") : TFormat(key, ": ", tiles.w, "x", tiles.h);
+                if (Ui.Button(label, id: slot, enabled: tiles.w > 0, align: UiAlign.Left, isToggled: active != null && stampSlot == slot))
                     UseStamp(*tiles, layer.tileset, slot);
             }
         }
@@ -1837,10 +1826,17 @@ extend LevelScene {
             // (random: left puts the tile in the bag, right takes one out; else left picks it)
             let inBag = bag != null ? bag.Count((byte)index) : 0;
             if (tileRect.Contains(mouse) && bag != null) {
+                // (Shift: 5 at a time, Ctrl: 10)
+                let ctrl = Input.KeyDown(Scancode.LCtrl) || Input.KeyDown(Scancode.RCtrl);
+                let shift = Input.KeyDown(Scancode.LShift) || Input.KeyDown(Scancode.RShift);
+                let count = ctrl ? 10 : shift ? 5 : 1;
                 if (Input.MousePressed(MouseButton.Left))
-                    bag.Add((byte)index);
-                if (Input.MousePressed(MouseButton.Right))
-                    bag.Remove((byte)index);
+                    bag.Add((byte)index, count);
+                if (Input.MousePressed(MouseButton.Right)) {
+                    for (let removal in 0..count) {
+                        bag.Remove((byte)index);
+                    }
+                }
                 inBag = bag.Count((byte)index);
             } else if (tileRect.Contains(mouse) && Input.MousePressed(MouseButton.Left)) {
                 tile = (byte)index;
