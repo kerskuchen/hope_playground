@@ -17,7 +17,8 @@
 //                   C camera bounds           drag a rectangle of tiles (the camera's bounds; shown in
 //                                             cyan), right click: the whole level again
 //                   the level panel           extends the level on each side (- and +: a tile row or
-//                                             column; every layer, decals and bounds move along)
+//                                             column, with Shift 10, with Ctrl 50; every layer,
+//                                             decals and bounds move along)
 //                   Ctrl+S                    saves the level file ('*' in the panel: unsaved)
 //                   Ctrl+Z, Ctrl+Y            undo, redo (also Ctrl+Shift+Z): a stroke, a rectangle,
 //                                             showing or hiding a layer is a step (hope's
@@ -547,14 +548,18 @@ extend LevelScene {
         Ui.Panel(UiAnchor.RightTop, 170 * EditorTextScale, 0, Vec2i(-8, 150));          // (below the log's lines)
         Ui.Label(TFormat("size ", data.size.x, " x ", data.size.y, " (", data.pixelSize.x, " x ", data.pixelSize.y, " px)"), UiAlign.Left, Ui.style.textFocused);
         [string, 4] sides = ["left", "top", "right", "bottom"];
+        // (Shift: 10 at a time, Ctrl: 50; the buttons say so)
+        let shift = Input.KeyDown(Scancode.LShift) || Input.KeyDown(Scancode.RShift);
+        let ctrl = Input.KeyDown(Scancode.LCtrl) || Input.KeyDown(Scancode.RCtrl);
+        let step = ctrl ? 50 : shift ? 10 : 1;
         for (let index in 0..4) {
             Ui.Columns(3, 0.5);
             Ui.Label(sides[index], UiAlign.Left);
             let delta = 0;
-            if (Ui.Button("-", id: index))
-                delta = -1;
-            if (Ui.Button("+", id: index))
-                delta = 1;
+            if (Ui.Button(step == 1 ? "-" : TFormat("-", step), id: index))
+                delta = -step;
+            if (Ui.Button(step == 1 ? "+" : TFormat("+", step), id: index))
+                delta = step;
             if (delta != 0)
                 ExtendLevel(index == 0 ? delta : 0, index == 1 ? delta : 0, index == 2 ? delta : 0, index == 3 ? delta : 0, sides[index]);
         }

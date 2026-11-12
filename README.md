@@ -15,7 +15,7 @@ The scenes (each file's header lists its keys):
   left paints, right erases (the other button cancels a rectangle), the palette of its tileset; autotile layers: solid and open; Ctrl+S
   saves the file; Ctrl+Z / Ctrl+Y undo and redo a stroke, a rectangle, showing or hiding a layer;
   C sets the camera bounds (drag a rectangle of tiles, right click: the whole level), the level
-  panel extends or shrinks the level on each side;
+  panel extends or shrinks the level on each side (- and +: one tile, with Shift 10, with Ctrl 50);
   decal layers: V switches between place (a ghost at the mouse, a click puts it down) and select
   (click, drag moves, Delete removes); Q/E rotate, W/S scale, A/D opacity, F / Shift+F flip (held
   keys repeat), sliders, the sprite list with previews (`decal_` first; a click: place it,
