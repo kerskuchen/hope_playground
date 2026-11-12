@@ -153,8 +153,7 @@ extend Turret {
         Draw();
         global.Draw.CircleOutline(Circle(pos, range), 1, 33, DrawParams(color: Color(0.9, 0.3, 0.3, 0.5)));
         // (in the editor Resolve finds the placed entity of that name)
-        let aim = target.Resolve();
-        if (aim != null)
+        if (let aim = target.Resolve())
             global.Draw.Line(pos, aim.pos, 1, 33, DrawParams(color: Color(1, 0.94, 0.55, 0.7)));
     }
 }

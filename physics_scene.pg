@@ -392,8 +392,7 @@ extend PhysicsScene {
                     shot.trail.Add(hit.point);
                     if (!hit.isTile && hit.owner >= OWNER_CRATE)
                         BreakCrate(hit.owner);
-                    let vehicle = hit.isTile ? null : VehicleOf(hit.owner);
-                    if (vehicle != null) {
+                    if (!hit.isTile && let vehicle = VehicleOf(hit.owner)) {
                         PushVehicle(vehicle, hit.direction * PHYSICS_SHOT_IMPULSE * (cell / 24), hit.contact);
                         Camera.AddShake(Shake.Pendulum(hit.direction, 2 * (cell / 24), 0.15, speed: 40));    // a kick along the shot
                     }
@@ -438,8 +437,7 @@ extend PhysicsScene {
         explosions.Add(DebugExplosion(point, normal, 0));
         Camera.AddShake(Shake.Random(PHYSICS_EXPLOSION_SHAKE * (cell / 24), 0.5, easing: Easing.CircIn));   // a hard hit that trails off
         world.ForEachOverlap(ColliderShape.Circle(circle: Circle(point, PHYSICS_BLAST_RADIUS * cell)), LAYER_WALLS | LAYER_CRATE | LAYER_HITBOX, (WorldOverlap* found) => {
-            let vehicle = found.isTile ? null : VehicleOf(found.owner);
-            if (vehicle != null) {
+            if (!found.isTile && let vehicle = VehicleOf(found.owner)) {
                 // Away from the blast, through its center (it only moves)
                 let away = (ToWorld(vehicle.center) - point).NormalizedOr(Vec2(0, -1));
                 vehicle.external.ApplyLinearImpulse(away * PHYSICS_BLAST_IMPULSE * (cell / 24), vehicle.mass);

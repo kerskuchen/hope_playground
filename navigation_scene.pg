@@ -209,8 +209,7 @@ extend NavScene {
             let half = agent.size * 0.5 * NAV_TILE;
             Draw.Rect(Rect(agent.pos - Vec2(half), Vec2(2 * half)), 4, Color(agent.color.r * 0.6, agent.color.g * 0.6, agent.color.b * 0.6, 0.8));
             let pathColor = i == selected ? agent.color : Color(agent.color.r, agent.color.g, agent.color.b, 0.35);
-            let path = planner.PathOf(agent.nav);
-            if (path != null)
+            if (let path = planner.PathOf(agent.nav))
                 path.Draw(agent.pos, i == selected ? 6 : 5, pathColor);
             if (separates && agent.push != Vec2(0, 0))
                 Draw.Line(agent.pos, agent.pos + agent.push * 2 * NAV_TILE, 1.5, 7, Color.White);

@@ -146,8 +146,7 @@ extend AudioScene {
             Audio.globalPlaybackSpeed = Audio.globalPlaybackSpeed < 1 ? 1 : 0.5;
         Audio.SetPosition(sine, sinePosition, sineVelocity);
         Draw.LogLine("audio scene (F6): T sine, F falloff (", sineFalloff, "), K minimum loudness (", isSineFloored, "), R reverb (", reverbRoom == 0 ? "dry" : (reverbRoom == 1 ? "small room" : "big hall, wetter far away"), "), L low-pass (", isSineFiltered, "), G slow motion (", Audio.globalPlaybackSpeed, "), Space coin");
-        let info = Audio.GetStream(sine);
-        if (info != null) {
+        if (let info = Audio.GetStream(sine)) {
             Draw.LogLine("sine at ", mouse.Flooredi(), " moving ", sineVelocity.Flooredi(), " px/s: volume ", (int)(info.volume * 100), " %, pan ",
                 (int)(info.pan * 100), " %, reverb ", (int)(info.reverbSend * 100), " %, playback speed ", (int)(info.playbackSpeed * 1000) / 1000.0, " (", (int)(440 * info.playbackSpeed * Audio.globalPlaybackSpeed), " Hz), low-pass ", (int)(info.lowpass * 100), " %");
         }
