@@ -13,9 +13,12 @@ extend LevelEditorSession {
         writer.Write("tool", value.tool);
         writer.Write("tile", value.tile);
         writer.Write("decal", value.decal);
+        writer.Write("brushSize", value.brushSize);
+        writer.Write("isBrushRound", value.isBrushRound);
         writer.EndObject();
     }
     static LevelEditorSession Read[$R](R* reader) {
+        LevelEditorSession defaults;
         let runId = reader.Read[long]("runId");
         let isEditing = reader.Read[bool]("isEditing");
         let previewPos = reader.Read[Vec2]("previewPos");
@@ -25,7 +28,9 @@ extend LevelEditorSession {
         let tool = reader.Read[EditorTool]("tool");
         let tile = reader.Read[int]("tile");
         let decal = reader.Read[LevelDecal]("decal");
-        return LevelEditorSession(runId, isEditing, previewPos, editorPos, editorZoom, selected, tool, tile, decal);
+        let brushSize = reader.Read[int]("brushSize", defaults.brushSize);
+        let isBrushRound = reader.Read[bool]("isBrushRound");
+        return LevelEditorSession(runId, isEditing, previewPos, editorPos, editorZoom, selected, tool, tile, decal, brushSize, isBrushRound);
     }
 }
 
@@ -52,6 +57,7 @@ extend EditorTool {
         let read = reader.ReadEnum();
         switch (read.name) {
         case "Brush": return EditorTool.Brush;
+        case "Line": return EditorTool.Line;
         case "Rect": return EditorTool.Rect;
         case "Pick": return EditorTool.Pick;
         case "Place": return EditorTool.Place;

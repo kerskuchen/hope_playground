@@ -11,9 +11,12 @@ The scenes (each file's header lists its keys):
 - F1 the level scene (`level_scene.pg`): the level `test` (`assets/levels/test.level`) as a game
   shows it (the fixed canvas, the arrow keys move the view); F1 again: the level editor (the free
   canvas, every shown layer, the tile grid, the layer panel with show/hide; the middle mouse button
-  pans, the wheel zooms; click a layer to edit it: B brush, R rectangle, I pick (or Alt+click),
-  left paints, right erases (the other button cancels a rectangle), the palette of its tileset; autotile layers: solid and open; Ctrl+S
-  saves the file; Ctrl+Z / Ctrl+Y undo and redo a stroke, a rectangle, showing or hiding a layer;
+  pans, the wheel zooms; click a layer to edit it: B brush, L line (Shift: snapped to 8
+  directions), R rectangle, I pick (or Alt+click), W/S the brush size (1 to 32, square or round in
+  the panel), Shift+click a line from where the last stroke ended; left paints, right erases (the
+  other button cancels a line or a rectangle), the palette of its tileset; autotile layers: solid
+  and open; Ctrl+S saves the file; Ctrl+Z / Ctrl+Y undo and redo a stroke, a line, a rectangle,
+  showing or hiding a layer;
   C sets the camera bounds (drag a rectangle of tiles, right click: the whole level), the level
   panel extends or shrinks the level on each side (- and +: one tile, with Shift 10, with Ctrl 50);
   decal layers: V switches between place (a ghost at the mouse, a click puts it down) and select
