@@ -15,6 +15,8 @@ extend LevelEditorSession {
         writer.Write("decal", value.decal);
         writer.Write("brushSize", value.brushSize);
         writer.Write("isBrushRound", value.isBrushRound);
+        writer.Write("isRandom", value.isRandom);
+        writer.Write("bags", value.bags);
         writer.EndObject();
     }
     static LevelEditorSession Read[$R](R* reader) {
@@ -30,7 +32,23 @@ extend LevelEditorSession {
         let decal = reader.Read[LevelDecal]("decal");
         let brushSize = reader.Read[int]("brushSize", defaults.brushSize);
         let isBrushRound = reader.Read[bool]("isBrushRound");
-        return LevelEditorSession(runId, isEditing, previewPos, editorPos, editorZoom, selected, tool, tile, decal, brushSize, isBrushRound);
+        let isRandom = reader.Read[bool]("isRandom");
+        let bags = reader.Read[List[LevelEditorBag]]("bags");
+        return LevelEditorSession(runId, isEditing, previewPos, editorPos, editorZoom, selected, tool, tile, decal, brushSize, isBrushRound, isRandom, bags);
+    }
+}
+
+extend LevelEditorBag {
+    static void Write[$W](W* writer, string name, LevelEditorBag value) {
+        writer.BeginObject(name, value);
+        writer.Write("tileset", value.tileset);
+        writer.Write("tiles", value.tiles);
+        writer.EndObject();
+    }
+    static LevelEditorBag Read[$R](R* reader) {
+        let tileset = reader.Read[string]("tileset");
+        let tiles = reader.Read[List[int]]("tiles");
+        return LevelEditorBag(tileset, tiles);
     }
 }
 

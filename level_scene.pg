@@ -17,6 +17,12 @@
 //                                             across, 1 to 32), square or round in the panel
 //                   Shift + click             (the brush) a line from where the last stroke or
 //                                             line on the layer ended (shown while Shift is held)
+//                   N random                  (Tiles layers) each cell's tile from the tileset's
+//                                             shuffle bag (each tile in it once per round, as often
+//                                             as it was put in): in the palette a left click puts
+//                                             a tile in, a right click takes one out; the brush of
+//                                             any size, the line and the rectangle paint from it,
+//                                             the preview shows the tiles that come next
 //                   I pick, or Alt + click    picks the tile under the mouse (eyedropper; KDE
 //                                             moves windows with Alt + drag); dragged over a
 //                                             region: that is the stamp (I: the brush then)
@@ -86,6 +92,21 @@ struct LevelEditorSession {
     @Serialize LevelDecal decal;       // what Place puts down next (its sprite, angle, scale, color, flips)
     @Serialize int brushSize = 1;
     @Serialize bool isBrushRound;
+    @Serialize bool isRandom;
+    @Serialize List[LevelEditorBag] bags;  // the tilesets' random bags
+}
+
+// A tileset's random bag (its tiles, one per time it is in the bag)
+@Serializable
+struct LevelEditorBag {
+    @Serialize string tileset;
+    @Serialize List[int] tiles;
+}
+
+// A tileset's random bag as the editor keeps it
+struct TileBag {
+    String tileset;
+    ShuffleBag[byte] bag;
 }
 
 struct LevelScene {
@@ -119,6 +140,11 @@ struct LevelScene {
     String stampTileset;               // ... its tileset (a layer of another one: its tile again)
     int stampSlot = -1;                // ... the slot it is (-1: picked, in no slot)
     Vec2i stampAnchor;                 // the stroke's first stamp's left top (the stroke's stamps are on its grid)
+    // Random painting (Tiles layers): each cell's tile from the tileset's shuffle bag (the palette:
+    // a left click puts a tile in, a right click takes one out)
+    bool isRandom;                     // N
+    List[TileBag] tileBags;
+    Grid[bool] strokePainted;          // the cells the random stroke painted (the brush moving over them: not again)
     // Decals
     LevelDecal decal = LevelDecal("decal_scorch", Vec2(0, 0), 0);    // what Place puts down next (pos: unused)
     int selectedDecal = -1;            // in the selected Decals layer (-1: none)
@@ -250,6 +276,15 @@ extend LevelScene {
             tile = (byte)Clamp(session.tile, 0, 254);
             brushSize = Clamp(session.brushSize, 1, BRUSH_SIZE_MAX);
             isBrushRound = session.isBrushRound;
+            isRandom = session.isRandom;
+            for (let saved in session.bags) {
+                let bag = TileBagOf(saved.tileset);
+                bag.Clear();
+                for (let value in saved.tiles) {
+                    if (0 <= *value && *value < TILE_EMPTY)
+                        bag.Add((byte)*value);
+                }
+            }
             if (session.decal.sprite.len > 0)
                 decal = session.decal;
         }
@@ -284,7 +319,14 @@ extend LevelScene {
         Directory.Create(TFormat(BUILD_PROJECT_DIR, "/build/editor"));
         let inEditor = isEditing;
         let session = LevelEditorSession(LevelEditorRunId(), inEditor, inEditor ? previewPos : Camera.pos, inEditor ? Camera.pos : editorPos, inEditor ? Camera.zoom : editorZoom,
-            selected, tool, tile, decal, brushSize, isBrushRound);
+            selected, tool, tile, decal, brushSize, isBrushRound, isRandom);
+        for (let bag in tileBags) {
+            let saved = LevelEditorBag(bag.tileset.view);
+            for (let index in 0..bag.bag.items.len) {
+                saved.tiles.Add(bag.bag.items[index]);
+            }
+            session.bags.Add(saved);
+        }
         File.WriteText(SessionPath("editor"), Format(ToJson(session), "\n"));
         if (!history.WriteFile(SessionPath("history")))
             Log.Warn("[Level editor] could not write ", SessionPath("history"));
@@ -533,7 +575,7 @@ extend LevelScene {
     void EditFrame() {
         Ui.BlockKeys();                    // (the keys are the tools': W and S would move the panels' focus)
         if (playground.settings.showsHints)
-            Draw.LogLine("Level editor (F1: the preview): B brush, L line, R rectangle, I pick (or Alt+click), W/S brush size, Shift+click a line from the last, I+drag a stamp, 1..0 stamps (Ctrl: keep), left paints, right erases, Ctrl+S saves; middle mouse pans, the wheel zooms (",
+            Draw.LogLine("Level editor (F1: the preview): B brush, L line, R rectangle, I pick (or Alt+click), W/S brush size, N random (the palette fills the bag), Shift+click a line from the last, I+drag a stamp, 1..0 stamps (Ctrl: keep), left paints, right erases, Ctrl+S saves; middle mouse pans, the wheel zooms (",
                 FormatFloat(Camera.zoom, 3), "x)");
         let view = Camera.viewportRect;
         for (let index, layer in data.layers) {
@@ -561,6 +603,8 @@ extend LevelScene {
             tool = EditorTool.Brush;
         if (Input.KeyPressed(Scancode.L))
             tool = EditorTool.Line;
+        if (Input.KeyPressed(Scancode.N) && !ctrl)
+            isRandom = !isRandom;
         if (Input.KeyPressed(Scancode.R))
             tool = EditorTool.Rect;
         if (Input.KeyPressed(Scancode.I))
@@ -732,6 +776,8 @@ extend LevelScene {
         if (layer.case == LevelLayer.Tiles && !isPainting)
             StampKeys(layer, ctrl);
         let stampTiles = ActiveStamp(layer);
+        let randomBag = RandomBagOf(layer);
+        let isBagEmpty = randomBag != null && randomBag.len == 0;
         let stampHalf = stampTiles != null ? Vec2i((stampTiles.w - 1) / 2, (stampTiles.h - 1) / 2) : Vec2i(0, 0);
 
         // A rectangle or a line being dragged is cancelled by the other button (left draws, right
@@ -756,9 +802,13 @@ extend LevelScene {
                     isPickingRegion = true;
                     strokeStart = cell;
                 }
+            } else if (refusal.len == 0 && isBagEmpty && Input.MousePressed(MouseButton.Left)) {
+                Draw.LogSticky(180, Color.Orange, "Not painted: the random bag is empty (left click tiles in the palette, N: random off)");
             } else if (refusal.len == 0) {
                 isPainting = true;
                 isErasing = Input.MousePressed(MouseButton.Right);
+                if (randomBag != null)
+                    StartRandomStroke(layer);
                 strokeStart = cell;
                 strokeLast = cell;
                 isStrokeLine = false;
@@ -840,6 +890,8 @@ extend LevelScene {
         OutlineMask(&shown, cellSize, color);
         if (refusal.len > 0 && isInside)
             Draw.LogLineColored(Color.Orange, "Not painted: ", refusal);
+        else if (isBagEmpty && isInside)
+            Draw.LogLineColored(Color.Orange, "Random: the bag is empty (left click tiles in the palette, N: random off)");
     }
 
     // The line being dragged from strokeStart to 'end': the brush along it, or the stamp side by
@@ -855,7 +907,7 @@ extend LevelScene {
 
     // The stamp painted on 'layer' (null: the palette's tile)
     Grid[byte]* ActiveStamp(LevelLayer* layer) {
-        if (layer.case != LevelLayer.Tiles || stamp.w == 0 || stampTileset.view != layer.tileset)
+        if (layer.case != LevelLayer.Tiles || stamp.w == 0 || stampTileset.view != layer.tileset || isRandom)
             return null;
         return &stamp;
     }
@@ -916,6 +968,7 @@ extend LevelScene {
                 Draw.LogSticky(180, Color.Orange, "Slot ", key, " is empty: pick a region (I and drag), Ctrl+", key, " keeps it there");
             } else {
                 UseStamp(stamps.slots[slot], layer.tileset, slot);
+                isRandom = false;
             }
         }
     }
@@ -931,6 +984,7 @@ extend LevelScene {
             if (picked != TILE_EMPTY) {
                 tile = picked;
                 DropStamp();
+                isRandom = false;
             }
             return;
         }
@@ -949,6 +1003,7 @@ extend LevelScene {
             return;
         }
         UseStamp(tiles, layer.tileset, -1);
+        isRandom = false;
         if (!alt)
             tool = EditorTool.Brush;
     }
@@ -1025,13 +1080,61 @@ extend LevelScene {
 
     // The cells of 'mask' painted (those in the layer)
     void PaintMask(LevelLayer* layer, LayerDrawing* drawing, CellMask mask) {
+        let bag = isErasing || mask.tiles.w > 0 ? null : RandomBagOf(layer);
         for (let y in 0..mask.marks.h) {
             for (let x in 0..mask.marks.w) {
-                if (mask.marks.Get(Vec2i(x, y)))
-                    PaintCell(layer, drawing, Vec2i(mask.origin.x + x, mask.origin.y + y), mask.tiles.w > 0 ? mask.tiles.Get(Vec2i(x, y)) : tile);
+                if (!mask.marks.Get(Vec2i(x, y)))
+                    continue;
+                let cell = Vec2i(mask.origin.x + x, mask.origin.y + y);
+                if (bag != null) {
+                    // (a tile from the bag for each cell the stroke has not painted yet: in the
+                    // order PreviewMask shows them)
+                    if (!layer.tiles.ContainsCoord(cell.x, cell.y) || IsStrokePainted(cell) || bag.len == 0)
+                        continue;
+                    strokePainted.Set(cell, true);
+                    PaintCell(layer, drawing, cell, bag.Next());
+                } else {
+                    PaintCell(layer, drawing, cell, mask.tiles.w > 0 ? mask.tiles.Get(Vec2i(x, y)) : tile);
+                }
             }
         }
     }
+
+    //----------------------------------------------------------------------------------------------
+    // Random painting
+
+    // The bag the tiles come from (random painting on a Tiles layer without a stamp), else null
+    ShuffleBag[byte]* RandomBagOf(LevelLayer* layer) {
+        if (!isRandom || layer.case != LevelLayer.Tiles)
+            return null;
+        return TileBagOf(layer.tileset);
+    }
+
+    // The random bag of 'tileset' (a new one, empty, the first time)
+    ShuffleBag[byte]* TileBagOf(string tileset) {
+        for (let index in 0..tileBags.len) {
+            if (tileBags[index].tileset.view == tileset)
+                return &tileBags[index].bag;
+        }
+        ScopeAlloc(history.allocator);
+        let name = String();
+        name.Append(tileset);
+        tileBags.Add(TileBag(name, ShuffleBag[byte]((ulong)LevelEditorRunId() ^ Hash(tileset))));
+        return &tileBags[tileBags.len - 1].bag;
+    }
+
+    // A random stroke begins: none of the layer's cells painted by it yet
+    void StartRandomStroke(LevelLayer* layer) {
+        if (strokePainted.w != layer.tiles.w || strokePainted.h != layer.tiles.h) {
+            ScopeAlloc(history.allocator);
+            strokePainted.Free();
+            strokePainted = Grid[bool](layer.tiles.w, layer.tiles.h, false);
+        } else {
+            strokePainted.Fill(false);
+        }
+    }
+
+    bool IsStrokePainted(Vec2i cell) { return strokePainted.ContainsCoord(cell.x, cell.y) && strokePainted.Get(cell); }
 
     // What painting the cells of 'mask' would give, drawn over the level (just under the grid): the
     // palette's tile at 80%, erasing a red tint; an autotile layer's solid cells blue, open ones red
@@ -1041,14 +1144,30 @@ extend LevelScene {
         let clipped = Recti.Intersect(mask.rect, layerRect);
         let isTile = layer.case == LevelLayer.Tiles && !erases;
         let tileset = isTile ? &drawing.tilemap.tileset : null;
+        // (random: the tiles the bag gives next, cell by cell in PaintMask's order; a stroke's
+        // painted cells are the layer's already)
+        let bag = isTile && mask.tiles.w == 0 ? RandomBagOf(layer) : null;
+        let skipsPainted = bag != null && isPainting && tool == EditorTool.Brush;
+        List[byte] coming;
+        if (bag != null) {
+            let count = 0;
+            for (let y in clipped.y..clipped.y + clipped.h) {
+                for (let x in clipped.x..clipped.x + clipped.w) {
+                    if (mask.Has(x, y) && !(skipsPainted && IsStrokePainted(Vec2i(x, y))))
+                        count++;
+                }
+            }
+            coming = bag.Peek(count);
+        }
+        let comingIndex = 0;
         let tint = erases ? Color(0.45, 0.05, 0.05, 0.45) : Color(0.1, 0.25, 0.55, 0.45);
         for (let y in clipped.y..clipped.y + clipped.h) {
             for (let x in clipped.x..clipped.x + clipped.w) {
-                if (!mask.Has(x, y))
+                if (!mask.Has(x, y) || (skipsPainted && IsStrokePainted(Vec2i(x, y))))
                     continue;
                 let pos = Vec2(Vec2i(x, y) * cellSize);
                 if (isTile) {
-                    let value = mask.TileAt(x, y, tile);
+                    let value = bag != null ? (comingIndex < coming.len ? coming[comingIndex++] : TILE_EMPTY) : mask.TileAt(x, y, tile);
                     if (value < tileset.count)
                         tileset.Draw(value, pos, depth, DrawParams(color: Color(0.8, 0.8, 0.8, 0.8)));
                 } else
@@ -1523,18 +1642,30 @@ extend LevelScene {
             Ui.Label(TFormat("undo: ", history.undoName), UiAlign.Left, Ui.style.textDisabled);
         if (layer.case != LevelLayer.Decals) {
             // The brush's (and the line's) size and shape
-            Ui.Columns(4, 0.4);
-            Ui.Label(TFormat("size ", brushSize, " W/S"), UiAlign.Left);
-            if (Ui.Button("-", id: 100, enabled: brushSize > 1))
-                brushSize = Max(1, brushSize - 1);
-            if (Ui.Button("+", id: 100, enabled: brushSize < BRUSH_SIZE_MAX))
-                brushSize = Min(BRUSH_SIZE_MAX, brushSize + 1);
-            if (Ui.Button(isBrushRound ? "round" : "square", id: 100))
-                isBrushRound = !isBrushRound;
+            {
+                Ui.Columns(3, 0.5);
+                Ui.Label(TFormat("size ", brushSize, " W/S"), UiAlign.Left);
+                if (Ui.Button("-", id: 100, enabled: brushSize > 1))
+                    brushSize = Max(1, brushSize - 1);
+                if (Ui.Button("+", id: 100, enabled: brushSize < BRUSH_SIZE_MAX))
+                    brushSize = Min(BRUSH_SIZE_MAX, brushSize + 1);
+            }
+            {
+                // (the brush's shape; random tiles from the bag: Tiles layers)
+                Ui.Columns(2);
+                if (Ui.Button(isBrushRound ? "round" : "square", id: 100))
+                    isBrushRound = !isBrushRound;
+                let canRandom = layer.case == LevelLayer.Tiles;
+                if (Ui.Button(isRandom && canRandom ? "> Random N" : "Random N", id: 100, enabled: canRandom))
+                    isRandom = !isRandom;
+            }
         }
         if (layer.case == LevelLayer.Tiles) {
             let active = ActiveStamp(layer);
-            if (active == null)
+            if (isRandom) {
+                Ui.Label(TFormat(layer.tileset, ": random, ", TileBagOf(layer.tileset).len, " in the bag"), UiAlign.Left);
+                Ui.Label("palette: left puts in, right takes out", UiAlign.Left, Ui.style.textDisabled);
+            } else if (active == null)
                 Ui.Label(TFormat(layer.tileset, ": tile ", tile), UiAlign.Left);
             else if (stampSlot >= 0)
                 Ui.Label(TFormat(layer.tileset, ": stamp ", StampSet.KeyOf(stampSlot), " (", active.w, " x ", active.h, ")"), UiAlign.Left);
@@ -1583,6 +1714,7 @@ extend LevelScene {
         let columns = Max(1, Min(tileset.columns, rect.w / tileSize.x));
         let mouse = Input.cursors.ui;
         let depth = Ui.NextDepth();
+        let bag = RandomBagOf(layer);
         for (let index in 0..tileset.count) {
             let pos = Vec2i(rect.x + (index % tileset.columns) * tileSize.x, rect.y + (index / tileset.columns) * tileSize.y);
             let slice = tileset.GetQuad(index, Vec2(0, 0));
@@ -1596,12 +1728,28 @@ extend LevelScene {
                 Draw.SpriteQuad(tileset.sprite, quad, depth, DrawParams(space: DrawSpace.UI));
             }
             let tileRect = Rect(Vec2(pos), Vec2(tileSize));
-            if (tileRect.Contains(mouse) && Input.MousePressed(MouseButton.Left)) {
+            // (random: left puts the tile in the bag, right takes one out; else left picks it)
+            let inBag = bag != null ? bag.Count((byte)index) : 0;
+            if (tileRect.Contains(mouse) && bag != null) {
+                if (Input.MousePressed(MouseButton.Left))
+                    bag.Add((byte)index);
+                if (Input.MousePressed(MouseButton.Right))
+                    bag.Remove((byte)index);
+                inBag = bag.Count((byte)index);
+            } else if (tileRect.Contains(mouse) && Input.MousePressed(MouseButton.Left)) {
                 tile = (byte)index;
                 DropStamp();               // (the tile again, not the stamp)
             }
-            if (index == tile || tileRect.Contains(mouse)) {
-                let color = index == tile ? Color(1, 0.94, 0.55, 1) : Color(0.6, 0.6, 0.6, 0.6);
+            if (inBag > 0) {
+                // (how often it is in the bag, at its bottom right)
+                let count = TFormat(inBag);
+                let box = Recti(pos.x + tileSize.x - Ui.TextWidth(count) - 4, pos.y + tileSize.y - Ui.lineHeight - 2, Ui.TextWidth(count) + 4, Ui.lineHeight + 2);
+                Ui.DrawRect(box, Color(0.05, 0.05, 0.07, 0.85));
+                Ui.DrawTextIn(count, box, UiAlign.Center, Color(1, 0.94, 0.55, 1));
+            }
+            let isMarked = bag != null ? inBag > 0 : index == tile;
+            if (isMarked || tileRect.Contains(mouse)) {
+                let color = isMarked ? Color(1, 0.94, 0.55, 1) : Color(0.6, 0.6, 0.6, 0.6);
                 let outline = DrawParams(color: color, space: DrawSpace.UI);
                 let near = Ui.NextDepth();
                 Draw.Rect(Vec2(pos), Vec2(tileSize.x, 1), near, outline);
