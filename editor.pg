@@ -1,5 +1,5 @@
 // The tilemap editor (F3, in the editor phase): ground layers (TilemapLayer: random ground tiles,
-// random details on top from a trimmed tileset) and walls (TilemapDualgrid: left mouse button
+// random details on top from a trimmed tileset) and walls (AutotileMap: left mouse button
 // sets their cells, right removes them; the drawn tiles follow). Between them a Decalmap: space
 // paints a scorch mark at the cursor (decal_scorch.qoi), T drags tire tracks (decal_tiretrack.qoi),
 // F scatters 500 scorches, C clears.
@@ -7,7 +7,7 @@
 struct GameEditor {
     TilemapLayer ground;           // random ground tiles (R: again)
     TilemapLayer details;          // on top: random details on some cells (a trimmed tileset)
-    TilemapDualgrid walls;
+    AutotileMap walls;
     Decalmap decals;               // above the ground, below the walls (chunks of 128 px: 2 x 2, their seams show it works)
     Sprite* scorch;                // 24 x 24
     Sprite* tireTrack;             // a step of both wheels: 3 x 11, along x
@@ -22,7 +22,7 @@ extend GameEditor {
         ground = TilemapLayer(Tileset(Draw.GetSprite("tiles_ground"), Vec2i(16, 16)), 16, 16, depth: 1);
         details = TilemapLayer(Tileset(Draw.GetSprite("tiles_ground_details"), Vec2i(16, 16)), 16, 16, depth: 2);
         RandomizeGround();
-        walls = TilemapDualgrid(TilesetDualgrid(Draw.GetSprite("tileset_test")), 16, 16, depth: 10);
+        walls = AutotileMap(AutotileTileset(Draw.GetSprite("tileset_test")), 16, 16, depth: 10);
         // A room (with a Grid helper, then Refresh) and a few single cells (Set refreshes)
         walls.DrawRect(Recti(2, 2, 9, 7), false, true);
         walls.Set(6, 2, false);                    // a door

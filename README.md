@@ -8,10 +8,14 @@ committed on its own.
 
 The scenes (each file's header lists its keys):
 
-- F1 the start scene (`main.pg`): Sorcy runs in circles, Susi (a 3D sprite on tracks) drives with
+- F1 the level scene (`level_scene.pg`): the level `test` (`assets/levels/test.level`) as a game
+  shows it (the fixed canvas, the arrow keys move the view); F1 again: the level editor (the free
+  canvas, every shown layer, the tile grid, the layer panel with show/hide; the middle mouse button
+  pans, the wheel zooms)
+- F3 the start scene (`main.pg`): Sorcy runs in circles, Susi (a 3D sprite on tracks) drives with
   WASD, the arrow keys or a gamepad; camera shakes, following, translucent sorting
 - F2 the physics scene (`physics_scene.pg`): hope's collision world, shots, rams, impulses
-- F3 the tilemap editor (`editor.pg`): ground layers, dual-grid walls, a decal map
+- F10 the tilemap demo (`editor.pg`): ground layers, autotile walls, a decal map
 - F4 the navigation scene (`navigation_scene.pg`): agents of three sizes and four profiles
 - F6 the audio scene (`audio_scene.pg`): music layers on the beat grid and the spatial audio test
 - F7 the lighting scene (`lighting_scene.pg`, the fixed 320 x 180 canvas): lights and shadows in

@@ -1,0 +1,232 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// The level scene (F1): the level 'test' (assets/levels/test.level) in two modes, F1 switches:
+//
+//     preview   as a game would show it: the fixed canvas, the playground's own presentation made
+//               from the level's data (hope's level.pg: the data, the layers' builders); the arrow
+//               keys move the view
+//     editing   the level editor (edit mode): the free canvas (zoom out past 1x), every layer the
+//               editor shows (not the hidden ones), the tile grid; the middle mouse button pans,
+//               the wheel zooms; a panel lists the layers
+//
+// The level's data is the scene's (the editor phase: it survives making the presentation again);
+// what is drawn is made from it in the level phase, wiped and made again on every switch. In the
+// internal mode the data is the file (the editor will write it), elsewhere the game pack's.
+
+const string LEVEL_SCENE_LEVEL = "test";
+
+struct LevelScene {
+    LevelData data;
+    bool isEditing;
+    LevelPresentation* presentation;   // the level phase
+    Vec2 previewPos;                   // where each mode's camera was (kept between the switches)
+    Vec2 editorPos;
+    float editorZoom = 0;              // (0: fit the level into the window when the editor opens)
+}
+
+// What is drawn of each layer (made from the data)
+union LayerDrawing {
+case Tiles
+    TilemapLayer tilemap;
+case Autotiles
+    AutotileMap autotiles;
+case Decals
+    Decalmap decals;
+}
+
+struct LevelPresentation {
+    List[LayerDrawing] layers;         // per layer of the data, in its order
+}
+
+extend LevelScene {
+    init() {
+        string error;
+        let path = Format(BUILD_PROJECT_DIR, "/assets/levels/", LEVEL_SCENE_LEVEL, ".level");
+        if (INTERNAL) {
+            if (!LevelData.LoadFile(path, &data, &error))
+                Panic("Level scene: ", error);
+        } else {
+            data = LevelData.Load(LEVEL_SCENE_LEVEL);
+        }
+        previewPos = Vec2(160, 90);
+        editorPos = Vec2(data.pixelSize) * 0.5;
+        Enter();
+    }
+
+    void Leave() {
+        if (presentation != null) {
+            FreePresentation();
+            presentation = null;
+        }
+        Memory.WipeLevel();
+        Draw.isCanvasFree = false;
+        Camera.allowPanning = false;
+        Camera.allowZooming = false;
+        Camera.zoom = 1;
+    }
+
+    // The mode's canvas and camera, the presentation made again from the data
+    void Enter() {
+        if (presentation != null)
+            FreePresentation();
+        Memory.WipeLevel();
+        {
+            ScopeAllocLevel();
+            presentation = New[LevelPresentation]();
+            for (let layer in data.layers) {
+                presentation.layers.Add(MakeDrawing(layer));
+            }
+        }
+        Draw.isCanvasFree = isEditing;
+        Camera.rotation = 0;
+        Camera.isCentered = true;
+        Camera.allowPanning = isEditing;
+        Camera.allowZooming = isEditing;
+        if (isEditing && editorZoom <= 0)
+            editorZoom = FittingZoom();
+        Camera.pos = isEditing ? editorPos : previewPos;
+        Camera.zoom = isEditing ? editorZoom : 1;
+        Draw.clearColor = isEditing ? Color.Grey(0.18) : Color.Black;
+    }
+
+    // The biggest power of two (the camera's zoom steps) at which the level fits the window
+    float FittingZoom() {
+        let window = Vec2(Input.windowDim);
+        let level = Vec2(data.pixelSize);
+        let fit = Min(window.x / Max(1.0, level.x), window.y / Max(1.0, level.y)) * 0.9;
+        let zoom = 1.0;
+        while (zoom * 2 <= fit && zoom < 16) {
+            zoom *= 2;
+        }
+        while (zoom > fit && zoom > 0.125) {
+            zoom *= 0.5;
+        }
+        return zoom;
+    }
+
+    LayerDrawing MakeDrawing(LevelLayer* layer) {
+        switch (layer.case) {
+        case LevelLayer.Tiles: return LayerDrawing.Tiles(tilemap: layer.MakeTilemap());
+        case LevelLayer.Autotiles: return LayerDrawing.Autotiles(autotiles: layer.MakeAutotileMap(data.pixelSize));
+        case LevelLayer.Decals: return LayerDrawing.Decals(decals: layer.MakeDecalmap(data.pixelSize));
+        }
+    }
+
+    // (what holds more than memory: the decal maps' atlas regions; in the level phase, its memory)
+    void FreePresentation() {
+        ScopeAllocLevel();
+        for (let drawing in presentation.layers) {
+            switch (drawing.case) {
+            case LayerDrawing.Tiles: drawing.tilemap.Free();
+            case LayerDrawing.Autotiles: drawing.autotiles.Free();
+            case LayerDrawing.Decals: drawing.decals.Free();
+            }
+        }
+    }
+
+    void DoFrame() {
+        if (Input.KeyPressed(Scancode.F1)) {
+            // (each mode keeps its camera)
+            if (isEditing) {
+                editorPos = Camera.pos;
+                editorZoom = Camera.zoom;
+            } else {
+                previewPos = Camera.pos;
+            }
+            isEditing = !isEditing;
+            Enter();
+        }
+        if (isEditing)
+            EditFrame();
+        else
+            PreviewFrame();
+    }
+
+    //----------------------------------------------------------------------------------------------
+    // Preview: what a game makes of the level (its own presentation: here every layer, ground first)
+
+    void PreviewFrame() {
+        if (playground.settings.showsHints)
+            Draw.LogLine("Level scene (F1: the editor): the level '", LEVEL_SCENE_LEVEL, "' as a game shows it, arrow keys move the view");
+        let move = Vec2(0, 0);
+        if (Input.KeyDown(Scancode.Left)) move.x -= 1;
+        if (Input.KeyDown(Scancode.Right)) move.x += 1;
+        if (Input.KeyDown(Scancode.Up)) move.y -= 1;
+        if (Input.KeyDown(Scancode.Down)) move.y += 1;
+        let half = Camera.viewportDim * 0.5;
+        let bounds = data.cameraRect;
+        let pos = Camera.pos + move * 160 * Input.deltaTime;
+        Camera.pos = Vec2(Clamp(pos.x, bounds.left + half.x, Max(bounds.left + half.x, bounds.right - half.x)),
+            Clamp(pos.y, bounds.top + half.y, Max(bounds.top + half.y, bounds.bottom - half.y)));
+        let view = Camera.viewportRect;
+        for (let drawing in presentation.layers) {
+            DrawLayer(drawing, view);
+        }
+    }
+
+    static void DrawLayer(LayerDrawing* drawing, Rect view) {
+        switch (drawing.case) {
+        case LayerDrawing.Tiles: drawing.tilemap.Draw(view);
+        case LayerDrawing.Autotiles: drawing.autotiles.Draw(view);
+        case LayerDrawing.Decals: drawing.decals.Draw(view);
+        }
+    }
+
+    //----------------------------------------------------------------------------------------------
+    // Editing: the editor's presentation (every layer that is not hidden), the grid, the layer panel
+
+    void EditFrame() {
+        if (playground.settings.showsHints)
+            Draw.LogLine("Level editor (F1: the preview): middle mouse button pans, the wheel zooms (", FormatFloat(Camera.zoom, 3), "x)");
+        let view = Camera.viewportRect;
+        for (let index, layer in data.layers) {
+            if (!layer.isHidden)
+                DrawLayer(&presentation.layers[index], view);
+        }
+        DrawGrid(view);
+        LayerPanel();
+    }
+
+    // The level's tile grid and its edge, at the window's resolution (thin at any zoom); only when
+    // the tiles are at least 4 pixels on screen
+    void DrawGrid(Rect view) {
+        let size = data.pixelSize;
+        let tile = data.tileSize;
+        let lineWidth = 1 / Camera.zoom;
+        let grid = DrawParams(color: Color(0.08, 0.08, 0.08, 0.08), space: DrawSpace.ScreenWorld);     // (premultiplied: white at 8%)
+        if (tile * Camera.zoom >= 4) {
+            let first = Vec2i(Max(0, (int)(view.left / tile)), Max(0, (int)(view.top / tile)));
+            let last = Vec2i(Min(data.size.x, (int)(view.right / tile) + 1), Min(data.size.y, (int)(view.bottom / tile) + 1));
+            for (let x in first.x..last.x + 1) {
+                Draw.Line(Vec2(x * tile, 0), Vec2(x * tile, size.y), lineWidth, Depth.Nearest, grid);
+            }
+            for (let y in first.y..last.y + 1) {
+                Draw.Line(Vec2(0, y * tile), Vec2(size.x, y * tile), lineWidth, Depth.Nearest, grid);
+            }
+        }
+        let edge = DrawParams(color: Color(0.8, 0.64, 0.16, 0.8), space: DrawSpace.ScreenWorld);
+        let corners = [Vec2(0, 0), Vec2(size.x, 0), Vec2(size.x, size.y), Vec2(0, size.y)];
+        for (let index in 0..4) {
+            Draw.Line(corners[index], corners[(index + 1) % 4], 2 * lineWidth, Depth.Nearest, edge);
+        }
+    }
+
+    // The layers: their kind, tile size and whether they are shown (the eye: a checkbox)
+    void LayerPanel() {
+        Ui.Panel(UiAnchor.RightBottom, 260, 0, Vec2i(-8, -8));
+        Ui.Label(TFormat("Level '", LEVEL_SCENE_LEVEL, "'  ", data.size.x, " x ", data.size.y, " tiles of ", data.tileSize), UiAlign.Left, Ui.style.textFocused);
+        Ui.Space(2);
+        for (let index, layer in data.layers) {
+            let shown = !layer.isHidden;
+            if (Ui.Checkbox(TFormat(layer.name, "  (", layer.case, ", ", TileSizeOf(layer), " px)"), &shown, id: index))
+                layer.isHidden = !shown;
+        }
+    }
+
+    int TileSizeOf(LevelLayer* layer) {
+        switch (layer.case) {
+        case LevelLayer.Tiles: return layer.tileDim.x;
+        case LevelLayer.Autotiles: return data.pixelSize.x / Max(1, layer.solid.w);
+        case LevelLayer.Decals: return data.tileSize;
+        }
+    }
+}
