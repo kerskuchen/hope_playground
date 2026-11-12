@@ -66,7 +66,7 @@ struct Flash {
     float age;
 }
 
-struct Brazier {
+struct LightingBrazier {
     Vec2 pos;
     LightFlicker flicker;
 }
@@ -90,7 +90,7 @@ struct LightingScene {
     LightFlicker torch;
     List[Shot] projectiles;
     List[Flash] flashes;
-    List[Brazier] braziers;
+    List[LightingBrazier] braziers;
     List[Wanderer] wanderers;
     bool isLit = true;
     bool hasOverlays = true;
@@ -229,7 +229,7 @@ extend LightingScene {
                 walls.Set(cell, !walls.Get(cell.x, cell.y));
         }
         if (Input.KeyPressed(Scancode.L))
-            braziers.Add(Brazier(cursor, LightFlicker((ulong)braziers.len + 7)));
+            braziers.Add(LightingBrazier(cursor, LightFlicker((ulong)braziers.len + 7)));
         if (Input.KeyPressed(Scancode.K)) {
             if (wanderers.len > 0) {
                 wanderers.Clear();

@@ -128,6 +128,50 @@
         {"name": "exit_east", "kind": "exit", "rect": {"x": 448, "y": 112, "w": 32, "h": 64}},
         {"name": "pit", "kind": "damage", "rect": {"x": 96, "y": 192, "w": 64, "h": 48}}
       ]
+    },
+    {
+      "case": "Entities",
+      "name": "entities",
+      "depth": 30,
+      "isHidden": false,
+      "isLocked": false,
+      "tileset": "",
+      "entities": [
+        {
+          "type": "Spawner",
+          "name": "spawner_1",
+          "pos": {"x": 336, "y": 96},
+          "properties": [
+            {"name": "interval", "value": "1.5"},
+            {"name": "maxCount", "value": "4"},
+            {"name": "radius", "value": "16"},
+            {"name": "kind", "value": "Slow"}
+          ]
+        },
+        {
+          "type": "Turret",
+          "name": "turret_1",
+          "pos": {"x": 200, "y": 150},
+          "properties": [
+            {"name": "angle", "value": "0"},
+            {"name": "range", "value": "140"},
+            {"name": "turnSpeed", "value": "120"},
+            {"name": "fireInterval", "value": "0.4"},
+            {"name": "target", "value": ""}
+          ]
+        },
+        {
+          "type": "Brazier",
+          "name": "brazier_1",
+          "pos": {"x": 240, "y": 120},
+          "properties": [
+            {"name": "radius", "value": "32"},
+            {"name": "color", "value": "1, 0.7, 0.35, 1"},
+            {"name": "flicker", "value": "1"},
+            {"name": "isLit", "value": "true"}
+          ]
+        }
+      ]
     }
   ]
 }

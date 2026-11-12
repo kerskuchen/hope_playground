@@ -1,0 +1,261 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// The playground's entities (hope's entities.pg): placed in a level's Entities layer with the
+// level editor, run by the level scene's preview (level_scene.pg), each with its DrawPreview for
+// the editor.
+//
+//     Brazier   a fire: its light's radius, color and flicker
+//     Turret    turns to its target (an EntityRef, else the nearest ghost in range) and shoots;
+//               its bullets find what they hit through the collision world (Collider.entity) and
+//               damage its Health
+//     Spawner   lets ghosts out (at most so many at once), slow or fast ones
+//     Ghost     (spawned, not placed) wanders, fades; 3 hits and it is gone
+
+// The collision world the entities' colliders are in (the level scene's preview makes it)
+CollisionWorld* entityWorld = null;
+
+// A sprite centered on 'pos' (its pivot taken into account), scaled
+void DrawCentered(Sprite* sprite, Vec2 pos, float scale, float depth, DrawParams drawParams = DrawParams()) {
+    Draw.Sprite(sprite, Transform(pos - (sprite.dim * 0.5 - sprite.pivot) * scale, 0, Vec2(scale, scale)), depth, drawParams);
+}
+
+const uint LAYER_GHOST = 2;
+int ghostsGone = 0;                    // (the preview's line)
+
+struct Health {
+    int hp = 3;
+    int max = 3;
+}
+
+extend Health {
+    get bool isDead() { return hp <= 0; }
+    void Damage(int amount) { hp = Max(0, hp - amount); }
+}
+
+//--------------------------------------------------------------------------------------------------
+
+struct Brazier : Entity {
+    @Editable @Range(8, 96) float radius = 32;
+    @Editable Color color = Color(1, 0.7, 0.35, 1);
+    @Editable @Range(0, 4) float flicker = 1;
+    @Editable bool isLit = true;
+    float time;
+}
+
+extend Brazier {
+    void DoFrame() { time += Input.deltaTime; }
+
+    void Draw() {
+        global.Draw.Rect(Rect(pos - Vec2(3, 1), Vec2(6, 4)), 30, DrawParams(color: Color(0.25, 0.15, 0.1, 1)));
+        if (!isLit)
+            return;
+        // (the glow: the light sprite, its size breathing with the flicker)
+        let wobble = 1 + Sin(time * 9) * 0.06 * flicker + Sin(time * 23) * 0.03 * flicker;
+        let glow = global.Draw.GetSprite("light_torch");
+        let scale = radius * 2 / Max(1.0, glow.dim.x) * wobble;
+        DrawCentered(glow, pos, scale, 31, DrawParams(color: Color(color.r * 0.5, color.g * 0.5, color.b * 0.5, 0), additivity: Additivity.Max));
+        global.Draw.Circle(pos - Vec2(0, 2), 2 * wobble, 32, DrawParams(color: color));
+    }
+
+    // (the editor: the fire, its radius as a ring)
+    void DrawPreview() {
+        Draw();
+        global.Draw.CircleOutline(Circle(pos, radius), 1, 33, DrawParams(color: Color(color.r, color.g, color.b, 0.6)));
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+
+struct Turret : Entity {
+    @Editable @Range(0, 360) float angle;
+    @Editable @Range(16, 200) float range = 90;
+    @Editable @Range(10, 360) float turnSpeed = 120;      // degrees a second
+    @Editable @Range(0.1, 2) float fireInterval = 0.4;
+    @Editable EntityRef target;                            // (none: the nearest ghost in range)
+    List[Bullet] bullets;
+    float cooldown;
+}
+
+struct Bullet {
+    Vec2 pos;
+    Vec2 velocity;
+    float life;
+}
+
+extend Turret {
+    void DoFrame() {
+        let dt = Input.deltaTime;
+        // What it aims at: its target, else the nearest ghost in range
+        Entity* aim = target.Resolve();
+        if (aim == null) {
+            let nearest = range;
+            for (let ghost in Entities.All[Ghost]()) {
+                let distance = (ghost.pos - pos).Length();
+                if (ghost.isAlive && distance < nearest) {
+                    nearest = distance;
+                    aim = &ghost.Entity;
+                }
+            }
+        }
+        cooldown -= dt;
+        if (aim != null && (aim.pos - pos).Length() <= range) {
+            let wanted = Atan2(aim.pos.y - pos.y, aim.pos.x - pos.x) / DegToRad;
+            let turn = AngleDifference(angle, wanted);
+            let step = turnSpeed * dt;
+            angle += Clamp(turn, -step, step);
+            if (Abs(turn) < 5 && cooldown <= 0) {
+                cooldown = fireInterval;
+                let direction = Vec2(Cos(angle * DegToRad), Sin(angle * DegToRad));
+                bullets.Add(Bullet(pos + direction * 8, direction * 160, range / 160));
+            }
+        }
+        // The bullets: what they touch (a ghost's collider) is found as an entity, its Health hit
+        for (let index = bullets.len - 1; index >= 0; index--) {
+            let bullet = &bullets[index];
+            bullet.pos = bullet.pos + bullet.velocity * dt;
+            bullet.life -= dt;
+            let hasHit = false;
+            if (entityWorld != null) {
+                entityWorld.ForEachOverlap(ColliderShape.Circle(circle: Circle(bullet.pos, 2)), LAYER_GHOST, (WorldOverlap* found) => {
+                    let entity = Entities.Get(found.entity);
+                    let health = entity != null && entity.isAlive ? entity.Get[Health]() : null;
+                    if (health != null && !hasHit) {
+                        health.Damage(1);
+                        hasHit = true;
+                    }
+                });
+            }
+            if (hasHit || bullet.life <= 0)
+                bullets.RemoveAt(index);
+        }
+    }
+
+    // The difference from 'from' to 'to' in degrees, -180 .. 180
+    static float AngleDifference(float from, float to) {
+        let difference = to - from;
+        while (difference > 180) {
+            difference -= 360;
+        }
+        while (difference < -180) {
+            difference += 360;
+        }
+        return difference;
+    }
+
+    void Draw() {
+        global.Draw.Circle(pos, 6, 30, DrawParams(color: Color(0.35, 0.35, 0.4, 1)));
+        let direction = Vec2(Cos(angle * DegToRad), Sin(angle * DegToRad));
+        global.Draw.Line(pos, pos + direction * 10, 3, 31, DrawParams(color: Color(0.75, 0.75, 0.8, 1)));
+        for (let bullet in bullets) {
+            global.Draw.Rect(Rect(bullet.pos - Vec2(1, 1), Vec2(2, 2)), 32, DrawParams(color: Color(1, 0.9, 0.5, 1)));
+        }
+    }
+
+    // (the editor: the turret, its range, a line to its target)
+    void DrawPreview() {
+        Draw();
+        global.Draw.CircleOutline(Circle(pos, range), 1, 33, DrawParams(color: Color(0.9, 0.3, 0.3, 0.5)));
+        // (in the editor Resolve finds the placed entity of that name)
+        let aim = target.Resolve();
+        if (aim != null)
+            global.Draw.Line(pos, aim.pos, 1, 33, DrawParams(color: Color(1, 0.94, 0.55, 0.7)));
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+
+enum GhostKind { Slow, Fast }
+
+@Icon("ghosty_0")
+struct Spawner : Entity {
+    @Editable @Range(0.2, 5) float interval = 1.5;
+    @Editable int maxCount = 4;
+    @Editable @Range(0, 64) float radius = 16;
+    @Editable GhostKind kind;
+    float timer;
+}
+
+extend Spawner {
+    void DoFrame() {
+        timer -= Input.deltaTime;
+        if (timer > 0)
+            return;
+        timer = interval;
+        let count = 0;
+        for (let ghost in Entities.All[Ghost]()) {
+            if (ghost.isAlive && ghost.spawner == id)
+                count++;
+        }
+        if (count >= maxCount)
+            return;
+        let ghost = Entities.Spawn[Ghost]();
+        let angle = (float)(Random.Hash((ulong)(ghost.id.index * 7919 + Entities.count)) % 360);
+        ghost.pos = pos + Vec2(Cos(angle * DegToRad), Sin(angle * DegToRad)) * radius;
+        ghost.spawner = id;
+        ghost.speed = kind == GhostKind.Fast ? 40 : 15;
+        ghost.Prepare();
+    }
+
+    void Draw() {
+        global.Draw.CircleOutline(Circle(pos, 6), 2, 30, DrawParams(color: Color(0.6, 0.5, 0.9, 0.9)));
+    }
+
+    void DrawPreview() {
+        Draw();
+        global.Draw.CircleOutline(Circle(pos, Max(1.0, radius)), 1, 33, DrawParams(color: Color(0.6, 0.5, 0.9, 0.5)));
+        DrawCentered(global.Draw.GetSprite("ghosty_0"), pos, 1, 31, DrawParams(color: Color(0.6, 0.6, 0.6, 0.6)));
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+
+// A ghost (spawned by a Spawner): wanders toward a point near its spawner, 3 hits and it is gone
+struct Ghost : Entity {
+    EntityId spawner;
+    float speed = 15;
+    Health health;
+    ColliderId body;
+    Vec2 goal;
+    float time;
+}
+
+extend Ghost {
+    void Prepare() {
+        goal = pos;
+        if (entityWorld != null) {
+            let collider = Collider(ColliderShape.Circle(circle: Circle(pos, 5)), LAYER_GHOST, 0);
+            collider.entity = id;
+            body = entityWorld.Add(collider);
+        }
+    }
+
+    void DoFrame() {
+        let dt = Input.deltaTime;
+        time += dt;
+        if (health.isDead) {
+            Entities.Destroy(&self.Entity);
+            return;
+        }
+        if ((goal - pos).Length() < 2) {
+            let home = Entities.Get(spawner);
+            let center = home != null ? home.pos : pos;
+            let angle = (float)(Random.Hash((ulong)(id.index * 104729 + (int)(time * 100))) % 360);
+            goal = center + Vec2(Cos(angle * DegToRad), Sin(angle * DegToRad)) * 40;
+        }
+        let toGoal = goal - pos;
+        pos = pos + toGoal.Normalized() * Min(speed * dt, toGoal.Length());
+        if (entityWorld != null)
+            entityWorld.MoveTo(body, pos);
+    }
+
+    void Draw() {
+        let fade = 0.5 + 0.5 * health.hp / Max(1, health.max);
+        DrawCentered(global.Draw.GetSprite("ghosty_0"), pos, 1, 30 + pos.y * 0.01, DrawParams(color: Color(fade, fade, fade, fade)));
+    }
+
+    // (its collider out of the world)
+    void Destroyed() {
+        if (entityWorld != null)
+            entityWorld.Remove(body);
+        ghostsGone++;
+    }
+}

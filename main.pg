@@ -396,5 +396,5 @@ void CreateGame() {
 }
 void DoFrame() { playground.DoFrame(); }
 Game GameMain() {
-    return Game(info: AppInfo("hope playground", "hope_playground", "0.01", 320, 180), Create: CreateGame, DoFrame: DoFrame);
+    return Game(info: AppInfo("hope playground", "hope_playground", "0.01", 320, 180), Create: CreateGame, DoFrame: DoFrame, RegisterEntities: RegisterEntityTypes);
 }

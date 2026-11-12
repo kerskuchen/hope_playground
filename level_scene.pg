@@ -6,7 +6,8 @@
 //               view; a list of the levels (a click: another one). Trigger areas as a game uses
 //               them: every area of the Areas layers a trigger of a CollisionWorld (hope's
 //               collision.pg), a probe circle at the mouse; what it enters and leaves is logged,
-//               the areas it is in are outlined
+//               the areas it is in are outlined. The entities of its Entities layers
+//               (entities.pg: hope's Entities.SpawnLevel), run and drawn in the scene's order
 //     editing   hope's level editor (hope/level_editor.pg; F1 opens it in the internal mode only)
 //               on that level
 //
@@ -75,6 +76,12 @@ extend LevelScene {
         }
         preview = LevelDrawings.Make(&editor.data);
         MakeTriggers();
+        // The entities (in the level phase, like the drawing: wiped with it)
+        entityWorld = triggers;
+        for (let layer in editor.data.layers) {
+            if (layer.case == LevelLayer.Entities)
+                Entities.SpawnLevel(layer);
+        }
         Draw.isCanvasFree = false;
         Camera.rotation = 0;
         Camera.isCentered = true;
@@ -109,6 +116,7 @@ extend LevelScene {
             previewPos = Camera.pos;
             preview.Free();
             preview = null;
+            entityWorld = null;
         }
     }
 
@@ -167,6 +175,34 @@ extend LevelScene {
         let view = Camera.viewportRect;
         for (let drawing in preview.layers) {
             drawing.Draw(view);
+        }
+        // The entities: their frames in the game's order, the destroyed ones gone, then drawn
+        for (let brazier in Entities.All[Brazier]()) {
+            brazier.DoFrame();
+        }
+        for (let spawner in Entities.All[Spawner]()) {
+            spawner.DoFrame();
+        }
+        for (let ghost in Entities.All[Ghost]()) {
+            ghost.DoFrame();
+        }
+        for (let turret in Entities.All[Turret]()) {
+            turret.DoFrame();
+        }
+        Entities.Flush();
+        if (playground.settings.showsHints)
+            Draw.LogLine("entities: ", Entities.count, " (ghosts ", Entities.All[Ghost]().len, ", gone ", ghostsGone, ")");
+        for (let brazier in Entities.All[Brazier]()) {
+            brazier.Draw();
+        }
+        for (let spawner in Entities.All[Spawner]()) {
+            spawner.Draw();
+        }
+        for (let ghost in Entities.All[Ghost]()) {
+            ghost.Draw();
+        }
+        for (let turret in Entities.All[Turret]()) {
+            turret.Draw();
         }
         // The probe and what it enters and leaves
         let mouse = Input.cursors.world;

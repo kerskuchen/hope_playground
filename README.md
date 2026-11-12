@@ -15,7 +15,10 @@ The scenes (each file's header lists its keys):
   10 slots per tileset in `assets/stamps/<tileset>.stamp.json`); random tiles from a shuffle bag
   and random decals within ranges (previewed: what comes next); trigger areas (an Areas layer:
   named rectangles with a kind; the preview makes them triggers of a CollisionWorld, the mouse a
-  probe, entering and leaving logged); layers added (kind, name, tileset, tile size), renamed,
+  probe, entering and leaving logged); entities (`entities.pg`: a brazier, a turret, a spawner
+  and its ghosts, placed in the level's Entities layer, edited by their @Editable fields, shown
+  in the editor by their DrawPreview, run by the preview: the turret's bullets find the ghosts'
+  Health through the collision world); layers added (kind, name, tileset, tile size), renamed,
   moved up and down, locked, deleted; camera bounds, extending the
   level; undo and redo; Open, New (an empty level with the same layers), Save as. Between runs
   `build/editor/` keeps the tools (`editor.json`), each level's view and its undo steps (within a
