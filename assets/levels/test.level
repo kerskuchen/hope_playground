@@ -116,6 +116,18 @@
           ".............................."
         ]
       }
+    },
+    {
+      "case": "Areas",
+      "name": "triggers",
+      "depth": 20,
+      "isHidden": false,
+      "isLocked": false,
+      "tileset": "",
+      "areas": [
+        {"name": "exit_east", "kind": "exit", "rect": {"x": 448, "y": 112, "w": 32, "h": 64}},
+        {"name": "pit", "kind": "damage", "rect": {"x": 96, "y": 192, "w": 64, "h": 48}}
+      ]
     }
   ]
 }

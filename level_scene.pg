@@ -3,7 +3,10 @@
 //
 //     preview   as a game would show it: the fixed canvas, the playground's own presentation made
 //               from the level's data (every layer in the editor's order); the arrow keys move the
-//               view; a list of the levels (a click: another one)
+//               view; a list of the levels (a click: another one). Trigger areas as a game uses
+//               them: every area of the Areas layers a trigger of a CollisionWorld (hope's
+//               collision.pg), a probe circle at the mouse; what it enters and leaves is logged,
+//               the areas it is in are outlined
 //     editing   hope's level editor (hope/level_editor.pg; F1 opens it in the internal mode only)
 //               on that level
 //
@@ -23,6 +26,8 @@ enum LevelSceneStart {
     Editor,                            // opened, made or saved as in the editor
 }
 
+const uint LAYER_PROBE = 1;           // the preview's probe (the triggers' mask)
+
 void SetLevelSceneName(string name) {
     ScopeAllocPersistent();
     levelSceneName = name.Copy();
@@ -32,6 +37,8 @@ struct LevelScene {
     LevelEditor* editor;               // (the editor phase, like the scene)
     bool isEditing;
     LevelDrawings* preview;            // what the preview draws (the level phase)
+    CollisionWorld* triggers;          // the areas as triggers, the probe (the level phase)
+    ColliderId probe;
     Vec2 previewPos = Vec2(160, 90);   // its camera
     String requestedLevel;             // (main.pg makes the scene again with it after this frame)
     LevelSceneStart requestedStart;
@@ -67,6 +74,7 @@ extend LevelScene {
             return;
         }
         preview = LevelDrawings.Make(&editor.data);
+        MakeTriggers();
         Draw.isCanvasFree = false;
         Camera.rotation = 0;
         Camera.isCentered = true;
@@ -75,6 +83,22 @@ extend LevelScene {
         Camera.pos = previewPos;
         Camera.zoom = 1;
         Draw.clearColor = Color.Black;
+    }
+
+    // Every area of the Areas layers a trigger (its owner: layer * 1000 + its index), the probe a
+    // circle at the mouse
+    void MakeTriggers() {
+        ScopeAllocLevel();
+        let data = &editor.data;
+        triggers = New[CollisionWorld](Box(Vec2(0, 0), Vec2(data.pixelSize)), 64);
+        for (let layerIndex, layer in data.layers) {
+            if (layer.case != LevelLayer.Areas)
+                continue;
+            for (let index, area in layer.areas) {
+                triggers.AddTrigger(area.shape, LAYER_PROBE, owner: layerIndex * 1000 + index);
+            }
+        }
+        probe = triggers.Add(Collider(ColliderShape.Circle(circle: Circle(previewPos, 6)), LAYER_PROBE, 0, 0));
     }
 
     // The mode closed (its drawing freed; its memory stays in the level phase)
@@ -129,7 +153,7 @@ extend LevelScene {
 
     void PreviewFrame() {
         if (playground.settings.showsHints)
-            Draw.LogLine("Level scene (F1: the editor): the level '", editor.levelName, "' as a game shows it (the list: another one), arrow keys move the view");
+            Draw.LogLine("Level scene (F1: the editor): the level '", editor.levelName, "' as a game shows it (the list: another one), arrow keys move the view, the mouse is a probe for the trigger areas");
         let move = Vec2(0, 0);
         if (Input.KeyDown(Scancode.Left)) move.x -= 1;
         if (Input.KeyDown(Scancode.Right)) move.x += 1;
@@ -144,12 +168,34 @@ extend LevelScene {
         for (let drawing in preview.layers) {
             drawing.Draw(view);
         }
+        // The probe and what it enters and leaves
+        let mouse = Input.cursors.world;
+        triggers.MoveTo(probe, mouse);
+        triggers.UpdateTriggers();
+        for (let event in triggers.triggerEvents) {
+            let area = &editor.data.layers[event.triggerOwner / 1000].areas[event.triggerOwner % 1000];
+            Draw.LogSticky(150, event.isEnter ? Color.Green : Color.Orange, event.isEnter ? "Entered '" : "Left '", area.name, "' (", area.kind, ")");
+        }
+        Draw.CircleOutline(Circle(mouse, 6), 1, Depth.Nearest, DrawParams(color: Color(1, 1, 1, 0.9)));
+        for (let layer in editor.data.layers) {
+            if (layer.case != LevelLayer.Areas)
+                continue;
+            for (let area in layer.areas) {
+                if (!Overlap.BoxCircle(area.box, Circle(mouse, 6)))
+                    continue;
+                let box = area.box;
+                [Vec2, 4] corners = [box.min, Vec2(box.max.x, box.min.y), box.max, Vec2(box.min.x, box.max.y)];
+                for (let corner in 0..4) {
+                    Draw.Line(corners[corner], corners[(corner + 1) % 4], 1, Depth.Nearest, DrawParams(color: LevelEditor.AreaColor(area.kind)));
+                }
+            }
+        }
         // The levels there are: a click previews another one (a panel of the window's pixels, as
         // the editor's: the fixed canvas would make it big; the arrow keys are the view's)
         Ui.BlockKeys();
         Ui.InScreen();
         Ui.WithFont(Ui.style.fontName, 2);
-        Ui.Panel(UiAnchor.RightTop, 220, 0, Vec2i(-8, 80));        // (below the log's lines)
+        Ui.Panel(UiAnchor.RightTop, 220, 0, Vec2i(-8, 150));       // (below the log's lines)
         Ui.Label("Levels", UiAlign.Left, Ui.style.textFocused);
         let names = LevelEditor.LevelNames();
         {

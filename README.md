@@ -13,7 +13,9 @@ The scenes (each file's header lists its keys):
   again: the level editor on that level (`level_editor.pg`, its header lists the keys): tiles,
   autotiles and decals; brush sizes, lines, rectangles, the eyedropper; stamps (a picked region,
   10 slots per tileset in `assets/stamps/<tileset>.stamp.json`); random tiles from a shuffle bag
-  and random decals within ranges (previewed: what comes next); camera bounds, extending the
+  and random decals within ranges (previewed: what comes next); trigger areas (an Areas layer:
+  named rectangles with a kind; the preview makes them triggers of a CollisionWorld, the mouse a
+  probe, entering and leaving logged); camera bounds, extending the
   level; undo and redo; Open, New (an empty level with the same layers), Save as. Between runs
   `build/editor/` keeps the tools (`editor.json`), each level's view and its undo steps (within a
   run only)
