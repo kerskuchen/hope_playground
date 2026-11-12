@@ -4,6 +4,7 @@
 extend LevelEditorSession {
     static void Write[$W](W* writer, string name, LevelEditorSession value) {
         writer.BeginObject(name, value);
+        writer.Write("runId", value.runId);
         writer.Write("isEditing", value.isEditing);
         writer.Write("previewPos", value.previewPos);
         writer.Write("editorPos", value.editorPos);
@@ -14,6 +15,7 @@ extend LevelEditorSession {
         writer.EndObject();
     }
     static LevelEditorSession Read[$R](R* reader) {
+        let runId = reader.Read[long]("runId");
         let isEditing = reader.Read[bool]("isEditing");
         let previewPos = reader.Read[Vec2]("previewPos");
         let editorPos = reader.Read[Vec2]("editorPos");
@@ -21,7 +23,7 @@ extend LevelEditorSession {
         let selected = reader.Read[int]("selected");
         let tool = reader.Read[EditorTool]("tool");
         let tile = reader.Read[int]("tile");
-        return LevelEditorSession(isEditing, previewPos, editorPos, editorZoom, selected, tool, tile);
+        return LevelEditorSession(runId, isEditing, previewPos, editorPos, editorZoom, selected, tool, tile);
     }
 }
 

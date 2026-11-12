@@ -23,10 +23,23 @@
 //               Painting changes the data and what is drawn of it cell by cell. Locked and hidden
 //               layers are not painted, decals come later.
 //
-// Between runs (also F5): build/editor/<level>.editor.json (the views, the mode, the selection)
-// and <level>.history.json (the undo steps), written when the level is saved, when the scene is
-// left, on F5 and on quitting. The history is read back at its saved state, which the level file
-// must still be (else it was for another file: a new one); unsaved steps are then there to redo.
+// Between runs: build/editor/<level>.editor.json (the views, the mode, the selection) and
+// <level>.history.json (the undo steps), written when the level is saved, when the scene is left,
+// on F5 and on quitting. The views come back in every run; the undo steps only in the run that
+// wrote them (F5, the scene left and entered again, hot reloads: a new start of the program
+// begins without them, so an undo too many cannot take back last week's work). They are read
+// back at their saved state, which the level file must still be (else a new history); unsaved
+// steps are then there to redo.
+
+// This run of the program (made once, kept across F5 and hot reloads as a global; another start
+// of the program: another value, from the time and an address that changes with every start)
+long levelEditorRunId = 0;
+
+long LevelEditorRunId() {
+    if (levelEditorRunId == 0)
+        levelEditorRunId = (long)(Hash((ulong)(platform.TimeSinceStartup() * 1000000000)) ^ Hash((ulong)(uptr)&levelEditorRunId)) & 0x7fffffffffffffff;
+    return levelEditorRunId;
+}
 //
 // The level's data is the scene's (the editor phase: it survives making the presentation again);
 // what is drawn is made from it in the level phase, wiped and made again on every switch. In the
@@ -42,6 +55,7 @@ enum EditorTool { Brush, Rect, Pick }
 // not the level's file): the views, the mode, what was selected
 @Serializable
 struct LevelEditorSession {
+    @Serialize long runId;             // the run that wrote it: its undo steps are only taken back in that run
     @Serialize bool isEditing;
     @Serialize Vec2 previewPos;
     @Serialize Vec2 editorPos;
@@ -123,7 +137,8 @@ extend LevelScene {
         if (!INTERNAL)
             return;
         LevelEditorSession session;
-        if (File.Exists(SessionPath("editor")) && FromJson(File.ReadText(SessionPath("editor")), &session)) {
+        let hasSession = File.Exists(SessionPath("editor")) && FromJson(File.ReadText(SessionPath("editor")), &session);
+        if (hasSession) {
             isEditing = session.isEditing;
             previewPos = session.previewPos;
             editorPos = session.editorPos;
@@ -132,6 +147,9 @@ extend LevelScene {
             tool = session.tool;
             tile = (byte)Clamp(session.tile, 0, 254);
         }
+        // The undo steps only in the run that wrote them
+        if (!hasSession || session.runId != LevelEditorRunId())
+            return;
         // (made with the scene's allocator: this runs in a temp scope, and the history's lists keep
         // the allocator of when they were made)
         ScopeAlloc(history.allocator);
@@ -159,7 +177,7 @@ extend LevelScene {
         ScopeAllocTemp();
         Directory.Create(TFormat(BUILD_PROJECT_DIR, "/build/editor"));
         let inEditor = isEditing;
-        let session = LevelEditorSession(inEditor, inEditor ? previewPos : Camera.pos, inEditor ? Camera.pos : editorPos, inEditor ? Camera.zoom : editorZoom,
+        let session = LevelEditorSession(LevelEditorRunId(), inEditor, inEditor ? previewPos : Camera.pos, inEditor ? Camera.pos : editorPos, inEditor ? Camera.zoom : editorZoom,
             selected, tool, tile);
         File.WriteText(SessionPath("editor"), Format(ToJson(session), "\n"));
         if (!history.WriteFile(SessionPath("history")))
