@@ -1,16 +1,8 @@
 {
   "version": 1,
   "tileSize": 16,
-  "size": {
-    "x": 30,
-    "y": 18
-  },
-  "cameraBounds": {
-    "x": 0,
-    "y": 0,
-    "w": 0,
-    "h": 0
-  },
+  "size": {"x": 30, "y": 18},
+  "cameraBounds": {"x": 0, "y": 0, "w": 0, "h": 0},
   "layers": [
     {
       "case": "Tiles",
@@ -19,10 +11,7 @@
       "isHidden": false,
       "isLocked": false,
       "tileset": "tiles_ground",
-      "tileDim": {
-        "x": 16,
-        "y": 16
-      },
+      "tileDim": {"x": 16, "y": 16},
       "tiles": {
         "w": 30,
         "h": 18,
@@ -31,10 +20,10 @@
           "030004010303040102010103020003040001020002040304010202040304",
           "030400030103030102040200030400010403020300030002040404030101",
           "040100010404010304020402030204040003040104040103000302040401",
-          "040303020302000404040402030400010104040100040200000000030002",
+          "040303020302000404040002000400010104040100040200000000030002",
           "010200040102020001010204010202030203030000020302030102000204",
-          "010403000100030100010304030401040301040003040203000201010002",
-          "000002020103040201000400040104030104040003010200010403040103",
+          "010403000100030100000304030001040301040003040203000201010002",
+          "000002020103040201000000000004030104040003010200010403040103",
           "000302040300020403020001010204010203010200030402040304010000",
           "000101010401020204040202020200020104030104040002000300030101",
           "020004040300040401040002020204040003020000020004000003000001",
@@ -55,10 +44,7 @@
       "isHidden": false,
       "isLocked": false,
       "tileset": "tiles_ground_details",
-      "tileDim": {
-        "x": 16,
-        "y": 16
-      },
+      "tileDim": {"x": 16, "y": 16},
       "tiles": {
         "w": 30,
         "h": 18,
@@ -92,86 +78,10 @@
       "isLocked": false,
       "tileset": "",
       "decals": [
-        {
-          "sprite": "decal_scorch",
-          "pos": {
-            "x": 120,
-            "y": 90
-          },
-          "angle": 0.5,
-          "scale": {
-            "x": 1,
-            "y": 1
-          },
-          "color": {
-            "r": 1,
-            "g": 1,
-            "b": 1,
-            "a": 0.8
-          },
-          "flipHorizontal": false,
-          "flipVertical": false
-        },
-        {
-          "sprite": "decal_scorch",
-          "pos": {
-            "x": 300,
-            "y": 200
-          },
-          "angle": 2.1,
-          "scale": {
-            "x": 1,
-            "y": 1
-          },
-          "color": {
-            "r": 1,
-            "g": 1,
-            "b": 1,
-            "a": 0.8
-          },
-          "flipHorizontal": false,
-          "flipVertical": false
-        },
-        {
-          "sprite": "decal_scorch",
-          "pos": {
-            "x": 380,
-            "y": 60
-          },
-          "angle": 4.0,
-          "scale": {
-            "x": 1,
-            "y": 1
-          },
-          "color": {
-            "r": 1,
-            "g": 1,
-            "b": 1,
-            "a": 0.8
-          },
-          "flipHorizontal": false,
-          "flipVertical": false
-        },
-        {
-          "sprite": "decal_scorch",
-          "pos": {
-            "x": 200,
-            "y": 250
-          },
-          "angle": 1.2,
-          "scale": {
-            "x": 1,
-            "y": 1
-          },
-          "color": {
-            "r": 1,
-            "g": 1,
-            "b": 1,
-            "a": 0.8
-          },
-          "flipHorizontal": false,
-          "flipVertical": false
-        }
+        {"sprite": "decal_scorch", "pos": {"x": 120, "y": 90}, "angle": 0.5, "scale": {"x": 1, "y": 1}, "color": {"r": 1, "g": 1, "b": 1, "a": 0.8}, "flipHorizontal": false, "flipVertical": false},
+        {"sprite": "decal_scorch", "pos": {"x": 300, "y": 200}, "angle": 2.1, "scale": {"x": 1, "y": 1}, "color": {"r": 1, "g": 1, "b": 1, "a": 0.8}, "flipHorizontal": false, "flipVertical": false},
+        {"sprite": "decal_scorch", "pos": {"x": 380, "y": 60}, "angle": 4, "scale": {"x": 1, "y": 1}, "color": {"r": 1, "g": 1, "b": 1, "a": 0.8}, "flipHorizontal": false, "flipVertical": false},
+        {"sprite": "decal_scorch", "pos": {"x": 200, "y": 250}, "angle": 1.2, "scale": {"x": 1, "y": 1}, "color": {"r": 1, "g": 1, "b": 1, "a": 0.8}, "flipHorizontal": false, "flipVertical": false}
       ]
     },
     {

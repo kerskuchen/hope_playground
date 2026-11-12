@@ -23,8 +23,7 @@
 // internal mode the data is the file (the editor will write it), elsewhere the game pack's.
 
 const string LEVEL_SCENE_LEVEL = "test";
-const int EditorTextScale = 2;         // the editor's UI on the free canvas (the window's pixels)
-const int EditorPaletteScale = 2;      // the palette's tiles
+const int EditorTextScale = 3;         // the editor's UI on the free canvas (the window's pixels)
 
 enum EditorTool { Brush, Rect, Pick }
 
@@ -147,6 +146,12 @@ extend LevelScene {
     }
 
     void DoFrame() {
+        // The window closed (the internal mode asks the game): unsaved changes ask first
+        if (Window.isQuitRequested && isModified) {
+            Window.CancelQuit();
+            if (AskAboutChanges("quitting"))
+                Window.Quit();
+        }
         if (Input.KeyPressed(Scancode.F1)) {
             // (each mode keeps its camera)
             if (isEditing) {
@@ -336,19 +341,33 @@ extend LevelScene {
         }
     }
 
-    // The level into its file (the internal mode)
-    void Save() {
+    // The level into its file (the internal mode); false if it was not saved
+    bool Save() {
         if (!INTERNAL) {
             Draw.LogSticky(180, Color.Orange, "Not saved: levels are saved in the internal mode");
-            return;
+            return false;
         }
         let path = Format(BUILD_PROJECT_DIR, "/assets/levels/", LEVEL_SCENE_LEVEL, ".level");
-        if (data.SaveFile(path)) {
-            isModified = false;
-            Draw.LogSticky(180, Color.Green, "Saved ", path);
-        } else {
+        if (!data.SaveFile(path)) {
             Draw.LogSticky(300, Color.Red, "Could not save ", path);
+            Window.ShowMessageBox("Level not saved", TFormat("Could not write ", path), ["OK"]);
+            return false;
         }
+        isModified = false;
+        Draw.LogSticky(180, Color.Green, "Saved ", path);
+        return true;
+    }
+
+    // Before the level's unsaved changes would be lost ('doing': "quitting", "leaving the
+    // level"): save them, drop them or stay; true: go on
+    bool AskAboutChanges(string doing) {
+        if (!isModified)
+            return true;
+        let choice = Window.ShowMessageBox("Unsaved level", TFormat("The level '", LEVEL_SCENE_LEVEL, "' has unsaved changes. Save them before ", doing, "?"),
+            ["Save", "Don't save", "Cancel"]);
+        if (choice == 0)
+            return Save();
+        return choice == 1;              // (-1, no message box: stay)
     }
 
     // The level's tile grid and its edge, at the window's resolution (thin at any zoom); only when
@@ -378,7 +397,7 @@ extend LevelScene {
     // The layers: click one to edit it (its kind, tile size), whether it is shown
     void LayerPanel() {
         Ui.WithFont(Ui.style.fontName, EditorTextScale);
-        Ui.Panel(UiAnchor.RightBottom, 260 * EditorTextScale, 0, Vec2i(-8, -8));
+        Ui.Panel(UiAnchor.RightBottom, 220 * EditorTextScale, 0, Vec2i(-8, -8));
         Ui.Label(TFormat("Level '", LEVEL_SCENE_LEVEL, "'", isModified ? " *" : "", "  ", data.size.x, " x ", data.size.y, " tiles of ", data.tileSize),
             UiAlign.Left, Ui.style.textFocused);
         Ui.Space(2);
@@ -399,7 +418,9 @@ extend LevelScene {
             return;
         let layer = &data.layers[selected];
         Ui.WithFont(Ui.style.fontName, EditorTextScale);
-        Ui.Panel(UiAnchor.LeftBottom, 200 * EditorTextScale, 0, Vec2i(8, -8));
+        // (as wide as the palette when that is wider: its tiles at the game's size)
+        let paletteWidth = layer.case == LevelLayer.Tiles ? presentation.layers[selected].tilemap.tileset.columns * layer.tileDim.x * GameScale() : 0;
+        Ui.Panel(UiAnchor.LeftBottom, Max(200 * EditorTextScale, paletteWidth + 2 * Ui.style.padding), 0, Vec2i(8, -8));
         {
             Ui.Columns(3);
             if (Ui.Button(tool == EditorTool.Brush ? "> Brush B" : "Brush B"))
@@ -419,9 +440,16 @@ extend LevelScene {
         }
     }
 
-    // The tileset's tiles (at EditorPaletteScale): click one to paint with it
+    // How big a canvas pixel is in the window when the game runs (its fixed canvas, scaled up
+    // by a whole number): the palette's tiles look as they do in the game
+    int GameScale() {
+        let canvas = Draw.state.canvasDimFixed;
+        return Max(1, Min(Input.windowDim.x / Max(1, canvas.x), Input.windowDim.y / Max(1, canvas.y)));
+    }
+
+    // The tileset's tiles (as big as in the game): click one to paint with it
     void Palette(LevelLayer* layer, Tileset* tileset) {
-        let scale = EditorPaletteScale;
+        let scale = GameScale();
         let tileSize = tileset.tileDim * scale;
         let rect = Ui.NextRect(tileset.rows * tileSize.y);
         let columns = Max(1, Min(tileset.columns, rect.w / tileSize.x));

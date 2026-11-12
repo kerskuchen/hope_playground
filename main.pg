@@ -246,6 +246,9 @@ extend Playground {
     }
 
     void SwitchTo(Scene next) {
+        // (unsaved changes of the level editor: save them, drop them, or stay)
+        if (level != null && !level.AskAboutChanges("leaving the level"))
+            return;
         // The scene that goes, with everything in its phase
         if (level != null) {
             level.Leave();
