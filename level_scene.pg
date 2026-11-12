@@ -14,6 +14,10 @@
 //                                             rectangle being dragged
 //                   I pick, or Alt + click    picks the tile under the mouse (eyedropper; KDE
 //                                             moves windows with Alt + drag)
+//                   C camera bounds           drag a rectangle of tiles (the camera's bounds; shown in
+//                                             cyan), right click: the whole level again
+//                   the level panel           extends the level on each side (- and +: a tile row or
+//                                             column; every layer, decals and bounds move along)
 //                   Ctrl+S                    saves the level file ('*' in the panel: unsaved)
 //                   Ctrl+Z, Ctrl+Y            undo, redo (also Ctrl+Shift+Z): a stroke, a rectangle,
 //                                             showing or hiding a layer is a step (hope's
@@ -49,7 +53,7 @@ const string LEVEL_SCENE_LEVEL = "test";
 const int EditorTextScale = 3;         // the editor's UI on the free canvas (the window's pixels)
 
 @Serializable
-enum EditorTool { Brush, Rect, Pick, Place, Select }
+enum EditorTool { Brush, Rect, Pick, Place, Select, Bounds }
 
 // What the editor was doing, kept between runs (build/editor/<level>.editor.json: this machine's,
 // not the level's file): the views, the mode, what was selected
@@ -470,8 +474,13 @@ extend LevelScene {
         // (V: Place and Select by turns, the left hand stays at Q W E A S D)
         if (Input.KeyPressed(Scancode.V))
             tool = tool == EditorTool.Place ? EditorTool.Select : EditorTool.Place;
+        if (Input.KeyPressed(Scancode.C))
+            tool = tool == EditorTool.Bounds ? EditorTool.Brush : EditorTool.Bounds;
         selected = Clamp(selected, 0, Max(0, data.layers.len - 1));
-        if (data.layers.len > 0) {
+        DrawCameraBounds();
+        if (tool == EditorTool.Bounds) {
+            EditBounds();
+        } else if (data.layers.len > 0) {
             let layer = &data.layers[selected];
             // (each kind its own tools: a painting tool on a Decals layer is Place, and back)
             let isDecalTool = tool == EditorTool.Place || tool == EditorTool.Select;
@@ -487,6 +496,98 @@ extend LevelScene {
 
         LayerPanel();
         ToolPanel();
+        LevelPanel();
+    }
+
+    //----------------------------------------------------------------------------------------------
+    // The level: its camera bounds (C), extending it on its sides (the level panel)
+
+    // The bounds in cyan when they are set (the whole level otherwise: the edge shows it)
+    void DrawCameraBounds() {
+        let bounds = data.cameraBounds;
+        if (bounds.w <= 0 || bounds.h <= 0)
+            return;
+        let rect = Rect(Vec2(bounds.pos * data.tileSize), Vec2(bounds.dim * data.tileSize));
+        OutlineRect(rect, Color(0.2, 0.7, 0.8, 0.9));
+    }
+
+    // Dragging a rectangle of the level's tiles sets the bounds (right click: the whole level)
+    void EditBounds() {
+        let world = Input.cursors.world;
+        let cell = Vec2i((int)Floor(world.x / data.tileSize), (int)Floor(world.y / data.tileSize));
+        cell = Vec2i(Clamp(cell.x, 0, data.size.x - 1), Clamp(cell.y, 0, data.size.y - 1));
+        let isOverUi = Ui.isMouseOverPanel;
+        if (!isOverUi && Input.MousePressed(MouseButton.Right) && !isPainting) {
+            data.cameraBounds = Recti();
+            MarkDirty(0);
+            Commit("Reset the camera bounds");
+            return;
+        }
+        if (!isOverUi && Input.MousePressed(MouseButton.Left) && !isPainting) {
+            isPainting = true;
+            strokeStart = cell;
+        }
+        let rect = Recti(Min(strokeStart.x, cell.x), Min(strokeStart.y, cell.y), Abs(cell.x - strokeStart.x) + 1, Abs(cell.y - strokeStart.y) + 1);
+        if (isPainting) {
+            OutlineRect(Rect(Vec2(rect.pos * data.tileSize), Vec2(rect.dim * data.tileSize)), Color(0.4, 0.9, 1, 1));
+            if (!Input.MouseDown(MouseButton.Left)) {
+                isPainting = false;
+                data.cameraBounds = rect == Recti(data.size) ? Recti() : rect;      // (all of it: none set)
+                MarkDirty(0);
+                Commit("Set the camera bounds");
+            }
+        } else if (!isOverUi) {
+            OutlineRect(Rect(Vec2(cell * data.tileSize), Vec2(data.tileSize, data.tileSize)), Color(0.4, 0.9, 1, 0.8));
+        }
+    }
+
+    // The level's size and its sides: - and + take a tile row or column away or add one
+    void LevelPanel() {
+        Ui.WithFont(Ui.style.fontName, EditorTextScale);
+        Ui.Panel(UiAnchor.RightTop, 170 * EditorTextScale, 0, Vec2i(-8, 150));          // (below the log's lines)
+        Ui.Label(TFormat("size ", data.size.x, " x ", data.size.y, " (", data.pixelSize.x, " x ", data.pixelSize.y, " px)"), UiAlign.Left, Ui.style.textFocused);
+        [string, 4] sides = ["left", "top", "right", "bottom"];
+        for (let index in 0..4) {
+            Ui.Columns(3, 0.5);
+            Ui.Label(sides[index], UiAlign.Left);
+            let delta = 0;
+            if (Ui.Button("-", id: index))
+                delta = -1;
+            if (Ui.Button("+", id: index))
+                delta = 1;
+            if (delta != 0)
+                ExtendLevel(index == 0 ? delta : 0, index == 1 ? delta : 0, index == 2 ? delta : 0, index == 3 ? delta : 0, sides[index]);
+        }
+        let bounds = data.cameraBounds;
+        Ui.Label(bounds.w > 0 ? TFormat("camera bounds ", bounds.x, " ", bounds.y, " ", bounds.w, " x ", bounds.h) : "camera bounds: the level", UiAlign.Left);
+        if (Ui.Button(tool == EditorTool.Bounds ? "> Camera bounds C" : "Camera bounds C"))
+            tool = tool == EditorTool.Bounds ? EditorTool.Brush : EditorTool.Bounds;
+    }
+
+    // The level extended (or shrunk) on its sides: every layer made again; clicks on one side join
+    // into one step
+    void ExtendLevel(int left, int top, int right, int bottom, string side) {
+        if (!data.Extend(left, top, right, bottom)) {
+            Draw.LogSticky(120, Color.Orange, "The level cannot be smaller than 1 x 1 tile");
+            return;
+        }
+        // (the view stays on the same part of the level)
+        Camera.pos = Camera.pos + Vec2(left * data.tileSize, top * data.tileSize);
+        for (let index in 0..data.layers.len + 1) {
+            MarkDirty(index);
+        }
+        ScopeAllocTemp();
+        List[string] pieces;
+        for (let index in 0..data.layers.len + 1) {
+            pieces.Add(PieceText(index));
+        }
+        history.Commit(TFormat("Extend the level ", side), pieces, mergesWithLast: true);
+        for (let dirty in dirtyPieces) {
+            *dirty = false;
+        }
+        for (let index in 0..data.layers.len) {
+            RebuildDrawing(index);
+        }
     }
 
     // The layer's cells in pixels (a Decals layer: the level's tiles)

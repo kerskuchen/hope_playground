@@ -56,6 +56,7 @@ extend EditorTool {
         case "Pick": return EditorTool.Pick;
         case "Place": return EditorTool.Place;
         case "Select": return EditorTool.Select;
+        case "Bounds": return EditorTool.Bounds;
         default: return (EditorTool)read.value;
         }
     }
