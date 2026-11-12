@@ -5,8 +5,7 @@ extend LevelEditorSession {
     static void Write[$W](W* writer, string name, LevelEditorSession value) {
         writer.BeginObject(name, value);
         writer.Write("runId", value.runId);
-        writer.Write("isEditing", value.isEditing);
-        writer.Write("previewPos", value.previewPos);
+        writer.Write("isOpen", value.isOpen);
         writer.Write("editorPos", value.editorPos);
         writer.Write("editorZoom", value.editorZoom);
         writer.Write("selected", value.selected);
@@ -14,12 +13,11 @@ extend LevelEditorSession {
     }
     static LevelEditorSession Read[$R](R* reader) {
         let runId = reader.Read[long]("runId");
-        let isEditing = reader.Read[bool]("isEditing");
-        let previewPos = reader.Read[Vec2]("previewPos");
+        let isOpen = reader.Read[bool]("isOpen");
         let editorPos = reader.Read[Vec2]("editorPos");
         let editorZoom = reader.Read[float]("editorZoom");
         let selected = reader.Read[int]("selected");
-        return LevelEditorSession(runId, isEditing, previewPos, editorPos, editorZoom, selected);
+        return LevelEditorSession(runId, isOpen, editorPos, editorZoom, selected);
     }
 }
 
@@ -89,23 +87,6 @@ extend LevelEditorBag {
     }
 }
 
-extend Settings {
-    static void Write[$W](W* writer, string name, Settings value) {
-        writer.BeginObject(name, value);
-        writer.Write("music", value.music);
-        writer.Write("sounds", value.sounds);
-        writer.Write("showsHints", value.showsHints);
-        writer.EndObject();
-    }
-    static Settings Read[$R](R* reader) {
-        Settings defaults;
-        let music = reader.Read[float]("music", defaults.music);
-        let sounds = reader.Read[float]("sounds", defaults.sounds);
-        let showsHints = reader.Read[bool]("showsHints", defaults.showsHints);
-        return Settings(music, sounds, showsHints);
-    }
-}
-
 extend StampFile {
     static void Write[$W](W* writer, string name, StampFile value) {
         writer.BeginObject(name, value);
@@ -134,6 +115,23 @@ extend StampSlot {
         let key = reader.Read[int]("key");
         let tiles = reader.Read[Grid[byte]]("tiles");
         return StampSlot(key, tiles);
+    }
+}
+
+extend Settings {
+    static void Write[$W](W* writer, string name, Settings value) {
+        writer.BeginObject(name, value);
+        writer.Write("music", value.music);
+        writer.Write("sounds", value.sounds);
+        writer.Write("showsHints", value.showsHints);
+        writer.EndObject();
+    }
+    static Settings Read[$R](R* reader) {
+        Settings defaults;
+        let music = reader.Read[float]("music", defaults.music);
+        let sounds = reader.Read[float]("sounds", defaults.sounds);
+        let showsHints = reader.Read[bool]("showsHints", defaults.showsHints);
+        return Settings(music, sounds, showsHints);
     }
 }
 

@@ -10,37 +10,16 @@ The scenes (each file's header lists its keys):
 
 - F1 the level scene (`level_scene.pg`): a level of `assets/levels/` as a game shows it (the
   fixed canvas, the arrow keys move the view; the list at the right top: another level); F1
-  again: the level editor on that level (Open ^O, New ^N: an empty level with the same layers,
-  Save as ^Shift+S, the names typed in hope's `Ui.TextField`; the tools, brush and random bags in
-  `build/editor/editor.json` for every level, the views per level); the editor (the free
-  canvas, every shown layer, the tile grid, the layer panel with show/hide; the middle mouse button
-  pans, the wheel zooms; click a layer to edit it: B brush, L line (Shift: snapped to 8
-  directions), R rectangle, I pick (or Alt+click; dragged over a region: a stamp), W/S the brush
-  size (1 to 32, square or round in the panel), Shift+click a line from where the last stroke
-  ended; stamps (`stamps.pg`, `assets/stamps/<tileset>.stamp.json`, 10 slots per tileset): Ctrl+1
-  .. Ctrl+0 keep the stamp in a slot, 1 .. 0 paint with a slot's (the panel lists them with their
-  sizes; a palette click: the tile again); the brush puts a stamp down (dragged: side by side),
-  the line a row of them, the rectangle fills with them, empty cells leave what is under; N random (Tiles layers): each
-  cell's tile from the tileset's shuffle bag, the palette's left click puts a tile in, the right
-  click takes one out (Shift: 5, Ctrl: 10; the count on the tile), the preview shows what comes next; left paints, right erases (the
-  other button cancels a line or a rectangle), the palette of its tileset; autotile layers: solid
-  and open; Ctrl+S saves the file; Ctrl+Z / Ctrl+Y undo and redo a stroke, a line, a rectangle,
-  showing or hiding a layer;
-  C sets the camera bounds (drag a rectangle of tiles, right click: the whole level), the level
-  panel extends or shrinks the level on each side (- and +: one tile, with Shift 10, with Ctrl 50);
-  decal layers: V switches between place (a ghost at the mouse, a click puts it down) and select
-  (click, drag moves, Delete removes); Q/E rotate, W/S scale, A/D opacity, F / Shift+F flip (held
-  keys repeat), sliders, the sprite list with previews (`decal_` first; a click: place it,
-  Shift+click: the selected decal's sprite); N random placement: each placed decal's angle,
-  scale and opacity rolled within ranges (from .. to sliders), flipped by chance where allowed
-  (the ghost is the next one, a right click rolls another);
-  the view, the mode and the selection are kept in `build/editor/` between runs; the undo steps
-  only within a run (F5, leaving the scene, hot reloads; a new start of the program begins without
-  them), unsaved steps come back to redo)
+  again: the level editor on that level (`level_editor.pg`, its header lists the keys): tiles,
+  autotiles and decals; brush sizes, lines, rectangles, the eyedropper; stamps (a picked region,
+  10 slots per tileset in `assets/stamps/<tileset>.stamp.json`); random tiles from a shuffle bag
+  and random decals within ranges (previewed: what comes next); camera bounds, extending the
+  level; undo and redo; Open, New (an empty level with the same layers), Save as. Between runs
+  `build/editor/` keeps the tools (`editor.json`), each level's view and its undo steps (within a
+  run only)
 - F3 the start scene (`main.pg`): Sorcy runs in circles, Susi (a 3D sprite on tracks) drives with
   WASD, the arrow keys or a gamepad; camera shakes, following, translucent sorting
 - F2 the physics scene (`physics_scene.pg`): hope's collision world, shots, rams, impulses
-- F10 the tilemap demo (`editor.pg`): ground layers, autotile walls, a decal map
 - F4 the navigation scene (`navigation_scene.pg`): agents of three sizes and four profiles
 - F6 the audio scene (`audio_scene.pg`): music layers on the beat grid and the spatial audio test
 - F7 the lighting scene (`lighting_scene.pg`, the fixed 320 x 180 canvas): lights and shadows in

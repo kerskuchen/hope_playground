@@ -176,13 +176,13 @@ extend StartScene {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// Game: one scene at a time, F1 the start scene, F2 the physics debug scene, F3 the tilemap
-// editor, F4 the navigation scene, F6 the audio scene, F7 the lighting scene, F8 the UI scene. A
-// scene lives in its phase (hope/core.pg): the start, the physics, the navigation, the audio, the
-// lighting and the UI scene in the level phase, the editor in the editor phase. Switching wipes the phase of the scene that goes
+// Game: one scene at a time, F1 the level scene (preview and editor), F2 the physics debug scene,
+// F3 the start scene, F4 the navigation scene, F6 the audio scene, F7 the lighting scene, F8 the
+// UI scene. A scene lives in its phase (hope/core.pg): the level scene (its editor's data) in the
+// editor phase, the others in the level phase. Switching wipes the phase of the scene that goes
 // and makes the next one in its phase; its frames allocate there too.
 
-enum Scene { Level, Start, Physics, Editor, Navigation, Audio, Lighting, Ui }
+enum Scene { Level, Start, Physics, Navigation, Audio, Lighting, Ui }
 
 // The player's settings (the UI scene's options), kept with hope's Storage (the value 'settings')
 @Serializable
@@ -204,7 +204,6 @@ struct Playground {
     LevelScene* level;             // the current scene's state (the others are null)
     StartScene* start;
     PhysicsScene* physics;
-    GameEditor* editor;
     NavScene* navigation;
     AudioScene* audio;
     LightingScene* lighting;
@@ -284,11 +283,6 @@ extend Playground {
             ui = null;
             Memory.WipeLevel();
         }
-        if (editor != null) {
-            editor.Leave();
-            editor = null;
-            Memory.WipeEditor();
-        }
         scene = next;
         Draw.isCanvasFree = next != Scene.Start && next != Scene.Lighting && next != Scene.Ui && next != Scene.Level;    // (the games' fixed canvas)
         if (next == Scene.Level) {
@@ -314,14 +308,10 @@ extend Playground {
             ScopeAllocLevel();
             lighting = New[LightingScene]();
             Draw.clearColor = Color.Black;
-        } else if (next == Scene.Ui) {
+        } else {
             ScopeAllocLevel();
             ui = New[UiScene]();
             Draw.clearColor = Color(0.09, 0.07, 0.13, 1);
-        } else {
-            ScopeAllocEditor();
-            editor = New[GameEditor]();
-            Draw.clearColor = Color.Grey(0.3);
         }
     }
 
@@ -337,8 +327,6 @@ extend Playground {
             SwitchTo(Scene.Start);
         if (Input.KeyPressed(Scancode.F2) && scene != Scene.Physics)
             SwitchTo(Scene.Physics);
-        if (Input.KeyPressed(Scancode.F10) && scene != Scene.Editor)
-            SwitchTo(Scene.Editor);
         if (Input.KeyPressed(Scancode.F4) && scene != Scene.Navigation)
             SwitchTo(Scene.Navigation);
         if (Input.KeyPressed(Scancode.F6) && scene != Scene.Audio)
@@ -354,11 +342,8 @@ extend Playground {
                 level.WriteSession();
             Window.Quit();                         // (in the UI scene Escape goes back; the level editor's unsaved changes ask first)
         }
-        Draw.LogLine("F1 level (again: editor), F2 physics, F3 start, F4 navigation, F6 audio, F7 lighting, F8 UI, F10 tilemaps | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
-        if (scene == Scene.Editor) {
-            ScopeAllocEditor();
-            editor.DoFrame();
-        } else if (scene == Scene.Level) {
+        Draw.LogLine("F1 level (again: editor), F2 physics, F3 start, F4 navigation, F6 audio, F7 lighting, F8 UI | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
+        if (scene == Scene.Level) {
             ScopeAllocEditor();
             level.DoFrame();
             // Another level: the scene made again with it (its changes were asked about)
@@ -392,8 +377,7 @@ extend Playground {
 // hope_playground (formerly DungeonTracks, ported from the C# version), for trying out hope's
 // features: F1 the level scene (a level as a game shows it; F1 again: the level editor), F3 the
 // start scene (Sorcy runs in circles, Susi, a 3D sprite on tracks, drives with the "move" action),
-// F2 the physics debug scene, F4 the navigation scene, F6 the audio scene, F7 lighting, F8 the UI,
-// F10 the tilemap demo.
+// F2 the physics debug scene, F4 the navigation scene, F6 the audio scene, F7 lighting, F8 the UI.
 //
 // The game is a module (hope/game): a platform layer hosts it (the targets of hope.pgproj).
 
