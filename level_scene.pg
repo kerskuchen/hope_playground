@@ -22,7 +22,11 @@
 //                                             as it was put in): in the palette a left click puts
 //                                             a tile in, a right click takes one out; the brush of
 //                                             any size, the line and the rectangle paint from it,
-//                                             the preview shows the tiles that come next
+//                                             the preview shows the tiles that come next;
+//                                             (Decals layers) each placed decal's angle, scale and
+//                                             opacity rolled within ranges, flipped by chance where
+//                                             allowed: the ghost is the next one, a right click
+//                                             rolls another
 //                   I pick, or Alt + click    picks the tile under the mouse (eyedropper; KDE
 //                                             moves windows with Alt + drag); dragged over a
 //                                             region: that is the stamp (I: the brush then)
@@ -94,6 +98,19 @@ struct LevelEditorSession {
     @Serialize bool isBrushRound;
     @Serialize bool isRandom;
     @Serialize List[LevelEditorBag] bags;  // the tilesets' random bags
+    @Serialize bool isDecalRandom;
+    @Serialize DecalRandomRanges decalRandom;
+}
+
+// Random decal placement: each placed decal's angle, scale and opacity somewhere in these ranges
+// (from, to), flipped or not by chance where flipping is allowed
+@Serializable
+struct DecalRandomRanges {
+    @Serialize Vec2 angle = Vec2(-180, 180);       // degrees
+    @Serialize Vec2 scale = Vec2(0.75, 1.25);
+    @Serialize Vec2 opacity = Vec2(0.6, 1);
+    @Serialize bool flipsHorizontal = true;
+    @Serialize bool flipsVertical = true;
 }
 
 // A tileset's random bag (its tiles, one per time it is in the bag)
@@ -145,6 +162,13 @@ struct LevelScene {
     bool isRandom;                     // N
     List[TileBag] tileBags;
     Grid[bool] strokePainted;          // the cells the random stroke painted (the brush moving over them: not again)
+    // Random decal placement (N on a Decals layer): the next decal rolled within the ranges (the
+    // ghost shows it, a click places it, then the next one is rolled)
+    bool isDecalRandom;
+    DecalRandomRanges decalRandom;
+    Random decalRandomGenerator = Random((ulong)LevelEditorRunId());
+    LevelDecal rolledDecal;
+    bool needsRoll = true;
     // Decals
     LevelDecal decal = LevelDecal("decal_scorch", Vec2(0, 0), 0);    // what Place puts down next (pos: unused)
     int selectedDecal = -1;            // in the selected Decals layer (-1: none)
@@ -277,6 +301,8 @@ extend LevelScene {
             brushSize = Clamp(session.brushSize, 1, BRUSH_SIZE_MAX);
             isBrushRound = session.isBrushRound;
             isRandom = session.isRandom;
+            isDecalRandom = session.isDecalRandom;
+            decalRandom = session.decalRandom;
             for (let saved in session.bags) {
                 let bag = TileBagOf(saved.tileset);
                 bag.Clear();
@@ -327,6 +353,8 @@ extend LevelScene {
             }
             session.bags.Add(saved);
         }
+        session.isDecalRandom = isDecalRandom;
+        session.decalRandom = decalRandom;
         File.WriteText(SessionPath("editor"), Format(ToJson(session), "\n"));
         if (!history.WriteFile(SessionPath("history")))
             Log.Warn("[Level editor] could not write ", SessionPath("history"));
@@ -575,7 +603,7 @@ extend LevelScene {
     void EditFrame() {
         Ui.BlockKeys();                    // (the keys are the tools': W and S would move the panels' focus)
         if (playground.settings.showsHints)
-            Draw.LogLine("Level editor (F1: the preview): B brush, L line, R rectangle, I pick (or Alt+click), W/S brush size, N random (the palette fills the bag), Shift+click a line from the last, I+drag a stamp, 1..0 stamps (Ctrl: keep), left paints, right erases, Ctrl+S saves; middle mouse pans, the wheel zooms (",
+            Draw.LogLine("Level editor (F1: the preview): B brush, L line, R rectangle, I pick (or Alt+click), W/S brush size, N random (tiles: the palette fills the bag; decals: rolled in ranges), Shift+click a line from the last, I+drag a stamp, 1..0 stamps (Ctrl: keep), left paints, right erases, Ctrl+S saves; middle mouse pans, the wheel zooms (",
                 FormatFloat(Camera.zoom, 3), "x)");
         let view = Camera.viewportRect;
         for (let index, layer in data.layers) {
@@ -603,8 +631,15 @@ extend LevelScene {
             tool = EditorTool.Brush;
         if (Input.KeyPressed(Scancode.L))
             tool = EditorTool.Line;
-        if (Input.KeyPressed(Scancode.N) && !ctrl)
-            isRandom = !isRandom;
+        // (N: random tiles on a Tiles layer, random decals on a Decals layer)
+        if (Input.KeyPressed(Scancode.N) && !ctrl && data.layers.len > 0) {
+            if (data.layers[Clamp(selected, 0, data.layers.len - 1)].case == LevelLayer.Decals) {
+                isDecalRandom = !isDecalRandom;
+                needsRoll = true;
+            } else {
+                isRandom = !isRandom;
+            }
+        }
         if (Input.KeyPressed(Scancode.R))
             tool = EditorTool.Rect;
         if (Input.KeyPressed(Scancode.I))
@@ -1363,8 +1398,12 @@ extend LevelScene {
         if (tool == EditorTool.Place) {
             if (isOverUi)
                 return;
+            // (random: the rolled one; a right click rolls another)
+            if (isDecalRandom && (needsRoll || rolledDecal.sprite != decal.sprite || Input.MousePressed(MouseButton.Right)))
+                RollDecal();
+            let next = isDecalRandom ? rolledDecal : decal;
             // (centered on the mouse: 'pos' is the sprite's pivot, the corner of a sprite without one)
-            let ghost = decal;
+            let ghost = next;
             ghost.pos = world;
             let quad = DecalQuad(&ghost);
             let center = (quad.leftTop + quad.rightTop + quad.rightBottom + quad.leftBottom) * 0.25;
@@ -1377,10 +1416,11 @@ extend LevelScene {
                 if (refusal.len > 0) {
                     Draw.LogSticky(120, Color.Orange, "Not placed: ", refusal);
                 } else {
-                    let placed = decal;
+                    let placed = next;
                     placed.pos = ghost.pos;
                     layer.decals.Add(placed);
                     CommitDecals("Place decal", false);
+                    needsRoll = true;
                 }
             }
             return;
@@ -1420,6 +1460,46 @@ extend LevelScene {
         }
         if (selectedDecal >= 0)
             OutlineQuad(DecalQuad(&layer.decals[selectedDecal]), Color(1, 0.94, 0.55, 1));
+    }
+
+    // The next random decal: the next one's sprite, its angle, scale and opacity within the ranges
+    // (to 1/100), flipped by chance where that is allowed
+    void RollDecal() {
+        let ranges = &decalRandom;
+        let rng = &decalRandomGenerator;
+        rolledDecal = decal;
+        rolledDecal.angle = Round(rng.Range(ranges.angle.x, ranges.angle.y) * 100) / 100;
+        let scale = Round(rng.Range(ranges.scale.x, ranges.scale.y) * 100) / 100;
+        rolledDecal.scale = Vec2(scale, scale);
+        let opacity = Round(rng.Range(ranges.opacity.x, ranges.opacity.y) * 100) / 100;
+        rolledDecal.color = Color(opacity, opacity, opacity, opacity);     // (premultiplied white)
+        rolledDecal.flipHorizontal = ranges.flipsHorizontal && rng.NextBool();
+        rolledDecal.flipVertical = ranges.flipsVertical && rng.NextBool();
+        needsRoll = false;
+    }
+
+    // A random range in a row: its name and values, a slider for each end (the other end follows:
+    // from <= to); true when it changed
+    bool RangeRow(string name, Vec2* range, float min, float max, float step, int id) {
+        Ui.Columns(3, 0.44);
+        if (step >= 1)
+            Ui.Label(TFormat(name, " ", (int)Round(range.x), "..", (int)Round(range.y)), UiAlign.Left);
+        else
+            Ui.Label(TFormat(name, " ", FormatFloat(range.x, 2), "..", FormatFloat(range.y, 2)), UiAlign.Left);
+        let from = range.x;
+        let to = range.y;
+        let isChanged = false;
+        if (Ui.Slider("", &from, min, max, step, id: id * 2)) {
+            range.x = Round(from * 100) / 100;
+            range.y = Max(range.y, range.x);
+            isChanged = true;
+        }
+        if (Ui.Slider("", &to, min, max, step, id: id * 2 + 1)) {
+            range.y = Round(to * 100) / 100;
+            range.x = Min(range.x, range.y);
+            isChanged = true;
+        }
+        return isChanged;
     }
 
     // The selected Decals layer changed: a step ('merges': joins the last one of its name: a key
@@ -1477,29 +1557,55 @@ extend LevelScene {
     void DecalPanel(LevelLayer* layer) {
         let isSelected = selectedDecal >= 0 && selectedDecal < layer.decals.len;
         let target = isSelected ? &layer.decals[selectedDecal] : &decal;
-        Ui.Label(isSelected ? TFormat("selected: ", target.sprite) : TFormat("next: ", target.sprite), UiAlign.Left);
+        if (!isSelected) {
+            Ui.Columns(2, 0.6);
+            Ui.Label(TFormat("next: ", target.sprite), UiAlign.Left);
+            if (Ui.Button(isDecalRandom ? "> Random N" : "Random N")) {
+                isDecalRandom = !isDecalRandom;
+                needsRoll = true;
+            }
+        } else {
+            Ui.Label(TFormat("selected: ", target.sprite), UiAlign.Left);
+        }
+        if (!isSelected && isDecalRandom) {
+            // Random placement: the ranges each decal is rolled in (a right click: another roll)
+            let isChanged = RangeRow("angle", &decalRandom.angle, -180, 180, 1, 0);
+            isChanged = RangeRow("scale", &decalRandom.scale, 0.25, 4, 0.05, 1) || isChanged;
+            isChanged = RangeRow("opacity", &decalRandom.opacity, 0.05, 1, 0.05, 2) || isChanged;
+            {
+                Ui.Columns(2);
+                isChanged = Ui.Checkbox("flips x", &decalRandom.flipsHorizontal) || isChanged;
+                isChanged = Ui.Checkbox("flips y", &decalRandom.flipsVertical) || isChanged;
+            }
+            if (isChanged)
+                needsRoll = true;
+            Ui.Label("right click: another roll", UiAlign.Left, Ui.style.textDisabled);
+        }
         let degrees = target.angle;
         let scale = target.scale.x;
         let alpha = target.color.a;
         let changed = "";
-        if (Ui.Slider("angle (Q/E)", &degrees, -180, 180, 1)) {
-            target.angle = Round(degrees * 100) / 100;
-            changed = "Rotate decal";
-        }
-        if (Ui.Slider("scale (W/S)", &scale, 0.25, 4, 0.05)) {
-            target.scale = Vec2(scale, scale * (target.scale.x != 0 ? target.scale.y / target.scale.x : 1));
-            changed = "Scale decal";
-        }
-        if (Ui.Slider("opacity (A/D)", &alpha, 0.05, 1, 0.05)) {
-            target.color = Color(alpha, alpha, alpha, alpha);         // (premultiplied white)
-            changed = "Change decal opacity";
-        }
-        {
-            Ui.Columns(2);
-            if (Ui.Checkbox("flip x (F)", &target.flipHorizontal))
-                changed = "Flip decal";
-            if (Ui.Checkbox("flip y (Shift+F)", &target.flipVertical))
-                changed = "Flip decal";
+        // (the next decal's look, the selected one's; random placement has its ranges instead)
+        if (isSelected || !isDecalRandom) {
+            if (Ui.Slider("angle (Q/E)", &degrees, -180, 180, 1)) {
+                target.angle = Round(degrees * 100) / 100;
+                changed = "Rotate decal";
+            }
+            if (Ui.Slider("scale (W/S)", &scale, 0.25, 4, 0.05)) {
+                target.scale = Vec2(scale, scale * (target.scale.x != 0 ? target.scale.y / target.scale.x : 1));
+                changed = "Scale decal";
+            }
+            if (Ui.Slider("opacity (A/D)", &alpha, 0.05, 1, 0.05)) {
+                target.color = Color(alpha, alpha, alpha, alpha);         // (premultiplied white)
+                changed = "Change decal opacity";
+            }
+            {
+                Ui.Columns(2);
+                if (Ui.Checkbox("flip x (F)", &target.flipHorizontal))
+                    changed = "Flip decal";
+                if (Ui.Checkbox("flip y (Shift+F)", &target.flipVertical))
+                    changed = "Flip decal";
+            }
         }
         if (changed.len > 0 && isSelected)
             CommitDecals(changed, true);

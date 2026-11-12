@@ -28,7 +28,9 @@ The scenes (each file's header lists its keys):
   decal layers: V switches between place (a ghost at the mouse, a click puts it down) and select
   (click, drag moves, Delete removes); Q/E rotate, W/S scale, A/D opacity, F / Shift+F flip (held
   keys repeat), sliders, the sprite list with previews (`decal_` first; a click: place it,
-  Shift+click: the selected decal's sprite);
+  Shift+click: the selected decal's sprite); N random placement: each placed decal's angle,
+  scale and opacity rolled within ranges (from .. to sliders), flipped by chance where allowed
+  (the ghost is the next one, a right click rolls another);
   the view, the mode and the selection are kept in `build/editor/` between runs; the undo steps
   only within a run (F5, leaving the scene, hot reloads; a new start of the program begins without
   them), unsaved steps come back to redo)

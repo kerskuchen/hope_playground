@@ -17,6 +17,8 @@ extend LevelEditorSession {
         writer.Write("isBrushRound", value.isBrushRound);
         writer.Write("isRandom", value.isRandom);
         writer.Write("bags", value.bags);
+        writer.Write("isDecalRandom", value.isDecalRandom);
+        writer.Write("decalRandom", value.decalRandom);
         writer.EndObject();
     }
     static LevelEditorSession Read[$R](R* reader) {
@@ -34,7 +36,30 @@ extend LevelEditorSession {
         let isBrushRound = reader.Read[bool]("isBrushRound");
         let isRandom = reader.Read[bool]("isRandom");
         let bags = reader.Read[List[LevelEditorBag]]("bags");
-        return LevelEditorSession(runId, isEditing, previewPos, editorPos, editorZoom, selected, tool, tile, decal, brushSize, isBrushRound, isRandom, bags);
+        let isDecalRandom = reader.Read[bool]("isDecalRandom");
+        let decalRandom = reader.Read[DecalRandomRanges]("decalRandom");
+        return LevelEditorSession(runId, isEditing, previewPos, editorPos, editorZoom, selected, tool, tile, decal, brushSize, isBrushRound, isRandom, bags, isDecalRandom, decalRandom);
+    }
+}
+
+extend DecalRandomRanges {
+    static void Write[$W](W* writer, string name, DecalRandomRanges value) {
+        writer.BeginObject(name, value);
+        writer.Write("angle", value.angle);
+        writer.Write("scale", value.scale);
+        writer.Write("opacity", value.opacity);
+        writer.Write("flipsHorizontal", value.flipsHorizontal);
+        writer.Write("flipsVertical", value.flipsVertical);
+        writer.EndObject();
+    }
+    static DecalRandomRanges Read[$R](R* reader) {
+        DecalRandomRanges defaults;
+        let angle = reader.Read[Vec2]("angle", defaults.angle);
+        let scale = reader.Read[Vec2]("scale", defaults.scale);
+        let opacity = reader.Read[Vec2]("opacity", defaults.opacity);
+        let flipsHorizontal = reader.Read[bool]("flipsHorizontal", defaults.flipsHorizontal);
+        let flipsVertical = reader.Read[bool]("flipsVertical", defaults.flipsVertical);
+        return DecalRandomRanges(angle, scale, opacity, flipsHorizontal, flipsVertical);
     }
 }
 
