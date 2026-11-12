@@ -13,6 +13,7 @@
 // internal mode the data is the file (the editor will write it), elsewhere the game pack's.
 
 const string LEVEL_SCENE_LEVEL = "test";
+const int EditorTextScale = 2;         // the editor's UI on the free canvas (the window's pixels)
 
 struct LevelScene {
     LevelData data;
@@ -212,7 +213,8 @@ extend LevelScene {
 
     // The layers: their kind, tile size and whether they are shown (the eye: a checkbox)
     void LayerPanel() {
-        Ui.Panel(UiAnchor.RightBottom, 260, 0, Vec2i(-8, -8));
+        Ui.WithFont(Ui.style.fontName, EditorTextScale);
+        Ui.Panel(UiAnchor.RightBottom, 260 * EditorTextScale, 0, Vec2i(-8, -8));
         Ui.Label(TFormat("Level '", LEVEL_SCENE_LEVEL, "'  ", data.size.x, " x ", data.size.y, " tiles of ", data.tileSize), UiAlign.Left, Ui.style.textFocused);
         Ui.Space(2);
         for (let index, layer in data.layers) {
