@@ -78,13 +78,14 @@ Pool[Spawner] entityPool_Spawner;
 ];
 
 Pool[Ghost] entityPool_Ghost;
-[EntityField, 6] entityFields_Ghost = [
+[EntityField, 7] entityFields_Ghost = [
     EntityField("spawner", TypeOf[EntityId](), offsetof(Ghost, spawner), null, null),
     EntityField("speed", TypeOf[float](), offsetof(Ghost, speed), null, null),
     EntityField("health", TypeOf[Health](), offsetof(Ghost, health), null, null),
     EntityField("body", TypeOf[ColliderId](), offsetof(Ghost, body), null, null),
     EntityField("goal", TypeOf[Vec2](), offsetof(Ghost, goal), null, null),
-    EntityField("time", TypeOf[float](), offsetof(Ghost, time), null, null)
+    EntityField("time", TypeOf[float](), offsetof(Ghost, time), null, null),
+    EntityField("anim", TypeOf[AnimationPlayer](), offsetof(Ghost, anim), null, null)
 ];
 
 void RegisterEntityTypes() {
@@ -122,7 +123,7 @@ void RegisterEntityTypes() {
         DrawPreview: (Entity* e) => ((Spawner*)e).DrawPreview(),
         Destroyed: null));
     Entities.Register(EntityType(name: "Ghost", info: TypeOf[Ghost](), icon: "",
-        fields: entityFields_Ghost[0..6],
+        fields: entityFields_Ghost[0..7],
         pool: &entityPool_Ghost,
         Spawn: () => &entityPool_Ghost.Add().Entity,
         Make: () => &New[Ghost]().Entity,

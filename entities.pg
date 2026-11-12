@@ -202,7 +202,11 @@ extend Spawner {
     void DrawPreview() {
         Draw();
         global.Draw.CircleOutline(Circle(pos, Max(1.0, radius)), 1, 33, DrawParams(color: Color(0.6, 0.5, 0.9, 0.5)));
-        DrawCentered(global.Draw.GetSprite("ghosty_0"), pos, 1, 31, DrawParams(color: Color(0.6, 0.6, 0.6, 0.6)));
+        // (ghosty's animation at the time: a preview is made again every frame)
+        let ghosty = AnimationPlayer(global.Draw.GetAnim("ghosty.default"));
+        let duration = ghosty.current.duration;
+        ghosty.curTime = (float)(platform.TimeSinceStartup() % (double)Max(0.001, duration));
+        DrawCentered(ghosty.CurSprite(), pos, 1, 31, DrawParams(color: Color(0.6, 0.6, 0.6, 0.6)));
     }
 }
 
@@ -216,11 +220,14 @@ struct Ghost : Entity {
     ColliderId body;
     Vec2 goal;
     float time;
+    AnimationPlayer anim;              // ghosty.default
 }
 
 extend Ghost {
     void Prepare() {
         goal = pos;
+        anim = AnimationPlayer(global.Draw.GetAnim("ghosty.default"));
+        anim.curTime = (float)(id.index % 7) * 0.1;      // (not all in step)
         if (entityWorld != null) {
             let collider = Collider(ColliderShape.Circle(circle: Circle(pos, 5)), LAYER_GHOST, 0);
             collider.entity = id;
@@ -231,6 +238,7 @@ extend Ghost {
     void DoFrame() {
         let dt = Input.deltaTime;
         time += dt;
+        anim.Update();
         if (health.isDead) {
             Entities.Destroy(&self.Entity);
             return;
@@ -249,7 +257,7 @@ extend Ghost {
 
     void Draw() {
         let fade = 0.5 + 0.5 * health.hp / Max(1, health.max);
-        DrawCentered(global.Draw.GetSprite("ghosty_0"), pos, 1, 30 + pos.y * 0.01, DrawParams(color: Color(fade, fade, fade, fade)));
+        DrawCentered(anim.CurSprite(), pos, 1, 30 + pos.y * 0.01, DrawParams(color: Color(fade, fade, fade, fade)));
     }
 
     // (its collider out of the world)
