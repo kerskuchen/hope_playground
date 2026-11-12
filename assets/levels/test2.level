@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "tileSize": 16,
+  "size": {"x": 20, "y": 8},
+  "cameraBounds": {"x": 0, "y": 0, "w": 0, "h": 0},
+  "layers": [
+    {
+      "case": "Tiles",
+      "name": "ground",
+      "depth": 1,
+      "isHidden": false,
+      "isLocked": false,
+      "tileset": "tiles_ground",
+      "tileDim": {"x": 16, "y": 16},
+      "tiles": {
+        "w": 20,
+        "h": 8,
+        "rows": [
+          "0104000200030303030100030003030400030201",
+          "0300040103030401020101030200030400010200",
+          "0304000301030301020402000304000104030203",
+          "0401000104040103040204020302040400030401",
+          "0403030203020004000400020004000101040401",
+          "0102000401020200000300010002020302030300",
+          "0104030001000301000003040300010403010400",
+          "0000020201030402010000000000040301040400"
+        ]
+      }
+    },
+    {
+      "case": "Tiles",
+      "name": "details",
+      "depth": 2,
+      "isHidden": false,
+      "isLocked": false,
+      "tileset": "tiles_ground_details",
+      "tileDim": {"x": 16, "y": 16},
+      "tiles": {
+        "w": 20,
+        "h": 8,
+        "rows": [
+          "......01................................",
+          "..........09............................",
+          "..................07............06......",
+          "............................03..........",
+          "............0809......08....04..........",
+          "....................09..........02......",
+          "03....06......0903......................",
+          "..03..00....................02........04"
+        ]
+      }
+    },
+    {
+      "case": "Decals",
+      "name": "scorch",
+      "depth": 3,
+      "isHidden": false,
+      "isLocked": false,
+      "tileset": "",
+      "decals": [
+        {"sprite": "decal_scorch", "pos": {"x": 120, "y": 90}, "angle": 0.5, "scale": {"x": 1, "y": 1}, "color": {"r": 1, "g": 1, "b": 1, "a": 0.8}, "flipHorizontal": false, "flipVertical": false},
+        {"sprite": "decal_scorch", "pos": {"x": 300, "y": 200}, "angle": 2.1, "scale": {"x": 1, "y": 1}, "color": {"r": 1, "g": 1, "b": 1, "a": 0.8}, "flipHorizontal": false, "flipVertical": false},
+        {"sprite": "decal_scorch", "pos": {"x": 380, "y": 60}, "angle": 4, "scale": {"x": 1, "y": 1}, "color": {"r": 1, "g": 1, "b": 1, "a": 0.8}, "flipHorizontal": false, "flipVertical": false},
+        {"sprite": "decal_scorch", "pos": {"x": 200, "y": 250}, "angle": 1.2, "scale": {"x": 1, "y": 1}, "color": {"r": 1, "g": 1, "b": 1, "a": 0.8}, "flipHorizontal": false, "flipVertical": false},
+        {"sprite": "decal_scorch", "pos": {"x": 371.45, "y": 124.29}, "angle": -21, "scale": {"x": 1.9941882, "y": 1.9941882}, "color": {"r": 1, "g": 1, "b": 1, "a": 1}, "flipHorizontal": false, "flipVertical": false}
+      ]
+    },
+    {
+      "case": "Autotiles",
+      "name": "walls",
+      "depth": 10,
+      "isHidden": false,
+      "isLocked": false,
+      "tileset": "tileset_test",
+      "solid": {
+        "w": 20,
+        "h": 8,
+        "rows": [
+          "....................",
+          "....................",
+          "...#...#..#.........",
+          "...#..........#.....",
+          "...#.##....##.#.....",
+          "...#..#....#..#.....",
+          "...#...#####..#.....",
+          "...#..........#..#.."
+        ]
+      }
+    }
+  ]
+}
