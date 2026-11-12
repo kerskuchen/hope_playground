@@ -10,7 +10,8 @@
 //               tools and the tileset's palette:
 //
 //                   B brush, R rectangle      left mouse paints, right erases (an autotile layer:
-//                                             solid and open)
+//                                             solid and open); the other button cancels a
+//                                             rectangle being dragged
 //                   I pick, or Alt + click    picks the tile under the mouse (eyedropper; KDE
 //                                             moves windows with Alt + drag)
 //                   Ctrl+S                    saves the level file ('*' in the panel: unsaved)
@@ -43,6 +44,7 @@ struct LevelScene {
     bool isErasing;                    // ... the right one
     Vec2i strokeStart;                 // the cell the press was on (the rectangle's corner)
     Vec2i strokeLast;                  // the brush's cell last frame (painted up to it)
+    bool waitsForRelease;              // a rectangle was cancelled: nothing starts until both buttons are up
 }
 
 // What is drawn of each layer (made from the data)
@@ -267,9 +269,19 @@ extend LevelScene {
         let refusal = WhyNotPaintable(layer);
         let alt = Input.KeyDown(Scancode.LAlt) || Input.KeyDown(Scancode.RAlt);
 
+        // A rectangle being dragged is cancelled by the other button (left draws, right cancels;
+        // right erases, left cancels); then nothing starts until both buttons are up
+        let otherPressed = isErasing ? Input.MousePressed(MouseButton.Left) : Input.MousePressed(MouseButton.Right);
+        if (isPainting && tool == EditorTool.Rect && otherPressed) {
+            isPainting = false;
+            waitsForRelease = true;
+        }
+        if (waitsForRelease && !Input.MouseDown(MouseButton.Left) && !Input.MouseDown(MouseButton.Right))
+            waitsForRelease = false;
+
         // A stroke starts with a press over the level (not over a panel) and ends with the release
         let pressed = Input.MousePressed(MouseButton.Left) || Input.MousePressed(MouseButton.Right);
-        if (pressed && !isOverUi && isInside && !isPainting) {
+        if (pressed && !isOverUi && isInside && !isPainting && !waitsForRelease) {
             if ((alt || tool == EditorTool.Pick) && layer.case == LevelLayer.Tiles) {
                 let picked = layer.tiles.Get(cell);
                 if (picked != TILE_EMPTY)

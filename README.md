@@ -12,7 +12,7 @@ The scenes (each file's header lists its keys):
   shows it (the fixed canvas, the arrow keys move the view); F1 again: the level editor (the free
   canvas, every shown layer, the tile grid, the layer panel with show/hide; the middle mouse button
   pans, the wheel zooms; click a layer to edit it: B brush, R rectangle, I pick (or Alt+click),
-  left paints, right erases, the palette of its tileset; autotile layers: solid and open; Ctrl+S
+  left paints, right erases (the other button cancels a rectangle), the palette of its tileset; autotile layers: solid and open; Ctrl+S
   saves the file)
 - F3 the start scene (`main.pg`): Sorcy runs in circles, Susi (a 3D sprite on tracks) drives with
   WASD, the arrow keys or a gamepad; camera shakes, following, translucent sorting
