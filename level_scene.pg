@@ -152,6 +152,12 @@ extend LevelScene {
             if (AskAboutChanges("quitting"))
                 Window.Quit();
         }
+        // F5 (the game starts again: the data would be gone) likewise
+        if (Runtime.isRestartRequested && isModified) {
+            Runtime.CancelRestart();
+            if (AskAboutChanges("restarting the game"))
+                Runtime.Restart();
+        }
         if (Input.KeyPressed(Scancode.F1)) {
             // (each mode keeps its camera)
             if (isEditing) {
@@ -304,9 +310,35 @@ extend LevelScene {
             return;
         let color = refusal.len > 0 ? Color(0.8, 0.2, 0.2, 0.8) : isErasing && isPainting ? Color(0.8, 0.4, 0.2, 0.8) : Color(0.9, 0.9, 0.9, 0.9);
         let shown = isPainting && tool == EditorTool.Rect ? rect : Recti(cell, Vec2i(1, 1));
+        // ... and what painting there would do: the tile (a brush hovering, a rectangle being
+        // dragged), red where it erases, the solid or open cells of an autotile layer
+        if (refusal.len == 0 && tool != EditorTool.Pick && !alt)
+            PreviewCells(layer, drawing, shown, cellSize, isPainting && isErasing);
         OutlineRect(Rect(Vec2(shown.pos * cellSize), Vec2(shown.dim * cellSize)), color);
         if (refusal.len > 0 && isInside)
             Draw.LogLineColored(Color.Orange, "Not painted: ", refusal);
+    }
+
+    // What painting 'cells' would give, drawn over the level (just under the grid): the palette's
+    // tile at 80%, erasing a red tint; an autotile layer's solid cells blue, open ones red
+    void PreviewCells(LevelLayer* layer, LayerDrawing* drawing, Recti cells, Vec2i cellSize, bool erases) {
+        let depth = Depth.Nearest - 1;
+        let clipped = Recti.Intersect(cells, layer.case == LevelLayer.Tiles ? layer.tiles.rect : layer.case == LevelLayer.Autotiles ? layer.solid.rect : Recti(0, 0, 0, 0));
+        if (clipped.w <= 0 || clipped.h <= 0)
+            return;
+        if (layer.case == LevelLayer.Tiles && !erases) {
+            let tileset = &drawing.tilemap.tileset;
+            if (tile >= tileset.count)
+                return;
+            for (let y in clipped.y..clipped.y + clipped.h) {
+                for (let x in clipped.x..clipped.x + clipped.w) {
+                    tileset.Draw(tile, Vec2(Vec2i(x, y) * cellSize), depth, DrawParams(color: Color(0.8, 0.8, 0.8, 0.8)));
+                }
+            }
+            return;
+        }
+        let tint = erases ? Color(0.45, 0.05, 0.05, 0.45) : Color(0.1, 0.25, 0.55, 0.45);
+        Draw.Rect(Vec2(clipped.pos * cellSize), Vec2(clipped.dim * cellSize), depth, DrawParams(color: tint));
     }
 
     // One cell of the stroke: the palette's tile (Tiles), solid (Autotiles), or erased
