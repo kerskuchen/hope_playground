@@ -12,6 +12,7 @@ extend LevelEditorSession {
         writer.Write("selected", value.selected);
         writer.Write("tool", value.tool);
         writer.Write("tile", value.tile);
+        writer.Write("decal", value.decal);
         writer.EndObject();
     }
     static LevelEditorSession Read[$R](R* reader) {
@@ -23,7 +24,8 @@ extend LevelEditorSession {
         let selected = reader.Read[int]("selected");
         let tool = reader.Read[EditorTool]("tool");
         let tile = reader.Read[int]("tile");
-        return LevelEditorSession(runId, isEditing, previewPos, editorPos, editorZoom, selected, tool, tile);
+        let decal = reader.Read[LevelDecal]("decal");
+        return LevelEditorSession(runId, isEditing, previewPos, editorPos, editorZoom, selected, tool, tile, decal);
     }
 }
 
@@ -52,6 +54,8 @@ extend EditorTool {
         case "Brush": return EditorTool.Brush;
         case "Rect": return EditorTool.Rect;
         case "Pick": return EditorTool.Pick;
+        case "Place": return EditorTool.Place;
+        case "Select": return EditorTool.Select;
         default: return (EditorTool)read.value;
         }
     }

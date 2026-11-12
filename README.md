@@ -14,6 +14,8 @@ The scenes (each file's header lists its keys):
   pans, the wheel zooms; click a layer to edit it: B brush, R rectangle, I pick (or Alt+click),
   left paints, right erases (the other button cancels a rectangle), the palette of its tileset; autotile layers: solid and open; Ctrl+S
   saves the file; Ctrl+Z / Ctrl+Y undo and redo a stroke, a rectangle, showing or hiding a layer;
+  decal layers: P place (a ghost at the mouse, a click puts it down), V select (click, drag moves,
+  Delete removes), Q/E rotate, W/S scale, F flips, sliders, the sprite list (`decal_` first);
   the view, the mode and the selection are kept in `build/editor/` between runs; the undo steps
   only within a run (F5, leaving the scene, hot reloads; a new start of the program begins without
   them), unsaved steps come back to redo)
