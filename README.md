@@ -26,7 +26,9 @@ The scenes (each file's header lists its keys):
 - F4 the navigation scene (`navigation_scene.pg`): agents of three sizes and four profiles
 - F6 the audio scene (`audio_scene.pg`): music layers on the beat grid and the spatial audio test
 - F7 the lighting scene (`lighting_scene.pg`, the fixed 320 x 180 canvas): lights and shadows in
-  DungeonTracks' mood (its ambient and torch measured in the game jam's Let's Play)
+  DungeonTracks' mood (its ambient and torch measured in the game jam's Let's Play); 3: the
+  overlays on/off (hope's Draw.RegisterOverlay: `overlay_ground` over the floor's tiles,
+  `overlay_wall` over the walls, both 256 x 256 and made by `tools/make_overlays.lua`)
 - F8 the UI scene (`ui_scene.pg`, the fixed canvas): a title screen, options (volumes,
   fullscreen; saved with hope's Storage (the value `settings` in `storage.json`) when the options screen is left: `build/user/` in the internal mode,
   localStorage on the web), the controls (hope's `Ui.Controls`: click a binding, press the new

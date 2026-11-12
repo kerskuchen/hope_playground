@@ -343,6 +343,11 @@ extend Playground {
             Window.Quit();                         // (in the UI scene Escape goes back; the level editor's unsaved changes ask first)
         }
         Draw.LogLine("F1 level (again: editor), F2 physics, F3 start, F4 navigation, F6 audio, F7 lighting, F8 UI | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
+        // (what the last frame drew: hope's Draw.stats, for the vertex size question)
+        let stats = Draw.stats;
+        if (settings.showsHints)
+            Draw.LogLine("draw: ", stats.vertices, " vertices (", stats.vertices / 4, " quads), ", stats.indices, " indices, ", stats.renderCalls, " render calls, ",
+                stats.bytes / 1024, " KiB uploaded, end frame ", FormatFloat((float)(stats.endFrameSeconds * 1000), 3), " ms");
         if (scene == Scene.Level) {
             ScopeAllocEditor();
             level.DoFrame();

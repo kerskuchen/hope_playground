@@ -11,6 +11,9 @@
 //     K                 60 moving lights on/off (a stress test)
 //     1                 lighting on/off
 //     2                 the walls: wall_dungeon (DungeonTracks' colors) / wall_soil
+//     3                 the overlays on/off: big repeating textures fixed in the world over the
+//                       floor's tiles (overlay_ground) and the walls (overlay_wall), hope's
+//                       Draw.RegisterOverlay (tools/make_overlays.lua makes the two)
 
 const float LIGHTING_TILE = 8;                     // the occluder grid (the walls)
 const int LIGHTING_COLUMNS = 40;
@@ -85,6 +88,9 @@ struct LightingScene {
     List[Brazier] braziers;
     List[Wanderer] wanderers;
     bool isLit = true;
+    bool hasOverlays = true;
+    int groundOverlay;                   // Draw.RegisterOverlay's ids
+    int wallOverlay;
     float cooldown;
     Random random;
     double lightTime;                    // the last frame's lights (computing their polygons)
@@ -99,15 +105,24 @@ extend LightingScene {
                 walls.Set(x, y, LIGHTING_MAP[y][x] == '#');
             }
         }
+        groundOverlay = Draw.RegisterOverlay("overlay_ground", OverlayMode.SoftLight, 1);
+        wallOverlay = Draw.RegisterOverlay("overlay_wall", OverlayMode.SoftLight, 1);
         floor = TilemapLayer(Tileset(Draw.GetSprite("floor_dungeon"), Vec2i(16, 16)), 20, 12, depth: 1);
         floor.Fill(0);
-        floor.Refresh();
+        SetOverlays(true);
         SetWallSprite(false);
         light = Draw.GetSprite("light_torch");
         tracksAnim = AnimationPlayer(Draw.GetAnim("susi.run"));
         turret = Draw.GetSprite3D("susi_turret");
         tankPos = Vec2(60, 120);
         torch = LightFlicker(1);
+    }
+
+    // The floor's tiles and the walls with their overlays, or without
+    void SetOverlays(bool on) {
+        hasOverlays = on;
+        floor.drawParams.overlay = on ? groundOverlay : 0;
+        floor.Refresh();                 // (its chunks record again with it)
     }
 
     void SetWallSprite(bool soil) {
@@ -150,6 +165,8 @@ extend LightingScene {
             isLit = !isLit;
         if (Input.KeyPressed(Scancode.Alpha2))
             SetWallSprite(!usesSoilWall);
+        if (Input.KeyPressed(Scancode.Alpha3))
+            SetOverlays(!hasOverlays);
         Draw.isLightingEnabled = isLit;
         Draw.ambientLight = LIGHTING_AMBIENT;
 
@@ -216,7 +233,7 @@ extend LightingScene {
 
         DrawLights(dt);
         DrawWorld(turretAngle);
-        Draw.LogLine("lighting scene (F7): WASD drive, left mouse shoot, right mouse wall on/off, L brazier, K 60 lights (", wanderers.len > 0, "), 1 lighting (", isLit, "), 2 walls (", usesSoilWall ? "wall_soil" : "wall_dungeon", ")");
+        Draw.LogLine("lighting scene (F7): WASD drive, left mouse shoot, right mouse wall on/off, L brazier, K 60 lights (", wanderers.len > 0, "), 1 lighting (", isLit, "), 2 walls (", usesSoilWall ? "wall_soil" : "wall_dungeon", "), 3 overlays (", hasOverlays, ")");
         Draw.LogLine("lights ", 1 + projectiles.len + flashes.len + braziers.len + wanderers.len, ": polygons and drawing ", FormatFloat((float)(lightTime * 1000), 3), " ms");
     }
 
@@ -253,8 +270,9 @@ extend LightingScene {
                 let pos = Vec2(x, y) * LIGHTING_TILE;
                 let bottom = pos.y + LIGHTING_TILE;
                 let depth = DepthAt(bottom);
-                let front = DrawParams(lightAnchor: LightAnchor.Base(bottom + 0.5));
-                Draw.SpriteSlice(&wallSlices, 0, 0, pos - Vec2(0, 24), depth, DrawParams(light: LightMode.Ambient));
+                let overlay = hasOverlays ? wallOverlay : 0;
+                let front = DrawParams(lightAnchor: LightAnchor.Base(bottom + 0.5), overlay: overlay);
+                Draw.SpriteSlice(&wallSlices, 0, 0, pos - Vec2(0, 24), depth, DrawParams(light: LightMode.Ambient, overlay: overlay));
                 for (let row in 1..4) {
                     Draw.SpriteSlice(&wallSlices, 0, row, pos - Vec2(0, 24 - row * 8), depth, front);
                 }
