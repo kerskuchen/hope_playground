@@ -548,10 +548,5 @@ extend PhysicsScene {
         }
     }
 
-    void DrawBoxOutline(Box box, Color color) {
-        Draw.Line(box.leftTop, box.rightTop, pixel, 3, color);
-        Draw.Line(box.rightTop, box.rightBottom, pixel, 3, color);
-        Draw.Line(box.rightBottom, box.leftBottom, pixel, 3, color);
-        Draw.Line(box.leftBottom, box.leftTop, pixel, 3, color);
-    }
+    void DrawBoxOutline(Box box, Color color) { Draw.RectOutline(box.ToRect(), pixel, 3, color); }
 }

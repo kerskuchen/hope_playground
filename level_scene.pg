@@ -219,14 +219,7 @@ extend LevelScene {
             for (let area in layer.areas) {
                 if (!Overlap.BoxCircle(area.box, Circle(mouse, 6)))
                     continue;
-                // (1 pixel rectangles inside its edges: Draw.Line's quads are not snapped to the
-                // fixed canvas's pixels, a line on a pixel border would show only on one side)
-                let r = area.rect;
-                let outline = DrawParams(color: LevelEditor.AreaColor(area.kind));
-                Draw.Rect(Rect(Vec2(r.x, r.y), Vec2(r.w, 1)), Depth.Nearest, outline);
-                Draw.Rect(Rect(Vec2(r.x, r.y + r.h - 1), Vec2(r.w, 1)), Depth.Nearest, outline);
-                Draw.Rect(Rect(Vec2(r.x, r.y), Vec2(1, r.h)), Depth.Nearest, outline);
-                Draw.Rect(Rect(Vec2(r.x + r.w - 1, r.y), Vec2(1, r.h)), Depth.Nearest, outline);
+                Draw.RectOutline(LevelEditor.RectOf(area.rect), 1, Depth.Nearest, DrawParams(color: LevelEditor.AreaColor(area.kind)));
             }
         }
         // The levels there are: a click previews another one (a panel of the window's pixels, as
