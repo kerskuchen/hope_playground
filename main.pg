@@ -347,8 +347,11 @@ extend Playground {
             SwitchTo(Scene.Lighting);
         if (Input.KeyPressed(Scancode.F8) && scene != Scene.Ui)
             SwitchTo(Scene.Ui);
-        if (Input.KeyPressed(Scancode.Escape) && scene != Scene.Ui && (level == null || level.AskAboutChanges("quitting")))
+        if (Input.KeyPressed(Scancode.Escape) && scene != Scene.Ui && (level == null || level.AskAboutChanges("quitting"))) {
+            if (level != null)
+                level.WriteSession();
             Window.Quit();                         // (in the UI scene Escape goes back; the level editor's unsaved changes ask first)
+        }
         Draw.LogLine("F1 level (again: editor), F2 physics, F3 start, F4 navigation, F6 audio, F7 lighting, F8 UI, F10 tilemaps | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
         if (scene == Scene.Editor) {
             ScopeAllocEditor();

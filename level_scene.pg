@@ -23,6 +23,11 @@
 //               Painting changes the data and what is drawn of it cell by cell. Locked and hidden
 //               layers are not painted, decals come later.
 //
+// Between runs (also F5): build/editor/<level>.editor.json (the views, the mode, the selection)
+// and <level>.history.json (the undo steps), written when the level is saved, when the scene is
+// left, on F5 and on quitting. The history is read back at its saved state, which the level file
+// must still be (else it was for another file: a new one); unsaved steps are then there to redo.
+//
 // The level's data is the scene's (the editor phase: it survives making the presentation again);
 // what is drawn is made from it in the level phase, wiped and made again on every switch. In the
 // internal mode the data is the file (the editor will write it), elsewhere the game pack's.
@@ -30,7 +35,21 @@
 const string LEVEL_SCENE_LEVEL = "test";
 const int EditorTextScale = 3;         // the editor's UI on the free canvas (the window's pixels)
 
+@Serializable
 enum EditorTool { Brush, Rect, Pick }
+
+// What the editor was doing, kept between runs (build/editor/<level>.editor.json: this machine's,
+// not the level's file): the views, the mode, what was selected
+@Serializable
+struct LevelEditorSession {
+    @Serialize bool isEditing;
+    @Serialize Vec2 previewPos;
+    @Serialize Vec2 editorPos;
+    @Serialize float editorZoom;
+    @Serialize int selected;
+    @Serialize EditorTool tool;
+    @Serialize int tile;
+}
 
 struct LevelScene {
     LevelData data;
@@ -85,11 +104,66 @@ extend LevelScene {
                 pieces.Add(PieceText(index));
             }
             history.Reset(pieces);
+            ReadSession(pieces);
         }
         for (let index in 0..data.layers.len + 1) {
             dirtyPieces.Add(false);
         }
         Enter();
+    }
+
+    //----------------------------------------------------------------------------------------------
+    // The session between runs (build/editor/)
+
+    string SessionPath(string kind) { return TFormat(BUILD_PROJECT_DIR, "/build/editor/", LEVEL_SCENE_LEVEL, ".", kind, ".json"); }
+
+    // The views, the mode and the selection as they were; the undo steps, if the level file is
+    // still what they were saved as ('pieces': the file's)
+    void ReadSession([string] pieces) {
+        if (!INTERNAL)
+            return;
+        LevelEditorSession session;
+        if (File.Exists(SessionPath("editor")) && FromJson(File.ReadText(SessionPath("editor")), &session)) {
+            isEditing = session.isEditing;
+            previewPos = session.previewPos;
+            editorPos = session.editorPos;
+            editorZoom = session.editorZoom;
+            selected = session.selected;
+            tool = session.tool;
+            tile = (byte)Clamp(session.tile, 0, 254);
+        }
+        // (made with the scene's allocator: this runs in a temp scope, and the history's lists keep
+        // the allocator of when they were made)
+        ScopeAlloc(history.allocator);
+        EditHistory read;
+        if (!read.ReadFile(SessionPath("history")))
+            return;
+        let isSame = read.MoveTo(read.savedId) && read.current.len == pieces.len;
+        for (let index in 0..Min(read.current.len, pieces.len)) {
+            isSame = isSame && read.current[index].view == pieces[index];
+        }
+        if (!isSame) {
+            Log.Info("[Level editor] the undo steps of ", SessionPath("history"), " are for another state of the level file (it changed since): a new history");
+            read.Clear();
+            return;
+        }
+        history.Clear();
+        history = read;
+        Log.Info("[Level editor] ", history.undoSteps.len, " steps to undo, ", history.redoSteps.len, " to redo (from the last session)");
+    }
+
+    // The views, the mode, the selection and the undo steps into build/editor/
+    void WriteSession() {
+        if (!INTERNAL)
+            return;
+        ScopeAllocTemp();
+        Directory.Create(TFormat(BUILD_PROJECT_DIR, "/build/editor"));
+        let inEditor = isEditing;
+        let session = LevelEditorSession(inEditor, inEditor ? previewPos : Camera.pos, inEditor ? Camera.pos : editorPos, inEditor ? Camera.zoom : editorZoom,
+            selected, tool, tile);
+        File.WriteText(SessionPath("editor"), Format(ToJson(session), "\n"));
+        if (!history.WriteFile(SessionPath("history")))
+            Log.Warn("[Level editor] could not write ", SessionPath("history"));
     }
 
     get bool isModified() { return history.isModified; }
@@ -186,6 +260,7 @@ extend LevelScene {
     }
 
     void Leave() {
+        WriteSession();
         if (presentation != null) {
             FreePresentation();
             presentation = null;
@@ -258,16 +333,28 @@ extend LevelScene {
 
     void DoFrame() {
         // The window closed (the internal mode asks the game): unsaved changes ask first
-        if (Window.isQuitRequested && isModified) {
-            Window.CancelQuit();
-            if (AskAboutChanges("quitting"))
-                Window.Quit();
+        if (Window.isQuitRequested) {
+            if (isModified) {
+                Window.CancelQuit();
+                if (AskAboutChanges("quitting")) {
+                    WriteSession();
+                    Window.Quit();
+                }
+            } else {
+                WriteSession();
+            }
         }
         // F5 (the game starts again: the data would be gone) likewise
-        if (Runtime.isRestartRequested && isModified) {
-            Runtime.CancelRestart();
-            if (AskAboutChanges("restarting the game"))
-                Runtime.Restart();
+        if (Runtime.isRestartRequested) {
+            if (isModified) {
+                Runtime.CancelRestart();
+                if (AskAboutChanges("restarting the game")) {
+                    WriteSession();
+                    Runtime.Restart();
+                }
+            } else {
+                WriteSession();
+            }
         }
         if (Input.KeyPressed(Scancode.F1)) {
             // (each mode keeps its camera)
@@ -514,6 +601,7 @@ extend LevelScene {
             return false;
         }
         history.MarkSaved();
+        WriteSession();
         Draw.LogSticky(180, Color.Green, "Saved ", path);
         return true;
     }
