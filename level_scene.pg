@@ -435,6 +435,7 @@ extend LevelScene {
     // Editing: the editor's presentation (every layer that is not hidden), the grid, the layer panel
 
     void EditFrame() {
+        Ui.BlockKeys();                    // (the keys are the tools': W and S would move the panels' focus)
         if (playground.settings.showsHints)
             Draw.LogLine("Level editor (F1: the preview): B brush, R rectangle, I pick (or Alt+click), left paints, right erases, Ctrl+S saves; middle mouse pans, the wheel zooms (",
                 FormatFloat(Camera.zoom, 3), "x)");
@@ -466,10 +467,9 @@ extend LevelScene {
             tool = EditorTool.Rect;
         if (Input.KeyPressed(Scancode.I))
             tool = EditorTool.Pick;
-        if (Input.KeyPressed(Scancode.P))
-            tool = EditorTool.Place;
+        // (V: Place and Select by turns, the left hand stays at Q W E A S D)
         if (Input.KeyPressed(Scancode.V))
-            tool = EditorTool.Select;
+            tool = tool == EditorTool.Place ? EditorTool.Select : EditorTool.Place;
         selected = Clamp(selected, 0, Max(0, data.layers.len - 1));
         if (data.layers.len > 0) {
             let layer = &data.layers[selected];
@@ -667,8 +667,9 @@ extend LevelScene {
 
     //----------------------------------------------------------------------------------------------
     // Decals: Place (a ghost at the mouse, a click puts it down), Select (a click picks the topmost
-    // under the mouse, dragging moves it, Delete removes it); Q/E rotate (Shift: 1 degree, else 15),
-    // W/S scale, F flips (Shift+F: vertically): the next decal's, or the selected one's
+    // under the mouse, dragging moves it, Delete removes it), V switches between them; Q/E rotate
+    // (Shift: 1 degree, else 15), W/S scale, A/D opacity, F flips (Shift+F: vertically): the next
+    // decal's, or the selected one's; held keys repeat
 
     // The layer's decals as sprites (the editor's: moved and deleted ones show at once)
     void DrawDecals(LevelLayer* layer) {
@@ -730,10 +731,21 @@ extend LevelScene {
         let angleStep = shift ? 1.0 : 15.0;          // (degrees, as Transform's)
         let changed = "";
         if (!ctrl) {
-            if (Input.KeyPressed(Scancode.Q)) { target.angle -= angleStep; changed = "Rotate decal"; }
-            if (Input.KeyPressed(Scancode.E)) { target.angle += angleStep; changed = "Rotate decal"; }
-            if (Input.KeyPressed(Scancode.W)) { target.scale = target.scale * (float)(shift ? 1.05 : 1.25); changed = "Scale decal"; }
-            if (Input.KeyPressed(Scancode.S)) { target.scale = target.scale * (float)(shift ? 1 / 1.05 : 1 / 1.25); changed = "Scale decal"; }
+            // (held down: repeated; the steps of one kind join into one undo step)
+            if (Input.KeyRepeated(Scancode.Q)) { target.angle -= angleStep; changed = "Rotate decal"; }
+            if (Input.KeyRepeated(Scancode.E)) { target.angle += angleStep; changed = "Rotate decal"; }
+            if (Input.KeyRepeated(Scancode.W)) { target.scale = target.scale * (float)(shift ? 1.05 : 1.25); changed = "Scale decal"; }
+            if (Input.KeyRepeated(Scancode.S)) { target.scale = target.scale * (float)(shift ? 1 / 1.05 : 1 / 1.25); changed = "Scale decal"; }
+            let opacityStep = shift ? 0.01 : 0.1;
+            let opacity = target.color.a;
+            let isOpacityChanged = false;
+            if (Input.KeyRepeated(Scancode.A)) { opacity = Max(0.05, opacity - opacityStep); isOpacityChanged = true; }
+            if (Input.KeyRepeated(Scancode.D)) { opacity = Min(1.0, opacity + opacityStep); isOpacityChanged = true; }
+            if (isOpacityChanged) {
+                opacity = Round(opacity * 100) / 100;
+                target.color = Color(opacity, opacity, opacity, opacity);     // (premultiplied white)
+                changed = "Change decal opacity";
+            }
             if (Input.KeyPressed(Scancode.F)) {
                 if (shift)
                     target.flipVertical = !target.flipVertical;
@@ -881,7 +893,7 @@ extend LevelScene {
             target.scale = Vec2(scale, scale * (target.scale.x != 0 ? target.scale.y / target.scale.x : 1));
             changed = "Scale decal";
         }
-        if (Ui.Slider("opacity", &alpha, 0.05, 1, 0.05)) {
+        if (Ui.Slider("opacity (A/D)", &alpha, 0.05, 1, 0.05)) {
             target.color = Color(alpha, alpha, alpha, alpha);         // (premultiplied white)
             changed = "Change decal opacity";
         }
@@ -889,7 +901,7 @@ extend LevelScene {
             Ui.Columns(2);
             if (Ui.Checkbox("flip x (F)", &target.flipHorizontal))
                 changed = "Flip decal";
-            if (Ui.Checkbox("flip y", &target.flipVertical))
+            if (Ui.Checkbox("flip y (Shift+F)", &target.flipVertical))
                 changed = "Flip decal";
         }
         if (changed.len > 0 && isSelected)
@@ -900,20 +912,55 @@ extend LevelScene {
             CommitDecals("Delete decal", false);
             return;
         }
-        // The sprites (a click: the next decal's, or the selected one's)
+        // The sprites: a click places that one (Place), Shift+click gives it to the selected decal
         RefreshDecalSprites();
-        Ui.Label(TFormat(decalSprites.len, " sprites (decal_ first)"), UiAlign.Left, Ui.style.textDisabled);
+        Ui.Label(TFormat(decalSprites.len, " sprites (Shift+click: to the selected)"), UiAlign.Left, Ui.style.textDisabled);
+        let shift = Input.KeyDown(Scancode.LShift) || Input.KeyDown(Scancode.RShift);
         {
             Ui.Scroll(Ui.ButtonHeight() * 6 + Ui.style.spacing * 5);
             for (let index, name in decalSprites) {
-                if (Ui.Button(*name == target.sprite ? TFormat("> ", *name) : *name, id: index, align: UiAlign.Left)) {
-                    target.sprite = (*name).Copy(history.allocator);
-                    if (isSelected)
+                let shown = isSelected ? target.sprite : decal.sprite;
+                if (SpriteRow(*name, *name == shown, index)) {
+                    if (shift && isSelected) {
+                        target.sprite = (*name).Copy(history.allocator);
                         CommitDecals("Change decal sprite", false);
+                    } else {
+                        decal.sprite = (*name).Copy(history.allocator);
+                        tool = EditorTool.Place;
+                        selectedDecal = -1;
+                    }
                 }
             }
         }
         Ui.Label(TFormat(layer.decals.len, " decals"), UiAlign.Left, Ui.style.textDisabled);
+    }
+
+    // A row of the sprite list: the sprite small (fitted into a square at the left), its name; true
+    // when it was clicked
+    bool SpriteRow(string name, bool isCurrent, int index) {
+        let rect = Ui.NextRect(Ui.ButtonHeight());
+        let interaction = Ui.Interact(Ui.Id(Here(), index), rect);
+        if (!Ui.isVisible)
+            return false;
+        let box = Recti(rect.x, rect.y, rect.h, rect.h);
+        Ui.DrawButton(Recti(rect.x + box.w + 2, rect.y, rect.w - box.w - 2, rect.h), isCurrent ? TFormat("> ", name) : name, interaction, true, UiAlign.Left);
+        Ui.DrawRect(box, Color(0.05, 0.05, 0.07, 1));
+        let sprite = Draw.SpriteOrMissing(name, Vec2i(16, 16));
+        let quad = sprite.ToQuad(Transform(Vec2(0, 0), 0, Vec2(1, 1)));
+        let low = Vec2(Min(Min(quad.leftTop.x, quad.leftBottom.x), Min(quad.rightTop.x, quad.rightBottom.x)), Min(Min(quad.leftTop.y, quad.leftBottom.y), Min(quad.rightTop.y, quad.rightBottom.y)));
+        let high = Vec2(Max(Max(quad.leftTop.x, quad.leftBottom.x), Max(quad.rightTop.x, quad.rightBottom.x)), Max(Max(quad.leftTop.y, quad.leftBottom.y), Max(quad.rightTop.y, quad.rightBottom.y)));
+        let size = high - low;
+        let inner = (float)(box.w - 4);
+        let scale = Min(inner / Max(1.0, size.x), inner / Max(1.0, size.y));
+        let place = (Vec2 corner) => Vec2(box.x + 2, box.y + 2) + (corner - low) * scale + (Vec2(inner, inner) - size * scale) * 0.5;
+        quad.leftTop = place(quad.leftTop);
+        quad.leftBottom = place(quad.leftBottom);
+        quad.rightTop = place(quad.rightTop);
+        quad.rightBottom = place(quad.rightBottom);
+        let clipped = quad.Clipped(Ui.currentClip);
+        if (clipped.isVisible)
+            Draw.SpriteQuad(sprite, clipped.quad, Ui.NextDepth(), DrawParams(space: DrawSpace.UI));
+        return interaction.isClicked;
     }
 
     // The level's tile grid and its edge, at the window's resolution (thin at any zoom); only when
@@ -972,7 +1019,7 @@ extend LevelScene {
         Ui.Panel(UiAnchor.LeftBottom, Max(200 * EditorTextScale, paletteWidth + 2 * Ui.style.padding), 0, Vec2i(8, -8));
         if (layer.case == LevelLayer.Decals) {
             Ui.Columns(2);
-            if (Ui.Button(tool == EditorTool.Place ? "> Place P" : "Place P"))
+            if (Ui.Button(tool == EditorTool.Place ? "> Place V" : "Place V"))
                 tool = EditorTool.Place;
             if (Ui.Button(tool == EditorTool.Select ? "> Select V" : "Select V"))
                 tool = EditorTool.Select;
