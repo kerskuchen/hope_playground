@@ -4,7 +4,8 @@
 //     preview   as a game would show it: the fixed canvas, the playground's own presentation made
 //               from the level's data (every layer in the editor's order); the arrow keys move the
 //               view; a list of the levels (a click: another one)
-//     editing   the level editor (level_editor.pg) on that level
+//     editing   hope's level editor (hope/editor/level_editor.pg: the internal mode only) on that
+//               level
 //
 // The editor exists as long as the scene (the editor phase: its data, its undo steps), open or
 // not; the preview is made from its data (it shows the unsaved changes too). Another level (the
@@ -101,7 +102,7 @@ extend LevelScene {
     void DoFrame() {
         editor.showsHints = playground.settings.showsHints;
         editor.GuardUnsaved();
-        if (Input.KeyPressed(Scancode.F1) && !Ui.isTyping) {
+        if (Input.KeyPressed(Scancode.F1) && !Ui.isTyping && INTERNAL) {
             Hide();
             isEditing = !isEditing;
             Show();
