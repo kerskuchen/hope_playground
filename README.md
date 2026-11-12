@@ -8,8 +8,11 @@ committed on its own.
 
 The scenes (each file's header lists its keys):
 
-- F1 the level scene (`level_scene.pg`): the level `test` (`assets/levels/test.level`) as a game
-  shows it (the fixed canvas, the arrow keys move the view); F1 again: the level editor (the free
+- F1 the level scene (`level_scene.pg`): a level of `assets/levels/` as a game shows it (the
+  fixed canvas, the arrow keys move the view; the list at the right top: another level); F1
+  again: the level editor on that level (Open ^O, New ^N: an empty level with the same layers,
+  Save as ^Shift+S, the names typed in hope's `Ui.TextField`; the tools, brush and random bags in
+  `build/editor/editor.json` for every level, the views per level); the editor (the free
   canvas, every shown layer, the tile grid, the layer panel with show/hide; the middle mouse button
   pans, the wheel zooms; click a layer to edit it: B brush, L line (Shift: snapped to 8
   directions), R rectangle, I pick (or Alt+click; dragged over a region: a stamp), W/S the brush

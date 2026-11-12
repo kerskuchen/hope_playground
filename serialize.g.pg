@@ -10,6 +10,23 @@ extend LevelEditorSession {
         writer.Write("editorPos", value.editorPos);
         writer.Write("editorZoom", value.editorZoom);
         writer.Write("selected", value.selected);
+        writer.EndObject();
+    }
+    static LevelEditorSession Read[$R](R* reader) {
+        let runId = reader.Read[long]("runId");
+        let isEditing = reader.Read[bool]("isEditing");
+        let previewPos = reader.Read[Vec2]("previewPos");
+        let editorPos = reader.Read[Vec2]("editorPos");
+        let editorZoom = reader.Read[float]("editorZoom");
+        let selected = reader.Read[int]("selected");
+        return LevelEditorSession(runId, isEditing, previewPos, editorPos, editorZoom, selected);
+    }
+}
+
+extend LevelEditorPrefs {
+    static void Write[$W](W* writer, string name, LevelEditorPrefs value) {
+        writer.BeginObject(name, value);
+        writer.Write("level", value.level);
         writer.Write("tool", value.tool);
         writer.Write("tile", value.tile);
         writer.Write("decal", value.decal);
@@ -21,14 +38,9 @@ extend LevelEditorSession {
         writer.Write("decalRandom", value.decalRandom);
         writer.EndObject();
     }
-    static LevelEditorSession Read[$R](R* reader) {
-        LevelEditorSession defaults;
-        let runId = reader.Read[long]("runId");
-        let isEditing = reader.Read[bool]("isEditing");
-        let previewPos = reader.Read[Vec2]("previewPos");
-        let editorPos = reader.Read[Vec2]("editorPos");
-        let editorZoom = reader.Read[float]("editorZoom");
-        let selected = reader.Read[int]("selected");
+    static LevelEditorPrefs Read[$R](R* reader) {
+        LevelEditorPrefs defaults;
+        let level = reader.Read[string]("level");
         let tool = reader.Read[EditorTool]("tool");
         let tile = reader.Read[int]("tile");
         let decal = reader.Read[LevelDecal]("decal");
@@ -38,7 +50,7 @@ extend LevelEditorSession {
         let bags = reader.Read[List[LevelEditorBag]]("bags");
         let isDecalRandom = reader.Read[bool]("isDecalRandom");
         let decalRandom = reader.Read[DecalRandomRanges]("decalRandom");
-        return LevelEditorSession(runId, isEditing, previewPos, editorPos, editorZoom, selected, tool, tile, decal, brushSize, isBrushRound, isRandom, bags, isDecalRandom, decalRandom);
+        return LevelEditorPrefs(level, tool, tile, decal, brushSize, isBrushRound, isRandom, bags, isDecalRandom, decalRandom);
     }
 }
 

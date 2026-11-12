@@ -347,7 +347,9 @@ extend Playground {
             SwitchTo(Scene.Lighting);
         if (Input.KeyPressed(Scancode.F8) && scene != Scene.Ui)
             SwitchTo(Scene.Ui);
-        if (Input.KeyPressed(Scancode.Escape) && scene != Scene.Ui && (level == null || level.AskAboutChanges("quitting"))) {
+        // (Escape: a text field's or a dialog's first)
+        let isEscapeTaken = Ui.isTyping || (level != null && level.hasDialog);
+        if (Input.KeyPressed(Scancode.Escape) && scene != Scene.Ui && !isEscapeTaken && (level == null || level.AskAboutChanges("quitting"))) {
             if (level != null)
                 level.WriteSession();
             Window.Quit();                         // (in the UI scene Escape goes back; the level editor's unsaved changes ask first)
@@ -359,6 +361,12 @@ extend Playground {
         } else if (scene == Scene.Level) {
             ScopeAllocEditor();
             level.DoFrame();
+            // Another level: the scene made again with it (its changes were asked about)
+            if (level.requestedLevel.len > 0) {
+                SetLevelSceneName(level.requestedLevel.view);
+                levelSceneStart = level.requestedStart;
+                SwitchTo(Scene.Level);
+            }
         } else {
             ScopeAllocLevel();
             if (scene == Scene.Physics)

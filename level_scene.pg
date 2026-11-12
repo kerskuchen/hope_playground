@@ -1,5 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// The level scene (F1): the level 'test' (assets/levels/test.level) in two modes, F1 switches:
+// The level scene (F1): a level of assets/levels/ in two modes, F1 switches (the preview lists
+// the levels: a click shows another one; the editor opens, makes and saves levels as others:
+// Ctrl+O, Ctrl+N, Ctrl+Shift+S):
 //
 //     preview   as a game would show it: the fixed canvas, the playground's own presentation made
 //               from the level's data (hope's level.pg: the data, the layers' builders); the arrow
@@ -74,7 +76,21 @@ long LevelEditorRunId() {
 // what is drawn is made from it in the level phase, wiped and made again on every switch. In the
 // internal mode the data is the file (the editor will write it), elsewhere the game pack's.
 
-const string LEVEL_SCENE_LEVEL = "test";
+// The level the scene shows (kept when the scene is made again for another level; persistent
+// memory) and how the scene starts with it
+string levelSceneName = "";
+LevelSceneStart levelSceneStart = LevelSceneStart.Session;
+
+enum LevelSceneStart {
+    Session,                           // as the level's session was (the preview or the editor)
+    Preview,                           // opened in the preview's list
+    Editor,                            // opened, made or saved as in the editor
+}
+
+void SetLevelSceneName(string name) {
+    ScopeAllocPersistent();
+    levelSceneName = name.Copy();
+}
 const int EditorTextScale = 3;         // the editor's UI on the free canvas (the window's pixels)
 
 @Serializable
@@ -82,8 +98,8 @@ enum EditorTool { Brush, Line, Rect, Pick, Place, Select, Bounds }
 
 const int BRUSH_SIZE_MAX = 32;         // (cells across)
 
-// What the editor was doing, kept between runs (build/editor/<level>.editor.json: this machine's,
-// not the level's file): the views, the mode, what was selected
+// What the editor was doing with a level, kept between runs (build/editor/<level>.editor.json:
+// this machine's, not the level's file): the views, the mode, the selected layer
 @Serializable
 struct LevelEditorSession {
     @Serialize long runId;             // the run that wrote it: its undo steps are only taken back in that run
@@ -92,6 +108,13 @@ struct LevelEditorSession {
     @Serialize Vec2 editorPos;
     @Serialize float editorZoom;
     @Serialize int selected;
+}
+
+// The editor's tools as they were, the same for every level (build/editor/editor.json): the level
+// open last, the tool, the tile, the brush, the random bags and ranges, the next decal
+@Serializable
+struct LevelEditorPrefs {
+    @Serialize string level;
     @Serialize EditorTool tool;
     @Serialize int tile;
     @Serialize LevelDecal decal;       // what Place puts down next (its sprite, angle, scale, color, flips)
@@ -128,6 +151,7 @@ struct TileBag {
 }
 
 struct LevelScene {
+    String name;                       // the level's (assets/levels/<name>.level)
     LevelData data;
     bool isEditing;
     LevelPresentation* presentation;   // the level phase
@@ -170,6 +194,13 @@ struct LevelScene {
     Random decalRandomGenerator = Random((ulong)LevelEditorRunId());
     LevelDecal rolledDecal;
     bool needsRoll = true;
+    // Levels: the dialogs (open, new, save as), what main.pg opens next (the scene made again)
+    LevelDialog dialog;
+    String dialogName;                 // the name typed (new, save as)
+    String dialogError;
+    bool isChangeDropped;              // "Don't save" was chosen: leaving asks no more
+    String requestedLevel;             // (main.pg: opens it after this frame)
+    LevelSceneStart requestedStart;
     // Decals
     LevelDecal decal = LevelDecal("decal_scorch", Vec2(0, 0), 0);    // what Place puts down next (pos: unused)
     int selectedDecal = -1;            // in the selected Decals layer (-1: none)
@@ -178,6 +209,8 @@ struct LevelScene {
     List[string] decalSprites;         // what the sprite list offers: decal_ ones first, then the others (no font glyphs)
     int decalSpritesAtlas = -1;        // the atlas version they are of
 }
+
+enum LevelDialog { None, Open, New, SaveAs }
 
 // Cells a paint operation covers, each once: marks over a rectangle of the layer's cells (the
 // brush stamped along a line, a rectangle), made in temp memory
@@ -254,13 +287,21 @@ struct LevelPresentation {
 
 extend LevelScene {
     init() {
+        // The level: the one opened (levelSceneName), else the one open last, else the first
+        let last = ReadPrefs();
+        {
+            ScopeAllocTemp();
+            let names = LevelNames();
+            let chosen = levelSceneName.len > 0 ? levelSceneName : names.Find((string* candidate) => *candidate == last) != null ? last : names.len > 0 ? names[0] : "test";
+            name.Append(chosen);
+        }
+        SetLevelSceneName(levelName);
         string error;
-        let path = Format(BUILD_PROJECT_DIR, "/assets/levels/", LEVEL_SCENE_LEVEL, ".level");
         if (INTERNAL) {
-            if (!LevelData.LoadFile(path, &data, &error))
+            if (!LevelData.LoadFile(LevelPath(levelName), &data, &error))
                 Panic("Level scene: ", error);
         } else {
-            data = LevelData.Load(LEVEL_SCENE_LEVEL);
+            data = LevelData.Load(levelName);
         }
         previewPos = Vec2(160, 90);
         editorPos = Vec2(data.pixelSize) * 0.5;
@@ -273,6 +314,10 @@ extend LevelScene {
             history.Reset(pieces);
             ReadSession(pieces);
         }
+        // (opened from the preview's list or in the editor: that mode)
+        if (levelSceneStart != LevelSceneStart.Session)
+            isEditing = levelSceneStart == LevelSceneStart.Editor;
+        levelSceneStart = LevelSceneStart.Session;
         for (let index in 0..data.layers.len + 1) {
             dirtyPieces.Add(false);
         }
@@ -282,7 +327,92 @@ extend LevelScene {
     //----------------------------------------------------------------------------------------------
     // The session between runs (build/editor/)
 
-    string SessionPath(string kind) { return TFormat(BUILD_PROJECT_DIR, "/build/editor/", LEVEL_SCENE_LEVEL, ".", kind, ".json"); }
+    string SessionPath(string kind) { return TFormat(BUILD_PROJECT_DIR, "/build/editor/", levelName, ".", kind, ".json"); }
+    static string PrefsPath() { return TFormat(BUILD_PROJECT_DIR, "/build/editor/editor.json"); }
+
+    get string levelName() { return name.view; }
+    static string LevelPath(string level) { return TFormat(BUILD_PROJECT_DIR, "/assets/levels/", level, ".level"); }
+
+    // The levels there are (sorted; in temp memory): assets/levels/*.level in the internal mode,
+    // else the game pack's
+    static List[string] LevelNames() {
+        ScopeAllocTemp();
+        List[string] names;
+        if (INTERNAL) {
+            let dir = TFormat(BUILD_PROJECT_DIR, "/assets/levels");
+            for (let path in Directory.FindFiles(dir, ".level")) {
+                let level = Path.FileNameWithoutExtension(*path);
+                if (*path == LevelPath(level))         // (not in folders below it)
+                    names.Add(level);
+            }
+        } else {
+            for (let level, levelData in gamePack.levels) {
+                names.Add(level);
+            }
+            names.Sort((string* a, string* b) => string.Compare(*a, *b) < 0);
+        }
+        return names;
+    }
+
+    // The tools as they were (build/editor/editor.json; none yet: the ones the level's session
+    // file had before there was one); the level open last ("" if none)
+    string ReadPrefs() {
+        if (!INTERNAL)
+            return "";
+        ScopeAllocTemp();
+        LevelEditorPrefs prefs;
+        let path = File.Exists(PrefsPath()) ? PrefsPath() : "";
+        if (path.len == 0 && levelSceneName.len > 0 && File.Exists(TFormat(BUILD_PROJECT_DIR, "/build/editor/", levelSceneName, ".editor.json")))
+            path = TFormat(BUILD_PROJECT_DIR, "/build/editor/", levelSceneName, ".editor.json");
+        if (path.len == 0 && File.Exists(TFormat(BUILD_PROJECT_DIR, "/build/editor/test.editor.json")))
+            path = TFormat(BUILD_PROJECT_DIR, "/build/editor/test.editor.json");
+        if (path.len == 0 || !FromJson(File.ReadText(path), &prefs))
+            return "";
+        tool = prefs.tool;
+        tile = (byte)Clamp(prefs.tile, 0, 254);
+        brushSize = Clamp(prefs.brushSize, 1, BRUSH_SIZE_MAX);
+        isBrushRound = prefs.isBrushRound;
+        isRandom = prefs.isRandom;
+        isDecalRandom = prefs.isDecalRandom;
+        decalRandom = prefs.decalRandom;
+        for (let saved in prefs.bags) {
+            let bag = TileBagOf(saved.tileset);
+            bag.Clear();
+            for (let value in saved.tiles) {
+                if (0 <= *value && *value < TILE_EMPTY)
+                    bag.Add((byte)*value);
+            }
+        }
+        if (prefs.decal.sprite.len > 0) {
+            decal = prefs.decal;
+            decal.sprite = prefs.decal.sprite.Copy(history.allocator);
+        }
+        return prefs.level;
+    }
+
+    void WritePrefs() {
+        if (!INTERNAL)
+            return;
+        ScopeAllocTemp();
+        LevelEditorPrefs prefs;
+        prefs.level = levelName;
+        prefs.tool = tool;
+        prefs.tile = tile;
+        prefs.decal = decal;
+        prefs.brushSize = brushSize;
+        prefs.isBrushRound = isBrushRound;
+        prefs.isRandom = isRandom;
+        prefs.isDecalRandom = isDecalRandom;
+        prefs.decalRandom = decalRandom;
+        for (let bag in tileBags) {
+            let saved = LevelEditorBag(bag.tileset.view);
+            for (let index in 0..bag.bag.items.len) {
+                saved.tiles.Add(bag.bag.items[index]);
+            }
+            prefs.bags.Add(saved);
+        }
+        File.WriteText(PrefsPath(), Format(ToJson(prefs), "\n"));
+    }
 
     // The views, the mode and the selection as they were; the undo steps, if the level file is
     // still what they were saved as ('pieces': the file's)
@@ -297,23 +427,6 @@ extend LevelScene {
             editorPos = session.editorPos;
             editorZoom = session.editorZoom;
             selected = session.selected;
-            tool = session.tool;
-            tile = (byte)Clamp(session.tile, 0, 254);
-            brushSize = Clamp(session.brushSize, 1, BRUSH_SIZE_MAX);
-            isBrushRound = session.isBrushRound;
-            isRandom = session.isRandom;
-            isDecalRandom = session.isDecalRandom;
-            decalRandom = session.decalRandom;
-            for (let saved in session.bags) {
-                let bag = TileBagOf(saved.tileset);
-                bag.Clear();
-                for (let value in saved.tiles) {
-                    if (0 <= *value && *value < TILE_EMPTY)
-                        bag.Add((byte)*value);
-                }
-            }
-            if (session.decal.sprite.len > 0)
-                decal = session.decal;
         }
         // The undo steps only in the run that wrote them
         if (!hasSession || session.runId != LevelEditorRunId())
@@ -346,17 +459,9 @@ extend LevelScene {
         Directory.Create(TFormat(BUILD_PROJECT_DIR, "/build/editor"));
         let inEditor = isEditing;
         let session = LevelEditorSession(LevelEditorRunId(), inEditor, inEditor ? previewPos : Camera.pos, inEditor ? Camera.pos : editorPos, inEditor ? Camera.zoom : editorZoom,
-            selected, tool, tile, decal, brushSize, isBrushRound, isRandom);
-        for (let bag in tileBags) {
-            let saved = LevelEditorBag(bag.tileset.view);
-            for (let index in 0..bag.bag.items.len) {
-                saved.tiles.Add(bag.bag.items[index]);
-            }
-            session.bags.Add(saved);
-        }
-        session.isDecalRandom = isDecalRandom;
-        session.decalRandom = decalRandom;
+            selected);
         File.WriteText(SessionPath("editor"), Format(ToJson(session), "\n"));
+        WritePrefs();
         if (!history.WriteFile(SessionPath("history")))
             Log.Warn("[Level editor] could not write ", SessionPath("history"));
     }
@@ -573,7 +678,7 @@ extend LevelScene {
 
     void PreviewFrame() {
         if (playground.settings.showsHints)
-            Draw.LogLine("Level scene (F1: the editor): the level '", LEVEL_SCENE_LEVEL, "' as a game shows it, arrow keys move the view");
+            Draw.LogLine("Level scene (F1: the editor): the level '", levelName, "' as a game shows it (the list: another one), arrow keys move the view");
         let move = Vec2(0, 0);
         if (Input.KeyDown(Scancode.Left)) move.x -= 1;
         if (Input.KeyDown(Scancode.Right)) move.x += 1;
@@ -587,6 +692,17 @@ extend LevelScene {
         let view = Camera.viewportRect;
         for (let drawing in presentation.layers) {
             DrawLayer(drawing, view);
+        }
+        // The levels there are: a click previews another one
+        Ui.Panel(UiAnchor.RightTop, 70, 0, Vec2i(-4, 14));          // (below the log's lines)
+        Ui.Label("Levels", UiAlign.Left, Ui.style.textFocused);
+        let names = LevelNames();
+        {
+            Ui.Scroll(Min(Max(1, names.len), 6) * (Ui.ButtonHeight() + Ui.style.spacing));
+            for (let index, level in names) {
+                if (Ui.Button(*level, id: index, align: UiAlign.Left, isToggled: *level == levelName) && *level != levelName)
+                    RequestLevel(*level, LevelSceneStart.Preview, "previewing another level");
+            }
         }
     }
 
@@ -618,11 +734,23 @@ extend LevelScene {
                 DrawLayer(&presentation.layers[index], view);
         }
         DrawGrid(view);
+        // A dialog (open, new, save as) is all there is until it closes: no tools, no other panels
+        if (dialog != LevelDialog.None) {
+            DrawCameraBounds();
+            LevelDialogPanel();
+            return;
+        }
 
         let ctrl = Input.KeyDown(Scancode.LCtrl) || Input.KeyDown(Scancode.RCtrl);
         let shift = Input.KeyDown(Scancode.LShift) || Input.KeyDown(Scancode.RShift);
-        if (ctrl && Input.KeyPressed(Scancode.S))
+        if (ctrl && !shift && Input.KeyPressed(Scancode.S))
             Save();
+        if (ctrl && shift && Input.KeyPressed(Scancode.S) && !isPainting)
+            OpenDialog(LevelDialog.SaveAs);
+        if (ctrl && Input.KeyPressed(Scancode.O) && !isPainting)
+            OpenDialog(LevelDialog.Open);
+        if (ctrl && Input.KeyPressed(Scancode.N) && !isPainting)
+            OpenDialog(LevelDialog.New);
         // (not in the middle of a stroke: it is committed when it ends)
         if (ctrl && !isPainting && ((Input.KeyPressed(Scancode.Z) && shift) || Input.KeyPressed(Scancode.Y)))
             Redo();
@@ -716,9 +844,148 @@ extend LevelScene {
     }
 
     // The level's size and its sides: - and + take a tile row or column away or add one
+    //----------------------------------------------------------------------------------------------
+    // Levels: open another one, make a new one, save this one as another (assets/levels/; Ctrl+O,
+    // Ctrl+N, Ctrl+Shift+S). Opening and making one make the scene again with it (main.pg, after
+    // the frame); saving as goes on with this scene under the new name (its undo steps stay).
+
+    void OpenDialog(LevelDialog which) {
+        if (which != LevelDialog.Open && !INTERNAL) {
+            Draw.LogSticky(180, Color.Orange, "Levels are written in the internal mode");
+            return;
+        }
+        dialog = which;
+        dialogName.Clear();
+        dialogError.Clear();
+        if (which == LevelDialog.SaveAs)
+            dialogName.Append(levelName);
+    }
+
+    get bool hasDialog() { return dialog != LevelDialog.None; }
+
+    // The level 'level' next (main.pg makes the scene again with it after this frame), in the
+    // mode 'start'; false if the unsaved changes stay (the user said so)
+    bool RequestLevel(string level, LevelSceneStart start, string doing) {
+        if (!AskAboutChanges(doing))
+            return false;
+        requestedLevel.Clear();
+        requestedLevel.Append(level);
+        requestedStart = start;
+        return true;
+    }
+
+    void LevelDialogPanel() {
+        Ui.WithFont(Ui.style.fontName, EditorTextScale);
+        Ui.Panel(UiAnchor.Center, 200 * EditorTextScale);
+        let escape = Input.KeyPressed(Scancode.Escape);
+        if (dialog == LevelDialog.Open) {
+            Ui.Label("Open a level (assets/levels/)", UiAlign.Left, Ui.style.textFocused);
+            let names = LevelNames();
+            {
+                Ui.Scroll(Min(Max(1, names.len), 8) * (Ui.ButtonHeight() + Ui.style.spacing));
+                for (let index, level in names) {
+                    if (Ui.Button(*level, id: index, align: UiAlign.Left, isToggled: *level == levelName)) {
+                        if (*level != levelName && RequestLevel(*level, LevelSceneStart.Editor, "opening another level"))
+                            dialog = LevelDialog.None;
+                        else if (*level == levelName)
+                            dialog = LevelDialog.None;
+                    }
+                }
+            }
+            if (Ui.Button("Cancel") || escape)
+                dialog = LevelDialog.None;
+            return;
+        }
+        let isNew = dialog == LevelDialog.New;
+        Ui.Label(isNew ? TFormat("New level: empty, the layers of '", levelName, "'") : "Save the level as", UiAlign.Left, Ui.style.textFocused);
+        Ui.FocusByDefault();
+        let input = Ui.TextField("name", &dialogName, 40);
+        if (input.isChanged)
+            dialogError.Clear();
+        Ui.Label(TFormat("assets/levels/", dialogName.view, ".level"), UiAlign.Left, Ui.style.textDisabled);
+        if (dialogError.len > 0)
+            Ui.Label(dialogError.view, UiAlign.Left, Color.Orange);
+        Ui.Columns(2);
+        let isOk = Ui.Button(isNew ? "Create" : "Save") || input.isAccepted;
+        if (Ui.Button("Cancel") || input.isCancelled || (escape && !Ui.isTyping)) {
+            dialog = LevelDialog.None;
+            return;
+        }
+        if (isOk && dialogName.len == 0)
+            dialogError.Append("Type a name first");
+        else if (isOk && isNew)
+            NewLevel(dialogName.view);
+        else if (isOk)
+            SaveLevelAs(dialogName.view);
+    }
+
+    // A new level 'level' (its file written: empty, the layers of this one, its size), opened
+    void NewLevel(string level) {
+        if (File.Exists(LevelPath(level))) {
+            dialogError.Clear();
+            dialogError.Append("There is a level '", level, "' (Open opens it)");
+            return;
+        }
+        ScopeAllocTemp();
+        let fresh = data.Copy();
+        for (let layer in fresh.layers) {
+            switch (layer.case) {
+            case LevelLayer.Tiles: layer.tiles.Fill(TILE_EMPTY);
+            case LevelLayer.Autotiles: layer.solid.Fill(false);
+            case LevelLayer.Decals: layer.decals.Clear();
+            }
+        }
+        fresh.cameraBounds = Recti();
+        if (!fresh.SaveFile(LevelPath(level))) {
+            dialogError.Clear();
+            dialogError.Append("Could not write ", LevelPath(level));
+            return;
+        }
+        Draw.LogSticky(240, Color.Green, "New level '", level, "' (", LevelPath(level), ")");
+        if (RequestLevel(level, LevelSceneStart.Editor, "opening the new level"))
+            dialog = LevelDialog.None;
+    }
+
+    // The level saved into 'level''s file, the scene goes on with it (its undo steps too)
+    void SaveLevelAs(string level) {
+        if (level == levelName) {
+            if (Save())
+                dialog = LevelDialog.None;
+            return;
+        }
+        let path = LevelPath(level);
+        if (File.Exists(path) && Window.ShowMessageBox("Level exists", TFormat("There is a level '", level, "'. Overwrite it?"), ["Overwrite", "Cancel"]) != 0)
+            return;
+        WriteSession();                    // (the level it was: its views stay as they are)
+        if (!data.SaveFile(path)) {
+            dialogError.Clear();
+            dialogError.Append("Could not write ", path);
+            return;
+        }
+        let newName = TFormat(level);
+        name.Clear();
+        name.Append(newName);
+        SetLevelSceneName(newName);
+        history.MarkSaved();
+        isChangeDropped = false;
+        WriteSession();
+        Draw.LogSticky(240, Color.Green, "Saved as '", newName, "' (", path, ")");
+        dialog = LevelDialog.None;
+    }
+
     void LevelPanel() {
         Ui.WithFont(Ui.style.fontName, EditorTextScale);
         Ui.Panel(UiAnchor.RightTop, 170 * EditorTextScale, 0, Vec2i(-8, 150));          // (below the log's lines)
+        {
+            // (the files: the others need the internal mode, they write assets/levels/)
+            Ui.Columns(3);
+            if (Ui.Button("Open ^O"))
+                OpenDialog(LevelDialog.Open);
+            if (Ui.Button("New ^N", enabled: INTERNAL))
+                OpenDialog(LevelDialog.New);
+            if (Ui.Button("Save as", enabled: INTERNAL))
+                OpenDialog(LevelDialog.SaveAs);
+        }
         Ui.Label(TFormat("size ", data.size.x, " x ", data.size.y, " (", data.pixelSize.x, " x ", data.pixelSize.y, " px)"), UiAlign.Left, Ui.style.textFocused);
         [string, 4] sides = ["left", "top", "right", "bottom"];
         // (Shift: 10 at a time, Ctrl: 50; the buttons say so)
@@ -1274,7 +1541,7 @@ extend LevelScene {
             Draw.LogSticky(180, Color.Orange, "Not saved: levels are saved in the internal mode");
             return false;
         }
-        let path = Format(BUILD_PROJECT_DIR, "/assets/levels/", LEVEL_SCENE_LEVEL, ".level");
+        let path = LevelPath(levelName);
         if (!data.SaveFile(path)) {
             Draw.LogSticky(300, Color.Red, "Could not save ", path);
             Window.ShowMessageBox("Level not saved", TFormat("Could not write ", path), ["OK"]);
@@ -1289,13 +1556,14 @@ extend LevelScene {
     // Before the level's unsaved changes would be lost ('doing': "quitting", "leaving the
     // level"): save them, drop them or stay; true: go on
     bool AskAboutChanges(string doing) {
-        if (!isModified)
+        if (!isModified || isChangeDropped)
             return true;
-        let choice = Window.ShowMessageBox("Unsaved level", TFormat("The level '", LEVEL_SCENE_LEVEL, "' has unsaved changes. Save them before ", doing, "?"),
+        let choice = Window.ShowMessageBox("Unsaved level", TFormat("The level '", levelName, "' has unsaved changes. Save them before ", doing, "?"),
             ["Save", "Don't save", "Cancel"]);
         if (choice == 0)
             return Save();
-        return choice == 1;              // (-1, no message box: stay)
+        isChangeDropped = choice == 1;   // (-1, no message box: stay)
+        return isChangeDropped;
     }
 
     //----------------------------------------------------------------------------------------------
@@ -1684,7 +1952,7 @@ extend LevelScene {
     void LayerPanel() {
         Ui.WithFont(Ui.style.fontName, EditorTextScale);
         Ui.Panel(UiAnchor.RightBottom, 220 * EditorTextScale, 0, Vec2i(-8, -8));
-        Ui.Label(TFormat("Level '", LEVEL_SCENE_LEVEL, "'", isModified ? " *" : "", "  ", data.size.x, " x ", data.size.y, " tiles of ", data.tileSize),
+        Ui.Label(TFormat("Level '", levelName, "'", isModified ? " *" : "", "  ", data.size.x, " x ", data.size.y, " tiles of ", data.tileSize),
             UiAlign.Left, Ui.style.textFocused);
         Ui.Space(2);
         for (let index, layer in data.layers) {
