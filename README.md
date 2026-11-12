@@ -22,6 +22,9 @@ The scenes (each file's header lists its keys):
   key or button; saved as the value `bindings` at once, Reset brings the game's back) and the scrolling credits with hope's UI (`hope/ui.pg`), on test sprites in
   `assets/ui/` (made by a script: rounded boxes with attach0/attach1 for the 9-slices); the
   mouse, the keys and a gamepad
+- `save_samples/`: storage.json files of earlier versions; in the internal mode they must still
+  read as their `.expected.json` say (hope's `SaveSamples.Check`, in `main.pg` for `settings`;
+  hope checks `bindings`). Copy `build/user/storage.json` there when the save format matters.
 
 The camera pans with the middle mouse button and zooms with the wheel. Escape quits (in the UI
 scene it goes back), F11 toggles fullscreen.

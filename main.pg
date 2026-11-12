@@ -215,6 +215,7 @@ struct Playground {
 extend Playground {
     init() {
         Storage.Read("settings", &settings);           // (none yet: the defaults)
+        SaveSamples.Check[Settings]("settings");      // (the internal mode: save_samples/ still read the same)
         settings.Apply();
 
         Input.RegisterAction("move", InputActionType.AxisRadial2D);

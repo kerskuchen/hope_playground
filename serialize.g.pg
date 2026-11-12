@@ -10,9 +10,10 @@ extend Settings {
         writer.EndObject();
     }
     static Settings Read[$R](R* reader) {
-        let music = reader.Read[float]("music");
-        let sounds = reader.Read[float]("sounds");
-        let showsHints = reader.Read[bool]("showsHints");
+        Settings defaults;
+        let music = reader.Read[float]("music", defaults.music);
+        let sounds = reader.Read[float]("sounds", defaults.sounds);
+        let showsHints = reader.Read[bool]("showsHints", defaults.showsHints);
         return Settings(music, sounds, showsHints);
     }
 }

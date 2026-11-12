@@ -1,0 +1,36 @@
+{
+  "settings": {
+    "music": 0.4,
+    "sounds": 0.8,
+    "showsHints": false
+  },
+  "bindings": [
+    [
+      "attack_2",
+      [
+        {
+          "kind": "MouseButton",
+          "code": 2,
+          "virtualStickCodeLeft": 0,
+          "virtualStickCodeRight": 0,
+          "virtualStickCodeUp": 0,
+          "virtualStickCodeDown": 0,
+          "deadzone": 0.1,
+          "triggerThreshold": 0.5,
+          "direction": "Left"
+        },
+        {
+          "kind": "GamepadButton",
+          "code": 10,
+          "virtualStickCodeLeft": 0,
+          "virtualStickCodeRight": 0,
+          "virtualStickCodeUp": 0,
+          "virtualStickCodeDown": 0,
+          "deadzone": 0.1,
+          "triggerThreshold": 0.5,
+          "direction": "Left"
+        }
+      ]
+    ]
+  ]
+}
