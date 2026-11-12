@@ -18,7 +18,15 @@
 //                   Shift + click             (the brush) a line from where the last stroke or
 //                                             line on the layer ended (shown while Shift is held)
 //                   I pick, or Alt + click    picks the tile under the mouse (eyedropper; KDE
-//                                             moves windows with Alt + drag)
+//                                             moves windows with Alt + drag); dragged over a
+//                                             region: that is the stamp (I: the brush then)
+//                   1 .. 9, 0                 paint with a stamp slot's stamp (Tiles layers;
+//                                             stamps.pg: assets/stamps/<tileset>.stamp.json, 10
+//                                             slots per tileset), Ctrl + the key: the stamp kept
+//                                             in the slot; a click on the palette: its tile again.
+//                                             A stamp's empty cells leave what is under them; the
+//                                             brush puts it down (dragged: side by side), the line
+//                                             puts a row of them, the rectangle fills with them
 //                   C camera bounds           drag a rectangle of tiles (the camera's bounds; shown in
 //                                             cyan), right click: the whole level again
 //                   the level panel           extends the level on each side (- and +: a tile row or
@@ -100,10 +108,17 @@ struct LevelScene {
     Vec2i strokeStart;                 // the cell the press was on (the rectangle's corner)
     Vec2i strokeLast;                  // the brush's cell last frame (painted up to it)
     bool isStrokeLine;                 // the stroke began with a line from the last one (Shift + click)
+    bool isPickingRegion;              // the eyedropper dragged from strokeStart (one cell: a tile, more: a stamp)
     bool hasLastPainted;               // where the last stroke or line ended (Shift + click: a line from there)
     Vec2i lastPainted;
     int lastPaintedLayer;
     bool waitsForRelease;              // a rectangle was cancelled: nothing starts until both buttons are up
+    // Stamps (Tiles layers, stamps.pg): a picked region or a slot's, painted instead of the tile
+    List[StampSet] stampSets;          // the tilesets' slots (read when first needed)
+    Grid[byte] stamp;                  // the stamp being painted (0 x 0: the palette's tile)
+    String stampTileset;               // ... its tileset (a layer of another one: its tile again)
+    int stampSlot = -1;                // ... the slot it is (-1: picked, in no slot)
+    Vec2i stampAnchor;                 // the stroke's first stamp's left top (the stroke's stamps are on its grid)
     // Decals
     LevelDecal decal = LevelDecal("decal_scorch", Vec2(0, 0), 0);    // what Place puts down next (pos: unused)
     int selectedDecal = -1;            // in the selected Decals layer (-1: none)
@@ -118,12 +133,32 @@ struct LevelScene {
 struct CellMask {
     Vec2i origin;                      // the marks' (0, 0) in the layer's cells
     Grid[bool] marks;
+    Grid[byte] tiles;                  // a stamp's: the tile of each marked cell (0 x 0: the palette's tile)
 }
 
 extend CellMask {
-    static CellMask Make(Recti rect) {
+    static CellMask Make(Recti rect, bool hasTiles = false) {
         ScopeAllocTemp();
-        return CellMask(rect.pos, Grid[bool](Max(0, rect.w), Max(0, rect.h), false));
+        let w = Max(0, rect.w);
+        let h = Max(0, rect.h);
+        return CellMask(rect.pos, Grid[bool](w, h, false), hasTiles ? Grid[byte](w, h, TILE_EMPTY) : Grid[byte](0, 0, TILE_EMPTY));
+    }
+
+    // The tile painted at (x, y) of the layer: the stamp's, else 'tile'
+    byte TileAt(int x, int y, byte tile) { return tiles.w > 0 ? tiles.Get(Vec2i(x - origin.x, y - origin.y)) : tile; }
+
+    // The stamp's tiles (not its empty cells) with its left top at 'corner' (in the marks)
+    void PutStamp(Grid[byte]* stamp, Vec2i corner) {
+        for (let y in 0..stamp.h) {
+            for (let x in 0..stamp.w) {
+                let value = stamp.Get(Vec2i(x, y));
+                let at = Vec2i(corner.x + x, corner.y + y);
+                if (value != TILE_EMPTY && marks.ContainsCoord(at.x, at.y)) {
+                    marks.Set(at, true);
+                    tiles.Set(at, value);
+                }
+            }
+        }
     }
 
     get Recti rect() { return Recti(origin, marks.dim); }
@@ -498,7 +533,7 @@ extend LevelScene {
     void EditFrame() {
         Ui.BlockKeys();                    // (the keys are the tools': W and S would move the panels' focus)
         if (playground.settings.showsHints)
-            Draw.LogLine("Level editor (F1: the preview): B brush, L line, R rectangle, I pick (or Alt+click), W/S brush size, Shift+click a line from the last, left paints, right erases, Ctrl+S saves; middle mouse pans, the wheel zooms (",
+            Draw.LogLine("Level editor (F1: the preview): B brush, L line, R rectangle, I pick (or Alt+click), W/S brush size, Shift+click a line from the last, I+drag a stamp, 1..0 stamps (Ctrl: keep), left paints, right erases, Ctrl+S saves; middle mouse pans, the wheel zooms (",
                 FormatFloat(Camera.zoom, 3), "x)");
         let view = Camera.viewportRect;
         for (let index, layer in data.layers) {
@@ -672,8 +707,8 @@ extend LevelScene {
         return "";
     }
 
-    // The mouse on the selected layer: the hovered cell (the brush), the brush's strokes, lines and
-    // rectangles, the eyedropper
+    // The mouse on the selected layer: the hovered cell (the brush, the stamp), the brush's
+    // strokes, lines and rectangles, the eyedropper (a tile, a region: a stamp), the stamp keys
     void Paint(LevelLayer* layer, LayerDrawing* drawing) {
         let cellSize = CellSizeOf(layer);
         let world = Input.cursors.world;
@@ -693,6 +728,11 @@ extend LevelScene {
             if (Input.KeyRepeated(Scancode.S))
                 brushSize = Max(1, brushSize - 1);
         }
+        // The stamps: 1 .. 9, 0 paint with a slot's, Ctrl + them keep the stamp in the slot
+        if (layer.case == LevelLayer.Tiles && !isPainting)
+            StampKeys(layer, ctrl);
+        let stampTiles = ActiveStamp(layer);
+        let stampHalf = stampTiles != null ? Vec2i((stampTiles.w - 1) / 2, (stampTiles.h - 1) / 2) : Vec2i(0, 0);
 
         // A rectangle or a line being dragged is cancelled by the other button (left draws, right
         // cancels; right erases, left cancels); then nothing starts until both buttons are up
@@ -706,31 +746,40 @@ extend LevelScene {
             waitsForRelease = false;
 
         // Shift with the brush: a line from where the last stroke on this layer ended
-        let linesFromLast = tool == EditorTool.Brush && shift && hasLastPainted && lastPaintedLayer == selected;
+        let linesFromLast = tool == EditorTool.Brush && shift && hasLastPainted && lastPaintedLayer == selected && stampTiles == null;
 
         // A stroke starts with a press over the level (not over a panel) and ends with the release
         let pressed = Input.MousePressed(MouseButton.Left) || Input.MousePressed(MouseButton.Right);
-        if (pressed && !isOverUi && isInside && !isPainting && !waitsForRelease) {
-            if ((alt || tool == EditorTool.Pick) && layer.case == LevelLayer.Tiles) {
-                let picked = layer.tiles.Get(cell);
-                if (picked != TILE_EMPTY)
-                    tile = picked;
+        if (pressed && !isOverUi && isInside && !isPainting && !isPickingRegion && !waitsForRelease) {
+            if (alt || tool == EditorTool.Pick) {
+                if (layer.case == LevelLayer.Tiles) {
+                    isPickingRegion = true;
+                    strokeStart = cell;
+                }
             } else if (refusal.len == 0) {
                 isPainting = true;
                 isErasing = Input.MousePressed(MouseButton.Right);
                 strokeStart = cell;
                 strokeLast = cell;
                 isStrokeLine = false;
+                stampAnchor = cell - stampHalf;
                 if (tool == EditorTool.Brush) {
                     isStrokeLine = linesFromLast;
-                    PaintMask(layer, drawing, StrokeCells(linesFromLast ? lastPainted : cell, cell, brushSize));
+                    if (stampTiles != null)
+                        PaintMask(layer, drawing, StampCells(stampTiles, stampAnchor, Vec2i(0, 0), Vec2i(0, 0)));
+                    else
+                        PaintMask(layer, drawing, StrokeCells(linesFromLast ? lastPainted : cell, cell, brushSize));
                 }
             }
         }
         let held = isErasing ? Input.MouseDown(MouseButton.Right) : Input.MouseDown(MouseButton.Left);
         if (isPainting && held && tool == EditorTool.Brush && cell != strokeLast) {
-            // (along the way from last frame's cell: a fast mouse leaves no gaps)
-            PaintMask(layer, drawing, StrokeCells(strokeLast, cell, brushSize));
+            // (along the way from last frame's cell: a fast mouse leaves no gaps; a stamp's
+            // stroke puts it down side by side)
+            if (stampTiles != null)
+                PaintMask(layer, drawing, StampCells(stampTiles, stampAnchor, StampPlaceOf(stampTiles, strokeLast), StampPlaceOf(stampTiles, cell)));
+            else
+                PaintMask(layer, drawing, StrokeCells(strokeLast, cell, brushSize));
             strokeLast = cell;
         }
         // (Shift with the line: horizontal, vertical or diagonal)
@@ -738,9 +787,9 @@ extend LevelScene {
         let rect = Recti(Min(strokeStart.x, cell.x), Min(strokeStart.y, cell.y), Abs(cell.x - strokeStart.x) + 1, Abs(cell.y - strokeStart.y) + 1);
         if (isPainting && !held) {
             if (tool == EditorTool.Rect)
-                PaintMask(layer, drawing, RectCells(rect));
+                PaintMask(layer, drawing, stampTiles != null ? StampFill(stampTiles, rect, stampAnchor) : RectCells(rect));
             if (tool == EditorTool.Line)
-                PaintMask(layer, drawing, StrokeCells(strokeStart, lineEnd, brushSize));
+                PaintMask(layer, drawing, LineCells(stampTiles, lineEnd));
             isPainting = false;
             if (tool != EditorTool.Rect) {
                 hasLastPainted = true;
@@ -748,34 +797,198 @@ extend LevelScene {
                 lastPaintedLayer = selected;
             }
             let what = tool == EditorTool.Rect ? "a rectangle on " : tool == EditorTool.Line || isStrokeLine ? "a line on " : "";
-            Commit(TFormat(isErasing ? "Erase " : "Paint ", what, layer.name));
+            Commit(TFormat(isErasing ? "Erase " : stampTiles != null ? "Stamp " : "Paint ", what, layer.name));
+        }
+        // The eyedropper's release: one cell picks its tile, a region becomes the stamp
+        if (isPickingRegion && !Input.MouseDown(MouseButton.Left) && !Input.MouseDown(MouseButton.Right)) {
+            isPickingRegion = false;
+            PickRegion(layer, Recti.Intersect(rect, layer.tiles.rect), alt);
         }
 
-        // What the mouse is on: the brush (or the rectangle, the line being dragged), red if it
-        // cannot be painted
-        if (isOverUi && !isPainting)
+        // What the mouse is on: the brush or the stamp (or the rectangle, the line being dragged),
+        // red if it cannot be painted
+        if (isOverUi && !isPainting && !isPickingRegion)
             return;
         let color = refusal.len > 0 ? Color(0.8, 0.2, 0.2, 0.8) : isErasing && isPainting ? Color(0.8, 0.4, 0.2, 0.8) : Color(0.9, 0.9, 0.9, 0.9);
+        if (isPickingRegion) {
+            let region = RectCells(rect);
+            OutlineMask(&region, cellSize, Color(0.4, 0.9, 1, 1));
+            return;
+        }
         let isPicking = tool == EditorTool.Pick || alt;
         CellMask shown;
-        if (isPicking || (tool == EditorTool.Rect && !isPainting))
+        if (isPicking)
             shown = StrokeCells(cell, cell, 1);
         else if (isPainting && tool == EditorTool.Rect)
-            shown = RectCells(rect);
+            shown = stampTiles != null ? StampFill(stampTiles, rect, stampAnchor) : RectCells(rect);
         else if (isPainting && tool == EditorTool.Line)
-            shown = StrokeCells(strokeStart, lineEnd, brushSize);
+            shown = LineCells(stampTiles, lineEnd);
+        else if (stampTiles != null && isPainting)
+            shown = StampCells(stampTiles, stampAnchor, StampPlaceOf(stampTiles, cell), StampPlaceOf(stampTiles, cell));
+        else if (stampTiles != null)
+            shown = StampCells(stampTiles, cell - stampHalf, Vec2i(0, 0), Vec2i(0, 0));
+        else if (tool == EditorTool.Rect && !isPainting)
+            shown = StrokeCells(cell, cell, 1);
         else if (!isPainting && linesFromLast)
             shown = StrokeCells(lastPainted, cell, brushSize);
         else
             shown = StrokeCells(cell, cell, brushSize);
-        // ... and what painting there would do: the tile (hovering, a rectangle or a line being
-        // dragged), red where it erases, the solid or open cells of an autotile layer
+        // ... and what painting there would do: the tile or the stamp (hovering, a rectangle or a
+        // line being dragged), red where it erases, the solid or open cells of an autotile layer
         if (refusal.len == 0 && !isPicking)
             PreviewMask(layer, drawing, &shown, cellSize, isPainting && isErasing);
         OutlineMask(&shown, cellSize, color);
         if (refusal.len > 0 && isInside)
             Draw.LogLineColored(Color.Orange, "Not painted: ", refusal);
     }
+
+    // The line being dragged from strokeStart to 'end': the brush along it, or the stamp side by
+    // side (on the grid of the stroke's first one)
+    CellMask LineCells(Grid[byte]* stampTiles, Vec2i end) {
+        if (stampTiles != null)
+            return StampCells(stampTiles, stampAnchor, Vec2i(0, 0), StampPlaceOf(stampTiles, end));
+        return StrokeCells(strokeStart, end, brushSize);
+    }
+
+    //----------------------------------------------------------------------------------------------
+    // Stamps
+
+    // The stamp painted on 'layer' (null: the palette's tile)
+    Grid[byte]* ActiveStamp(LevelLayer* layer) {
+        if (layer.case != LevelLayer.Tiles || stamp.w == 0 || stampTileset.view != layer.tileset)
+            return null;
+        return &stamp;
+    }
+
+    // The slots of 'tileset' (read from its file the first time)
+    StampSet* StampSetOf(string tileset) {
+        for (let index in 0..stampSets.len) {
+            if (stampSets[index].tileset.view == tileset)
+                return &stampSets[index];
+        }
+        ScopeAlloc(history.allocator);
+        stampSets.Add(StampSet.Load(tileset));
+        return &stampSets[stampSets.len - 1];
+    }
+
+    // Paint with a copy of 'tiles' (of 'tileset'; 'slot': the slot it is, -1: none)
+    void UseStamp(Grid[byte] tiles, string tileset, int slot) {
+        ScopeAlloc(history.allocator);
+        stamp.Free();
+        stamp = tiles.Clone();
+        stampTileset.Clear();
+        stampTileset.Append(tileset);
+        stampSlot = slot;
+    }
+
+    // Paint with the palette's tile again
+    void DropStamp() {
+        ScopeAlloc(history.allocator);
+        stamp.Free();
+        stampSlot = -1;
+    }
+
+    // 1 .. 9, 0: paint with the slot's stamp; with Ctrl: the stamp (picked or a slot's) kept in the
+    // slot, the tileset's file written
+    void StampKeys(LevelLayer* layer, bool ctrl) {
+        for (let slot in 0..STAMP_SLOTS) {
+            let key = StampSet.KeyOf(slot);
+            if (!Input.KeyPressed((Scancode)((int)Scancode.Alpha1 + slot)))
+                continue;
+            let stamps = StampSetOf(layer.tileset);
+            if (ctrl) {
+                let active = ActiveStamp(layer);
+                if (active == null) {
+                    Draw.LogSticky(180, Color.Orange, "No stamp to keep in slot ", key, ": pick a region first (I and drag)");
+                    continue;
+                }
+                {
+                    ScopeAlloc(history.allocator);
+                    stamps.slots[slot].Free();
+                    stamps.slots[slot] = active.Clone();
+                }
+                stampSlot = slot;
+                if (stamps.Save())
+                    Draw.LogSticky(180, Color.Green, "Stamp ", active.w, " x ", active.h, " kept in slot ", key, " (", StampSet.PathOf(layer.tileset), ")");
+                else
+                    Draw.LogSticky(180, Color.Orange, "Stamp kept in slot ", key, INTERNAL ? ", but its file could not be written" : " for this run (files are written in the internal mode)");
+            } else if (stamps.slots[slot].w == 0) {
+                Draw.LogSticky(180, Color.Orange, "Slot ", key, " is empty: pick a region (I and drag), Ctrl+", key, " keeps it there");
+            } else {
+                UseStamp(stamps.slots[slot], layer.tileset, slot);
+            }
+        }
+    }
+
+    // The eyedropper let go over 'region' (in the layer): one cell picks its tile (the stamp
+    // dropped), more cells become the stamp (in no slot yet; the brush paints it, unless Alt
+    // picked it)
+    void PickRegion(LevelLayer* layer, Recti region, bool alt) {
+        if (region.w <= 0 || region.h <= 0)
+            return;
+        if (region.w == 1 && region.h == 1) {
+            let picked = layer.tiles.Get(region.pos);
+            if (picked != TILE_EMPTY) {
+                tile = picked;
+                DropStamp();
+            }
+            return;
+        }
+        ScopeAllocTemp();
+        let tiles = Grid[byte](region.w, region.h, TILE_EMPTY);
+        let isEmpty = true;
+        for (let y in 0..region.h) {
+            for (let x in 0..region.w) {
+                let value = layer.tiles.Get(Vec2i(region.x + x, region.y + y));
+                tiles.Set(Vec2i(x, y), value);
+                isEmpty = isEmpty && value == TILE_EMPTY;
+            }
+        }
+        if (isEmpty) {
+            Draw.LogSticky(180, Color.Orange, "Nothing picked: the region has no tiles");
+            return;
+        }
+        UseStamp(tiles, layer.tileset, -1);
+        if (!alt)
+            tool = EditorTool.Brush;
+    }
+
+    // The place of the stroke's stamp grid that 'cell' is in (place p: the stamp's left top at
+    // stampAnchor + p * its size)
+    Vec2i StampPlaceOf(Grid[byte]* tiles, Vec2i cell) {
+        return Vec2i(FloorDiv(cell.x - stampAnchor.x, tiles.w), FloorDiv(cell.y - stampAnchor.y, tiles.h));
+    }
+
+    static int FloorDiv(int value, int divisor) { return value >= 0 ? value / divisor : -((-value + divisor - 1) / divisor); }
+
+    // The stamp (its tiles, not its empty cells) at each of its places on the line from place
+    // 'from' to place 'to' (Bresenham; place p: its left top at 'anchor' + p * its size)
+    CellMask StampCells(Grid[byte]* tiles, Vec2i anchor, Vec2i from, Vec2i to) {
+        let dim = tiles.dim;
+        let low = Vec2i(anchor.x + Min(from.x, to.x) * dim.x, anchor.y + Min(from.y, to.y) * dim.y);
+        let size = Vec2i((Abs(to.x - from.x) + 1) * dim.x, (Abs(to.y - from.y) + 1) * dim.y);
+        let mask = CellMask.Make(Recti(low, size), true);
+        Line(Vec2(from), Vec2(to)).IterateBresenham(true, (Vec2i place) => mask.PutStamp(tiles, Vec2i(anchor.x + place.x * dim.x - low.x, anchor.y + place.y * dim.y - low.y)));
+        return mask;
+    }
+
+    // 'rect' filled with the stamp side by side (on the grid of the one at 'anchor')
+    CellMask StampFill(Grid[byte]* tiles, Recti rect, Vec2i anchor) {
+        let mask = CellMask.Make(rect, true);
+        for (let y in 0..rect.h) {
+            for (let x in 0..rect.w) {
+                let inStamp = Vec2i(PositiveMod(rect.x + x - anchor.x, tiles.w), PositiveMod(rect.y + y - anchor.y, tiles.h));
+                let value = tiles.Get(inStamp);
+                if (value != TILE_EMPTY) {
+                    mask.marks.Set(Vec2i(x, y), true);
+                    mask.tiles.Set(Vec2i(x, y), value);
+                }
+            }
+        }
+        return mask;
+    }
+
+    static int PositiveMod(int value, int divisor) { return ((value % divisor) + divisor) % divisor; }
 
     // The brush ('size' cells across, square or round: isBrushRound) at each cell of the line from
     // 'from' to 'to' (Bresenham; the same cell: one stamp), the cell in the brush's middle (left
@@ -815,7 +1028,7 @@ extend LevelScene {
         for (let y in 0..mask.marks.h) {
             for (let x in 0..mask.marks.w) {
                 if (mask.marks.Get(Vec2i(x, y)))
-                    PaintCell(layer, drawing, Vec2i(mask.origin.x + x, mask.origin.y + y));
+                    PaintCell(layer, drawing, Vec2i(mask.origin.x + x, mask.origin.y + y), mask.tiles.w > 0 ? mask.tiles.Get(Vec2i(x, y)) : tile);
             }
         }
     }
@@ -828,17 +1041,17 @@ extend LevelScene {
         let clipped = Recti.Intersect(mask.rect, layerRect);
         let isTile = layer.case == LevelLayer.Tiles && !erases;
         let tileset = isTile ? &drawing.tilemap.tileset : null;
-        if (isTile && tile >= tileset.count)
-            return;
         let tint = erases ? Color(0.45, 0.05, 0.05, 0.45) : Color(0.1, 0.25, 0.55, 0.45);
         for (let y in clipped.y..clipped.y + clipped.h) {
             for (let x in clipped.x..clipped.x + clipped.w) {
                 if (!mask.Has(x, y))
                     continue;
                 let pos = Vec2(Vec2i(x, y) * cellSize);
-                if (isTile)
-                    tileset.Draw(tile, pos, depth, DrawParams(color: Color(0.8, 0.8, 0.8, 0.8)));
-                else
+                if (isTile) {
+                    let value = mask.TileAt(x, y, tile);
+                    if (value < tileset.count)
+                        tileset.Draw(value, pos, depth, DrawParams(color: Color(0.8, 0.8, 0.8, 0.8)));
+                } else
                     Draw.Rect(pos, Vec2(cellSize), depth, DrawParams(color: tint));
             }
         }
@@ -869,11 +1082,11 @@ extend LevelScene {
     }
 
     // One cell of the stroke: the palette's tile (Tiles), solid (Autotiles), or erased
-    void PaintCell(LevelLayer* layer, LayerDrawing* drawing, Vec2i cell) {
+    void PaintCell(LevelLayer* layer, LayerDrawing* drawing, Vec2i cell, byte tileValue) {
         if (layer.case == LevelLayer.Tiles) {
             if (!layer.tiles.ContainsCoord(cell.x, cell.y))
                 return;
-            let value = isErasing ? TILE_EMPTY : tile;
+            let value = isErasing ? TILE_EMPTY : tileValue;
             if (layer.tiles.Get(cell) == value)
                 return;
             layer.tiles.Set(cell, value);
@@ -1320,12 +1533,38 @@ extend LevelScene {
                 isBrushRound = !isBrushRound;
         }
         if (layer.case == LevelLayer.Tiles) {
-            Ui.Label(TFormat(layer.tileset, ": tile ", tile), UiAlign.Left);
+            let active = ActiveStamp(layer);
+            if (active == null)
+                Ui.Label(TFormat(layer.tileset, ": tile ", tile), UiAlign.Left);
+            else if (stampSlot >= 0)
+                Ui.Label(TFormat(layer.tileset, ": stamp ", StampSet.KeyOf(stampSlot), " (", active.w, " x ", active.h, ")"), UiAlign.Left);
+            else
+                Ui.Label(TFormat(layer.tileset, ": stamp ", active.w, " x ", active.h, " (Ctrl+1..0 keeps it)"), UiAlign.Left);
+            StampList(layer);
             Palette(layer, &presentation.layers[selected].tilemap.tileset);
         } else if (layer.case == LevelLayer.Autotiles) {
             Ui.Label("left: solid, right: open", UiAlign.Left);
         } else {
             DecalPanel(layer);
+        }
+    }
+
+    // The tileset's stamp slots, two rows of five: the key and the stamp's size (a click: paint
+    // with it; an empty slot greyed out)
+    void StampList(LevelLayer* layer) {
+        let stamps = StampSetOf(layer.tileset);
+        let active = ActiveStamp(layer);
+        Ui.WithFont(Ui.style.fontName, EditorTextScale - 1);
+        for (let row in 0..2) {
+            Ui.Columns(5);
+            for (let column in 0..5) {
+                let slot = row * 5 + column;
+                let tiles = &stamps.slots[slot];
+                let key = StampSet.KeyOf(slot);
+                let label = tiles.w == 0 ? TFormat(key, ": -") : TFormat(active != null && stampSlot == slot ? "> " : "", key, ": ", tiles.w, "x", tiles.h);
+                if (Ui.Button(label, id: slot, enabled: tiles.w > 0, align: UiAlign.Left))
+                    UseStamp(*tiles, layer.tileset, slot);
+            }
         }
     }
 
@@ -1357,8 +1596,10 @@ extend LevelScene {
                 Draw.SpriteQuad(tileset.sprite, quad, depth, DrawParams(space: DrawSpace.UI));
             }
             let tileRect = Rect(Vec2(pos), Vec2(tileSize));
-            if (tileRect.Contains(mouse) && Input.MousePressed(MouseButton.Left))
+            if (tileRect.Contains(mouse) && Input.MousePressed(MouseButton.Left)) {
                 tile = (byte)index;
+                DropStamp();               // (the tile again, not the stamp)
+            }
             if (index == tile || tileRect.Contains(mouse)) {
                 let color = index == tile ? Color(1, 0.94, 0.55, 1) : Color(0.6, 0.6, 0.6, 0.6);
                 let outline = DrawParams(color: color, space: DrawSpace.UI);

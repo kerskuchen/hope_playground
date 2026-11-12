@@ -1,0 +1,87 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Stamps: pieces of a tile layer kept for painting them again, 10 slots per tileset (the keys 1 to
+// 9 and 0), in assets/stamps/<tileset>.stamp.json: the level editor's (a game does not use them,
+// Bakie leaves them alone). A stamp is a grid of tiles; its empty cells (TILE_EMPTY) leave what is
+// under them.
+//
+//     {
+//       "version": 1, "tileset": "tiles_ground",
+//       "slots": [
+//         { "key": 1, "tiles": { "w": 3, "h": 2, "rows": ["000102", "..0304"] } },
+//         { "key": 0, "tiles": { "w": 1, "h": 1, "rows": ["05"] } }
+//       ]                                         (the slots that have a stamp, in the keys' order)
+//     }
+
+const int STAMP_SLOTS = 10;
+const int STAMP_FILE_VERSION = 1;
+
+@Serializable
+struct StampFile {
+    @Serialize int version = STAMP_FILE_VERSION;
+    @Serialize string tileset;
+    @Serialize List[StampSlot] slots;          // the slots that have a stamp (the key 1 first, the key 0 last)
+}
+
+@Serializable
+struct StampSlot {
+    @Serialize int key;                        // the digit that picks it (the file lists them in the keys' order)
+    @Serialize Grid[byte] tiles;
+}
+
+// A tileset's slots as the editor keeps them
+struct StampSet {
+    String tileset;
+    [Grid[byte], 10] slots;                    // by slot: the key 1 first, the key 0 last (0 x 0: empty)
+}
+
+extend StampSet {
+    // The key of slot 'slot' (1 to 9, then 0)
+    static int KeyOf(int slot) { return (slot + 1) % STAMP_SLOTS; }
+    // ... and the slot of a key
+    static int SlotOf(int key) { return (key + STAMP_SLOTS - 1) % STAMP_SLOTS; }
+
+    static string PathOf(string tileset) { return TFormat(BUILD_PROJECT_DIR, "/assets/stamps/", tileset, ".stamp.json"); }
+
+    // The slots of 'tileset' from its file (all empty if there is none, outside the internal mode
+    // too; made with context.allocator)
+    static StampSet Load(string tileset) {
+        StampSet stamps;
+        stamps.tileset.Append(tileset);
+        let path = PathOf(tileset);
+        if (!INTERNAL || !File.Exists(path))
+            return stamps;
+        let allocator = context.allocator;
+        ScopeAllocTemp();
+        StampFile file;
+        if (!FromJson(File.ReadText(path), &file)) {
+            Log.Warn("[Stamps] '", path, "' is no JSON: its stamps are not used");
+            return stamps;
+        }
+        if (file.version > STAMP_FILE_VERSION) {
+            Log.Warn("[Stamps] '", path, "' has the format ", file.version, ", this playground reads up to ", STAMP_FILE_VERSION);
+            return stamps;
+        }
+        ScopeAlloc(allocator);
+        for (let slot in file.slots) {
+            if (0 <= slot.key && slot.key < STAMP_SLOTS && slot.tiles.w > 0 && slot.tiles.h > 0)
+                stamps.slots[SlotOf(slot.key)] = slot.tiles.Clone();
+        }
+        return stamps;
+    }
+
+    // The slots into the tileset's file; false if it could not be written (or outside the
+    // internal mode: the stamps are this run's then)
+    bool Save() {
+        if (!INTERNAL)
+            return false;
+        ScopeAllocTemp();
+        Directory.Create(TFormat(BUILD_PROJECT_DIR, "/assets/stamps"));
+        StampFile file;
+        file.tileset = tileset.view;
+        for (let slot in 0..STAMP_SLOTS) {
+            if (slots[slot].w > 0)
+                file.slots.Add(StampSlot(KeyOf(slot), slots[slot]));
+        }
+        return File.WriteText(PathOf(tileset.view), Format(ToJson(file), "\n"));
+    }
+}

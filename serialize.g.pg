@@ -51,6 +51,37 @@ extend Settings {
     }
 }
 
+extend StampFile {
+    static void Write[$W](W* writer, string name, StampFile value) {
+        writer.BeginObject(name, value);
+        writer.Write("version", value.version);
+        writer.Write("tileset", value.tileset);
+        writer.Write("slots", value.slots);
+        writer.EndObject();
+    }
+    static StampFile Read[$R](R* reader) {
+        StampFile defaults;
+        let version = reader.Read[int]("version", defaults.version);
+        let tileset = reader.Read[string]("tileset");
+        let slots = reader.Read[List[StampSlot]]("slots");
+        return StampFile(version, tileset, slots);
+    }
+}
+
+extend StampSlot {
+    static void Write[$W](W* writer, string name, StampSlot value) {
+        writer.BeginObject(name, value);
+        writer.Write("key", value.key);
+        writer.Write("tiles", value.tiles);
+        writer.EndObject();
+    }
+    static StampSlot Read[$R](R* reader) {
+        let key = reader.Read[int]("key");
+        let tiles = reader.Read[Grid[byte]]("tiles");
+        return StampSlot(key, tiles);
+    }
+}
+
 extend EditorTool {
     static void Write[$W](W* writer, string name, EditorTool value) { writer.WriteEnum(name, (long)value, TFormat(value)); }
     static EditorTool Read[$R](R* reader) {

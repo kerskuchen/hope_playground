@@ -12,8 +12,12 @@ The scenes (each file's header lists its keys):
   shows it (the fixed canvas, the arrow keys move the view); F1 again: the level editor (the free
   canvas, every shown layer, the tile grid, the layer panel with show/hide; the middle mouse button
   pans, the wheel zooms; click a layer to edit it: B brush, L line (Shift: snapped to 8
-  directions), R rectangle, I pick (or Alt+click), W/S the brush size (1 to 32, square or round in
-  the panel), Shift+click a line from where the last stroke ended; left paints, right erases (the
+  directions), R rectangle, I pick (or Alt+click; dragged over a region: a stamp), W/S the brush
+  size (1 to 32, square or round in the panel), Shift+click a line from where the last stroke
+  ended; stamps (`stamps.pg`, `assets/stamps/<tileset>.stamp.json`, 10 slots per tileset): Ctrl+1
+  .. Ctrl+0 keep the stamp in a slot, 1 .. 0 paint with a slot's (the panel lists them with their
+  sizes; a palette click: the tile again); the brush puts a stamp down (dragged: side by side),
+  the line a row of them, the rectangle fills with them, empty cells leave what is under; left paints, right erases (the
   other button cancels a line or a rectangle), the palette of its tileset; autotile layers: solid
   and open; Ctrl+S saves the file; Ctrl+Z / Ctrl+Y undo and redo a stroke, a line, a rectangle,
   showing or hiding a layer;
