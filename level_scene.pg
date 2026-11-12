@@ -6,7 +6,17 @@
 //               keys move the view
 //     editing   the level editor (edit mode): the free canvas (zoom out past 1x), every layer the
 //               editor shows (not the hidden ones), the tile grid; the middle mouse button pans,
-//               the wheel zooms; a panel lists the layers
+//               the wheel zooms; a panel lists the layers (click one to edit it), another has the
+//               tools and the tileset's palette:
+//
+//                   B brush, R rectangle      left mouse paints, right erases (an autotile layer:
+//                                             solid and open)
+//                   I pick, or Alt + click    picks the tile under the mouse (eyedropper; KDE
+//                                             moves windows with Alt + drag)
+//                   Ctrl+S                    saves the level file ('*' in the panel: unsaved)
+//
+//               Painting changes the data and what is drawn of it cell by cell. Locked and hidden
+//               layers are not painted, decals come later.
 //
 // The level's data is the scene's (the editor phase: it survives making the presentation again);
 // what is drawn is made from it in the level phase, wiped and made again on every switch. In the
@@ -14,6 +24,9 @@
 
 const string LEVEL_SCENE_LEVEL = "test";
 const int EditorTextScale = 2;         // the editor's UI on the free canvas (the window's pixels)
+const int EditorPaletteScale = 2;      // the palette's tiles
+
+enum EditorTool { Brush, Rect, Pick }
 
 struct LevelScene {
     LevelData data;
@@ -22,6 +35,15 @@ struct LevelScene {
     Vec2 previewPos;                   // where each mode's camera was (kept between the switches)
     Vec2 editorPos;
     float editorZoom = 0;              // (0: fit the level into the window when the editor opens)
+    // Editing
+    int selected;                      // the layer being edited
+    EditorTool tool;
+    byte tile;                         // the palette's (Tiles layers)
+    bool isModified;                   // changed since it was loaded or saved
+    bool isPainting;                   // a mouse button held over the level (from a press there)
+    bool isErasing;                    // ... the right one
+    Vec2i strokeStart;                 // the cell the press was on (the rectangle's corner)
+    Vec2i strokeLast;                  // the brush's cell last frame (painted up to it)
 }
 
 // What is drawn of each layer (made from the data)
@@ -177,14 +199,156 @@ extend LevelScene {
 
     void EditFrame() {
         if (playground.settings.showsHints)
-            Draw.LogLine("Level editor (F1: the preview): middle mouse button pans, the wheel zooms (", FormatFloat(Camera.zoom, 3), "x)");
+            Draw.LogLine("Level editor (F1: the preview): B brush, R rectangle, I pick (or Alt+click), left paints, right erases, Ctrl+S saves; middle mouse pans, the wheel zooms (",
+                FormatFloat(Camera.zoom, 3), "x)");
         let view = Camera.viewportRect;
         for (let index, layer in data.layers) {
             if (!layer.isHidden)
                 DrawLayer(&presentation.layers[index], view);
         }
         DrawGrid(view);
+
+        let ctrl = Input.KeyDown(Scancode.LCtrl) || Input.KeyDown(Scancode.RCtrl);
+        if (ctrl && Input.KeyPressed(Scancode.S))
+            Save();
+        if (Input.KeyPressed(Scancode.B))
+            tool = EditorTool.Brush;
+        if (Input.KeyPressed(Scancode.R))
+            tool = EditorTool.Rect;
+        if (Input.KeyPressed(Scancode.I))
+            tool = EditorTool.Pick;
+        selected = Clamp(selected, 0, Max(0, data.layers.len - 1));
+        if (data.layers.len > 0)
+            Paint(&data.layers[selected], &presentation.layers[selected]);
+
         LayerPanel();
+        ToolPanel();
+    }
+
+    // The layer's cells in pixels (a Decals layer: the level's tiles)
+    Vec2i CellSizeOf(LevelLayer* layer) {
+        switch (layer.case) {
+        case LevelLayer.Tiles: return layer.tileDim;
+        case LevelLayer.Autotiles: return Vec2i(data.pixelSize.x / Max(1, layer.solid.w), data.pixelSize.y / Max(1, layer.solid.h));
+        case LevelLayer.Decals: return Vec2i(data.tileSize, data.tileSize);
+        }
+    }
+
+    // Why the layer cannot be painted ("": it can)
+    string WhyNotPaintable(LevelLayer* layer) {
+        if (layer.case == LevelLayer.Decals)
+            return "decals are placed, not painted (later)";
+        if (layer.isLocked)
+            return "the layer is locked";
+        if (layer.isHidden)
+            return "the layer is hidden";
+        return "";
+    }
+
+    // The mouse on the selected layer: the hovered cell, the brush and the rectangle, the eyedropper
+    void Paint(LevelLayer* layer, LayerDrawing* drawing) {
+        let cellSize = CellSizeOf(layer);
+        let world = Input.cursors.world;
+        let cell = Vec2i((int)Floor(world.x / cellSize.x), (int)Floor(world.y / cellSize.y));
+        let layerCells = layer.case == LevelLayer.Tiles ? layer.tiles.dim : layer.case == LevelLayer.Autotiles ? layer.solid.dim : data.size;
+        let isInside = 0 <= cell.x && cell.x < layerCells.x && 0 <= cell.y && cell.y < layerCells.y;
+        let isOverUi = Ui.isMouseOverPanel;
+        let refusal = WhyNotPaintable(layer);
+        let alt = Input.KeyDown(Scancode.LAlt) || Input.KeyDown(Scancode.RAlt);
+
+        // A stroke starts with a press over the level (not over a panel) and ends with the release
+        let pressed = Input.MousePressed(MouseButton.Left) || Input.MousePressed(MouseButton.Right);
+        if (pressed && !isOverUi && isInside && !isPainting) {
+            if ((alt || tool == EditorTool.Pick) && layer.case == LevelLayer.Tiles) {
+                let picked = layer.tiles.Get(cell);
+                if (picked != TILE_EMPTY)
+                    tile = picked;
+            } else if (refusal.len == 0) {
+                isPainting = true;
+                isErasing = Input.MousePressed(MouseButton.Right);
+                strokeStart = cell;
+                strokeLast = cell;
+                if (tool == EditorTool.Brush)
+                    PaintCell(layer, drawing, cell);
+            }
+        }
+        let held = isErasing ? Input.MouseDown(MouseButton.Right) : Input.MouseDown(MouseButton.Left);
+        if (isPainting && held && tool == EditorTool.Brush && cell != strokeLast) {
+            // (along the way from last frame's cell: a fast mouse leaves no gaps)
+            let steps = Max(Abs(cell.x - strokeLast.x), Abs(cell.y - strokeLast.y));
+            for (let step in 1..steps + 1) {
+                let t = (float)step / steps;
+                PaintCell(layer, drawing, Vec2i((int)Round(strokeLast.x + (cell.x - strokeLast.x) * t), (int)Round(strokeLast.y + (cell.y - strokeLast.y) * t)));
+            }
+            strokeLast = cell;
+        }
+        let rect = Recti(Min(strokeStart.x, cell.x), Min(strokeStart.y, cell.y), Abs(cell.x - strokeStart.x) + 1, Abs(cell.y - strokeStart.y) + 1);
+        if (isPainting && !held) {
+            if (tool == EditorTool.Rect) {
+                for (let y in rect.y..rect.y + rect.h) {
+                    for (let x in rect.x..rect.x + rect.w) {
+                        PaintCell(layer, drawing, Vec2i(x, y));
+                    }
+                }
+            }
+            isPainting = false;
+        }
+
+        // What the mouse is on: the cell (or the rectangle being dragged), red if it cannot be painted
+        if (isOverUi && !isPainting)
+            return;
+        let color = refusal.len > 0 ? Color(0.8, 0.2, 0.2, 0.8) : isErasing && isPainting ? Color(0.8, 0.4, 0.2, 0.8) : Color(0.9, 0.9, 0.9, 0.9);
+        let shown = isPainting && tool == EditorTool.Rect ? rect : Recti(cell, Vec2i(1, 1));
+        OutlineRect(Rect(Vec2(shown.pos * cellSize), Vec2(shown.dim * cellSize)), color);
+        if (refusal.len > 0 && isInside)
+            Draw.LogLineColored(Color.Orange, "Not painted: ", refusal);
+    }
+
+    // One cell of the stroke: the palette's tile (Tiles), solid (Autotiles), or erased
+    void PaintCell(LevelLayer* layer, LayerDrawing* drawing, Vec2i cell) {
+        if (layer.case == LevelLayer.Tiles) {
+            if (!layer.tiles.ContainsCoord(cell.x, cell.y))
+                return;
+            let value = isErasing ? TILE_EMPTY : tile;
+            if (layer.tiles.Get(cell) == value)
+                return;
+            layer.tiles.Set(cell, value);
+            drawing.tilemap.Set(cell, value);
+            isModified = true;
+        } else if (layer.case == LevelLayer.Autotiles) {
+            if (!layer.solid.ContainsCoord(cell.x, cell.y))
+                return;
+            let value = !isErasing;
+            if (layer.solid.Get(cell) == value)
+                return;
+            layer.solid.Set(cell, value);
+            drawing.autotiles.Set(cell, value);
+            isModified = true;
+        }
+    }
+
+    void OutlineRect(Rect rect, Color color) {
+        let width = 2 / Camera.zoom;
+        let params = DrawParams(color: color, space: DrawSpace.ScreenWorld);
+        let corners = [rect.pos, Vec2(rect.right, rect.top), Vec2(rect.right, rect.bottom), Vec2(rect.left, rect.bottom)];
+        for (let index in 0..4) {
+            Draw.Line(corners[index], corners[(index + 1) % 4], width, Depth.Nearest, params);
+        }
+    }
+
+    // The level into its file (the internal mode)
+    void Save() {
+        if (!INTERNAL) {
+            Draw.LogSticky(180, Color.Orange, "Not saved: levels are saved in the internal mode");
+            return;
+        }
+        let path = Format(BUILD_PROJECT_DIR, "/assets/levels/", LEVEL_SCENE_LEVEL, ".level");
+        if (data.SaveFile(path)) {
+            isModified = false;
+            Draw.LogSticky(180, Color.Green, "Saved ", path);
+        } else {
+            Draw.LogSticky(300, Color.Red, "Could not save ", path);
+        }
     }
 
     // The level's tile grid and its edge, at the window's resolution (thin at any zoom); only when
@@ -211,16 +375,82 @@ extend LevelScene {
         }
     }
 
-    // The layers: their kind, tile size and whether they are shown (the eye: a checkbox)
+    // The layers: click one to edit it (its kind, tile size), whether it is shown
     void LayerPanel() {
         Ui.WithFont(Ui.style.fontName, EditorTextScale);
         Ui.Panel(UiAnchor.RightBottom, 260 * EditorTextScale, 0, Vec2i(-8, -8));
-        Ui.Label(TFormat("Level '", LEVEL_SCENE_LEVEL, "'  ", data.size.x, " x ", data.size.y, " tiles of ", data.tileSize), UiAlign.Left, Ui.style.textFocused);
+        Ui.Label(TFormat("Level '", LEVEL_SCENE_LEVEL, "'", isModified ? " *" : "", "  ", data.size.x, " x ", data.size.y, " tiles of ", data.tileSize),
+            UiAlign.Left, Ui.style.textFocused);
         Ui.Space(2);
         for (let index, layer in data.layers) {
+            Ui.Columns(2, 0.86);           // (the button, its shown checkbox)
+            let label = TFormat(index == selected ? "> " : "", layer.name, "  (", layer.case, ", ", TileSizeOf(layer), " px)", layer.isLocked ? " locked" : "");
+            if (Ui.Button(label, id: index, align: UiAlign.Left))
+                selected = index;
             let shown = !layer.isHidden;
-            if (Ui.Checkbox(TFormat(layer.name, "  (", layer.case, ", ", TileSizeOf(layer), " px)"), &shown, id: index))
+            if (Ui.Checkbox("", &shown, id: index))
                 layer.isHidden = !shown;
+        }
+    }
+
+    // The tools, and the selected Tiles layer's tileset to pick the tile from
+    void ToolPanel() {
+        if (data.layers.len == 0)
+            return;
+        let layer = &data.layers[selected];
+        Ui.WithFont(Ui.style.fontName, EditorTextScale);
+        Ui.Panel(UiAnchor.LeftBottom, 200 * EditorTextScale, 0, Vec2i(8, -8));
+        {
+            Ui.Columns(3);
+            if (Ui.Button(tool == EditorTool.Brush ? "> Brush B" : "Brush B"))
+                tool = EditorTool.Brush;
+            if (Ui.Button(tool == EditorTool.Rect ? "> Rect R" : "Rect R"))
+                tool = EditorTool.Rect;
+            if (Ui.Button(tool == EditorTool.Pick ? "> Pick I" : "Pick I"))
+                tool = EditorTool.Pick;
+        }
+        if (layer.case == LevelLayer.Tiles) {
+            Ui.Label(TFormat(layer.tileset, ": tile ", tile), UiAlign.Left);
+            Palette(layer, &presentation.layers[selected].tilemap.tileset);
+        } else if (layer.case == LevelLayer.Autotiles) {
+            Ui.Label("left: solid, right: open", UiAlign.Left);
+        } else {
+            Ui.Label("decals: later", UiAlign.Left);
+        }
+    }
+
+    // The tileset's tiles (at EditorPaletteScale): click one to paint with it
+    void Palette(LevelLayer* layer, Tileset* tileset) {
+        let scale = EditorPaletteScale;
+        let tileSize = tileset.tileDim * scale;
+        let rect = Ui.NextRect(tileset.rows * tileSize.y);
+        let columns = Max(1, Min(tileset.columns, rect.w / tileSize.x));
+        let mouse = Input.cursors.ui;
+        let depth = Ui.NextDepth();
+        for (let index in 0..tileset.count) {
+            let pos = Vec2i(rect.x + (index % tileset.columns) * tileSize.x, rect.y + (index / tileset.columns) * tileSize.y);
+            let slice = tileset.GetQuad(index, Vec2(0, 0));
+            if (slice.isVisible) {
+                let quad = slice.quad;
+                let place = (Vec2 corner) => Vec2(pos) + corner * scale;
+                quad.leftTop = place(quad.leftTop);
+                quad.leftBottom = place(quad.leftBottom);
+                quad.rightTop = place(quad.rightTop);
+                quad.rightBottom = place(quad.rightBottom);
+                Draw.SpriteQuad(tileset.sprite, quad, depth, DrawParams(space: DrawSpace.UI));
+            }
+            let tileRect = Rect(Vec2(pos), Vec2(tileSize));
+            if (tileRect.Contains(mouse) && Input.MousePressed(MouseButton.Left))
+                tile = (byte)index;
+            if (index == tile || tileRect.Contains(mouse)) {
+                let color = index == tile ? Color(1, 0.94, 0.55, 1) : Color(0.6, 0.6, 0.6, 0.6);
+                let outline = DrawParams(color: color, space: DrawSpace.UI);
+                let near = Ui.NextDepth();
+                Draw.Rect(Vec2(pos), Vec2(tileSize.x, 1), near, outline);
+                Draw.Rect(Vec2(pos.x, pos.y + tileSize.y - 1), Vec2(tileSize.x, 1), near, outline);
+                Draw.Rect(Vec2(pos), Vec2(1, tileSize.y), near, outline);
+                Draw.Rect(Vec2(pos.x + tileSize.x - 1, pos.y), Vec2(1, tileSize.y), near, outline);
+            }
         }
     }
 
