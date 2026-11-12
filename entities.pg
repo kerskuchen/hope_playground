@@ -116,9 +116,7 @@ extend Turret {
             let hasHit = false;
             if (entityWorld != null) {
                 entityWorld.ForEachOverlap(ColliderShape.Circle(circle: Circle(bullet.pos, 2)), LAYER_GHOST, (WorldOverlap* found) => {
-                    let entity = Entities.Get(found.entity);
-                    let health = entity != null && entity.isAlive ? entity.Get[Health]() : null;
-                    if (health != null && !hasHit) {
+                    if (!hasHit && let entity = Entities.Get(found.entity) && entity.isAlive && let health = entity.Get[Health]()) {
                         health.Damage(1);
                         hasHit = true;
                     }
