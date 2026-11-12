@@ -11,11 +11,16 @@
 //     K                 60 moving lights on/off (a stress test)
 //     1                 lighting on/off
 //     2                 the walls: wall_dungeon (DungeonTracks' colors) / wall_soil
+// The camera follows a point a third of the way from Susi to the mouse (it glides there: the
+// overlays stay where they are in the world); the floor goes on a little beyond the outer walls.
+//
 //     3                 the overlays on/off: big repeating textures fixed in the world over the
 //                       floor's tiles (overlay_ground) and the walls (overlay_wall), hope's
 //                       Draw.RegisterOverlay (tools/make_overlays.lua makes the two)
 
 const float LIGHTING_TILE = 8;                     // the occluder grid (the walls)
+Vec2 LIGHTING_FLOOR_ORIGIN = Vec2(-128, -96);      // the floor: 36 x 24 tiles of 16 px from there (beyond the walls)
+Vec2 LIGHTING_FLOOR_END = Vec2(448, 288);
 const int LIGHTING_COLUMNS = 40;
 const int LIGHTING_ROWS = 23;
 // DungeonTracks' ambient and torch, measured in the Let's Play (44 .. 47 s): the unlit floor over
@@ -89,6 +94,7 @@ struct LightingScene {
     List[Wanderer] wanderers;
     bool isLit = true;
     bool hasOverlays = true;
+    bool hasCamera;                      // (the first frame: the camera there at once)
     int groundOverlay;                   // Draw.RegisterOverlay's ids
     int wallOverlay;
     float cooldown;
@@ -107,7 +113,7 @@ extend LightingScene {
         }
         groundOverlay = Draw.RegisterOverlay("overlay_ground", OverlayMode.SoftLight, 1);
         wallOverlay = Draw.RegisterOverlay("overlay_wall", OverlayMode.SoftLight, 1);
-        floor = TilemapLayer(Tileset(Draw.GetSprite("floor_dungeon"), Vec2i(16, 16)), 20, 12, depth: 1);
+        floor = TilemapLayer(Tileset(Draw.GetSprite("floor_dungeon"), Vec2i(16, 16)), 36, 24, depth: 1, origin: LIGHTING_FLOOR_ORIGIN);
         floor.Fill(0);
         SetOverlays(true);
         SetWallSprite(false);
@@ -133,6 +139,9 @@ extend LightingScene {
     // Before the scene goes: lighting off for the others
     void Leave() {
         Draw.isLightingEnabled = false;
+        Camera.StopFollowing();
+        Camera.isCentered = false;
+        Camera.pos = Vec2(0, 0);
     }
 
     // The depth of something whose ground is at 'groundY' (the further down, the nearer)
@@ -153,8 +162,7 @@ extend LightingScene {
     }
 
     void DoFrame() {
-        Camera.isCentered = false;
-        Camera.pos = Vec2(0, 0);
+        Camera.isCentered = true;
         Camera.zoom = 1;
         Camera.rotation = 0;
         Camera.allowPanning = false;
@@ -183,6 +191,16 @@ extend LightingScene {
         }
         let aim = cursor - tankPos;
         let turretAngle = Atan2(aim.y, aim.x) / DegToRad;
+        // The camera: a third of the way to the mouse (from where it is on the screen, not the
+        // world: no feedback through the camera's own move)
+        Camera.followSpeed = 5;
+        let half = Camera.viewportDim * 0.5;          // (kept over the floor)
+        let wanted = tankPos + (cursor - Camera.pos) * 0.33;
+        Camera.target = Vec2(Clamp(wanted.x, LIGHTING_FLOOR_ORIGIN.x + half.x, LIGHTING_FLOOR_END.x - half.x), Clamp(wanted.y, LIGHTING_FLOOR_ORIGIN.y + half.y, LIGHTING_FLOOR_END.y - half.y));
+        if (!hasCamera) {
+            Camera.JumpToTarget();
+            hasCamera = true;
+        }
 
         // Shooting, the projectiles (a burst where they hit a wall)
         cooldown -= dt;
