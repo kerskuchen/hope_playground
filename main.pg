@@ -279,6 +279,7 @@ extend Playground {
             Memory.WipeLevel();
         }
         if (effects != null) {
+            effects.Leave();
             effects = null;
             Memory.WipeLevel();
         }

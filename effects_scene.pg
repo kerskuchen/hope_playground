@@ -3,6 +3,8 @@
 // follows the mouse; the antenna on the turret's attachment point 3), and a row on a platform
 // that drives stop and go, each with another feel (left to right: a slow loose spring, the
 // default, a stiffer one, one that does not overshoot). 1: a gusty wind from the left.
+// Debris: a click throws chips of rock and wood; they bounce off the ground, the walls around
+// and the two pillars, roll out, rest and turn into decals.
 
 Vec2 effectsPlatform = Vec2(80, 140);              // where the row's platform drives around
 
@@ -17,6 +19,11 @@ struct EffectsScene {
     [Antenna, 4] row;
     float time;
     bool isWindy;
+    CollisionWorld* walls;             // the arena's border and two pillars
+    [Box, 6] wallBoxes;
+    Decalmap decals;
+    DebrisField debris;
+    Sprite* chip;                      // (a plain rectangle: the untextured sprite, scaled)
 }
 
 extend EffectsScene {
@@ -32,6 +39,20 @@ extend EffectsScene {
         row[3] = Antenna(frequency: 3, damping: 1);
         Camera.pos = Vec2(160, 90);
         Camera.isCentered = true;
+        // The walls: the border (below the log's lines) and two pillars
+        wallBoxes[0] = Box(Vec2(0, 30), Vec2(320, 34));
+        wallBoxes[1] = Box(Vec2(0, 176), Vec2(320, 180));
+        wallBoxes[2] = Box(Vec2(0, 30), Vec2(4, 180));
+        wallBoxes[3] = Box(Vec2(316, 30), Vec2(320, 180));
+        wallBoxes[4] = Box(Vec2(110, 60), Vec2(126, 84));
+        wallBoxes[5] = Box(Vec2(240, 50), Vec2(264, 62));
+        walls = New[CollisionWorld](Box(Vec2(0, 0), Vec2(320, 180)), 32);
+        for (let box in wallBoxes) {
+            walls.Add(Collider(ColliderShape.Box(box: *box), 1, 0));
+        }
+        decals = Decalmap(320, 180, depth: 2);
+        debris = DebrisField(world: walls, mask: 1, decals: &decals);
+        chip = Draw.GetSprite("untextured");
     }
 
     void DoFrame() {
@@ -67,6 +88,14 @@ extend EffectsScene {
             : tankPos + Vec2.FromAngle(turretAngle) * -3;
         turretAntenna.Update(Vec3(mount.x, mount.y, 4 + turret.layers.len));
         cursorAntenna.Update(Vec3(cursor.x, cursor.y, 0));
+        // Debris: a click throws rock chips and wood splinters from the cursor
+        if (Input.MousePressed(MouseButton.Left)) {
+            debris.Burst(Vec3(cursor.x, cursor.y, 6), 10, 130, chip, Color(0.55, 0.52, 0.5, 1), Vec2(3, 3) / chip.dim);
+            debris.Burst(Vec3(cursor.x, cursor.y, 6), 6, 150, chip, Color(0.6, 0.4, 0.22, 1), Vec2(5, 2) / chip.dim);
+        }
+        debris.Update();
+        if (playground.settings.showsHints)
+            Draw.LogLine("debris (click): flying ", debris.CountOf(DebrisState.Flying), ", rolling ", debris.CountOf(DebrisState.Rolling), ", resting ", debris.CountOf(DebrisState.Resting), ", decals waiting ", decals.pendingCount);
         // The platform: drives right and back at a constant speed, starting and stopping at
         // once at each end (a jolt each time)
         let phase = (time % 4) / 4;
@@ -78,6 +107,11 @@ extend EffectsScene {
 
         // Drawn by where they stand (y)
         DrawGround();
+        decals.Draw(Camera.viewportRect);
+        for (let box in wallBoxes) {
+            Draw.Rect(box.ToRect(), DepthAt(box.max.y), DrawParams(color: Color(0.3, 0.3, 0.36, 1)));
+        }
+        debris.Draw((float y) => DepthAt(y));
         Draw.Rect(Rect(platform - Vec2(6, 2), Vec2(48, 5)), DepthAt(platform.y), DrawParams(color: Color(0.35, 0.33, 0.4, 1)));
         for (let antenna in row) {
             antenna.Draw(DepthAt(platform.y) + 0.5);
@@ -88,6 +122,9 @@ extend EffectsScene {
         turretAntenna.Draw(depth + 2);
         cursorAntenna.Draw(Depth.Nearest - 1);
     }
+
+    // The scene goes: the decal map's atlas regions back (the rest is in the level phase)
+    void Leave() { decals.Free(); }
 
     // (y on the ground as the depth: nearer the bottom, nearer the viewer)
     static float DepthAt(float y) { return 10 + y * 0.1; }
