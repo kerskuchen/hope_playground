@@ -78,14 +78,45 @@ Pool[Spawner] entityPool_Spawner;
 ];
 
 Pool[Ghost] entityPool_Ghost;
-[EntityField, 7] entityFields_Ghost = [
+[EntityField, 8] entityFields_Ghost = [
     EntityField("spawner", TypeOf[EntityId](), offsetof(Ghost, spawner), null, null),
     EntityField("speed", TypeOf[float](), offsetof(Ghost, speed), null, null),
     EntityField("health", TypeOf[Health](), offsetof(Ghost, health), null, null),
     EntityField("body", TypeOf[ColliderId](), offsetof(Ghost, body), null, null),
     EntityField("goal", TypeOf[Vec2](), offsetof(Ghost, goal), null, null),
     EntityField("time", TypeOf[float](), offsetof(Ghost, time), null, null),
-    EntityField("anim", TypeOf[AnimationPlayer](), offsetof(Ghost, anim), null, null)
+    EntityField("anim", TypeOf[AnimationPlayer](), offsetof(Ghost, anim), null, null),
+    EntityField("awake", TypeOf[float](), offsetof(Ghost, awake), null, null)
+];
+[string, 1] entitySignals_Ghost = ["wake"];
+
+Pool[Door] entityPool_Door;
+[EntityField, 5] entityFields_Door = [
+    EntityField("width", TypeOf[float](), offsetof(Door, width), null, null),
+    EntityField("closeAfter", TypeOf[float](), offsetof(Door, closeAfter), null, null),
+    EntityField("isOpen", TypeOf[bool](), offsetof(Door, isOpen), null, null),
+    EntityField("opens", TypeOf[int](), offsetof(Door, opens), null, null),
+    EntityField("openness", TypeOf[float](), offsetof(Door, openness), null, null)
+];
+[EntityExport, 2] entityExports_Door = [
+    EntityExport("width", ExportKind.Float, true, 8.0, 64.0, [],
+        (Entity* e, String* text) => ExportText.Write(text, ((Door*)e).width),
+        (Entity* e, string text) => ExportText.Read(text, &((Door*)e).width)),
+    EntityExport("closeAfter", ExportKind.Float, true, 0.0, 10.0, [],
+        (Entity* e, String* text) => ExportText.Write(text, ((Door*)e).closeAfter),
+        (Entity* e, string text) => ExportText.Read(text, &((Door*)e).closeAfter))
+];
+[string, 2] entitySignals_Door = ["open", "close"];
+
+Pool[Lever] entityPool_Lever;
+[EntityField, 2] entityFields_Lever = [
+    EntityField("onPulled", TypeOf[SignalLink](), offsetof(Lever, onPulled), null, null),
+    EntityField("isPulled", TypeOf[bool](), offsetof(Lever, isPulled), null, null)
+];
+[EntityExport, 1] entityExports_Lever = [
+    EntityExport("onPulled", ExportKind.SignalLink, false, 0, 0, [],
+        (Entity* e, String* text) => ExportText.Write(text, &((Lever*)e).onPulled),
+        (Entity* e, string text) => ExportText.Read(text, &((Lever*)e).onPulled))
 ];
 
 void RegisterEntityTypes() {
@@ -99,7 +130,8 @@ void RegisterEntityTypes() {
         ClearPool: () => { entityPool_Brazier = Pool[Brazier](); },
         Prepare: null,
         DrawPreview: (Entity* e) => ((Brazier*)e).DrawPreview(),
-        Destroyed: null));
+        Destroyed: null,
+        OnSignal: null));
     Entities.Register(EntityType(name: "Turret", info: TypeOf[Turret](), icon: "",
         fields: entityFields_Turret[0..7],
         exports: entityExports_Turret[0..5],
@@ -110,7 +142,8 @@ void RegisterEntityTypes() {
         ClearPool: () => { entityPool_Turret = Pool[Turret](); },
         Prepare: null,
         DrawPreview: (Entity* e) => ((Turret*)e).DrawPreview(),
-        Destroyed: null));
+        Destroyed: null,
+        OnSignal: null));
     Entities.Register(EntityType(name: "Spawner", info: TypeOf[Spawner](), icon: "ghosty_0",
         fields: entityFields_Spawner[0..5],
         exports: entityExports_Spawner[0..4],
@@ -121,9 +154,10 @@ void RegisterEntityTypes() {
         ClearPool: () => { entityPool_Spawner = Pool[Spawner](); },
         Prepare: null,
         DrawPreview: (Entity* e) => ((Spawner*)e).DrawPreview(),
-        Destroyed: null));
+        Destroyed: null,
+        OnSignal: null));
     Entities.Register(EntityType(name: "Ghost", info: TypeOf[Ghost](), icon: "",
-        fields: entityFields_Ghost[0..7],
+        fields: entityFields_Ghost[0..8],
         pool: &entityPool_Ghost,
         Spawn: () => &entityPool_Ghost.Add().Entity,
         Make: () => &New[Ghost]().Entity,
@@ -131,5 +165,32 @@ void RegisterEntityTypes() {
         ClearPool: () => { entityPool_Ghost = Pool[Ghost](); },
         Prepare: (Entity* e) => ((Ghost*)e).Prepare(),
         DrawPreview: null,
-        Destroyed: (Entity* e) => ((Ghost*)e).Destroyed()));
+        Destroyed: (Entity* e) => ((Ghost*)e).Destroyed(),
+        signals: entitySignals_Ghost[0..1],
+        OnSignal: (Entity* e, Signal* signal) => ((Ghost*)e).OnSignal(signal)));
+    Entities.Register(EntityType(name: "Door", info: TypeOf[Door](), icon: "",
+        fields: entityFields_Door[0..5],
+        exports: entityExports_Door[0..2],
+        pool: &entityPool_Door,
+        Spawn: () => &entityPool_Door.Add().Entity,
+        Make: () => &New[Door]().Entity,
+        Release: (Entity* e) => entityPool_Door.Remove((Door*)e),
+        ClearPool: () => { entityPool_Door = Pool[Door](); },
+        Prepare: null,
+        DrawPreview: (Entity* e) => ((Door*)e).DrawPreview(),
+        Destroyed: null,
+        signals: entitySignals_Door[0..2],
+        OnSignal: (Entity* e, Signal* signal) => ((Door*)e).OnSignal(signal)));
+    Entities.Register(EntityType(name: "Lever", info: TypeOf[Lever](), icon: "",
+        fields: entityFields_Lever[0..2],
+        exports: entityExports_Lever[0..1],
+        pool: &entityPool_Lever,
+        Spawn: () => &entityPool_Lever.Add().Entity,
+        Make: () => &New[Lever]().Entity,
+        Release: (Entity* e) => entityPool_Lever.Remove((Lever*)e),
+        ClearPool: () => { entityPool_Lever = Pool[Lever](); },
+        Prepare: null,
+        DrawPreview: (Entity* e) => ((Lever*)e).DrawPreview(),
+        Destroyed: null,
+        OnSignal: null));
 }

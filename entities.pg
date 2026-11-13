@@ -8,7 +8,11 @@
 //               its bullets find what they hit through the collision world (Collider.entity) and
 //               damage its Health
 //     Spawner   lets ghosts out (at most so many at once), slow or fast ones
-//     Ghost     (spawned, not placed) wanders, fades; 3 hits and it is gone
+//     Ghost     (spawned, not placed) sleeps until a "wake" signal (the preview's probe sends it to
+//               the ones near it: Signals.SendNear), then wanders a while; fades; 3 hits and it is gone
+//     Door      opens on "open" (an area's signal, a lever's), closes on "close": it sends itself
+//               one, delayed (closeAfter)
+//     Lever     a click in the preview pulls it: its SignalLink (wired in the editor) is sent
 
 // The collision world the entities' colliders are in (the level scene's preview makes it)
 CollisionWorld* entityWorld = null;
@@ -209,7 +213,9 @@ extend Spawner {
 
 //--------------------------------------------------------------------------------------------------
 
-// A ghost (spawned by a Spawner): wanders toward a point near its spawner, 3 hits and it is gone
+// A ghost (spawned by a Spawner): asleep until woken ("wake"), then wanders toward a point near
+// its spawner for a while; 3 hits and it is gone
+@Receives("wake")
 struct Ghost : Entity {
     EntityId spawner;
     float speed = 15;
@@ -218,9 +224,17 @@ struct Ghost : Entity {
     Vec2 goal;
     float time;
     AnimationPlayer anim;              // ghosty.default
+    float awake;                       // seconds it stays awake ("wake": again)
 }
 
 extend Ghost {
+    void OnSignal(Signal* signal) {
+        if (signal.name == "wake")
+            awake = 3;
+    }
+
+    get bool isAwake() { return awake > 0; }
+
     void Prepare() {
         goal = pos;
         anim = AnimationPlayer(global.Draw.GetAnim("ghosty.default"));
@@ -234,12 +248,15 @@ extend Ghost {
 
     void DoFrame() {
         let dt = Input.deltaTime;
-        time += dt;
-        anim.Update();
         if (health.isDead) {
             Entities.Destroy(&self.Entity);
             return;
         }
+        if (!isAwake)
+            return;                    // (asleep: still)
+        awake -= dt;
+        time += dt;
+        anim.Update();
         if ((goal - pos).Length() < 2) {
             let home = Entities.Get(spawner);
             let center = home != null ? home.pos : pos;
@@ -254,7 +271,9 @@ extend Ghost {
 
     void Draw() {
         let fade = 0.5 + 0.5 * health.hp / Max(1, health.max);
-        DrawCentered(anim.CurSprite(), pos, 1, 30 + pos.y * 0.01, DrawParams(color: Color(fade, fade, fade, fade)));
+        // (asleep: bluish, dimmer)
+        let tint = isAwake ? Color(fade, fade, fade, fade) : Color(0.35 * fade, 0.45 * fade, 0.8 * fade, fade);
+        DrawCentered(anim.CurSprite(), pos, 1, 30 + pos.y * 0.01, DrawParams(color: tint));
     }
 
     // (its collider out of the world)
@@ -263,4 +282,79 @@ extend Ghost {
             entityWorld.Remove(body);
         ghostsGone++;
     }
+}
+
+//--------------------------------------------------------------------------------------------------
+
+// A door across 'width' pixels (left to right through pos): "open" slides its halves apart, and it
+// sends itself "close" after closeAfter seconds (0: it stays open); a "close" from someone else
+// closes it at once
+@Receives("open, close")
+struct Door : Entity {
+    @Editable @Range(8, 64) float width = 16;
+    @Editable @Range(0, 10) float closeAfter = 2;
+    bool isOpen;
+    int opens;                         // (its own "close" carries the open it belongs to: an older one is ignored)
+    float openness;                    // 0 closed .. 1 open
+}
+
+extend Door {
+    void OnSignal(Signal* signal) {
+        switch (signal.name) {
+        case "open":
+            isOpen = true;
+            opens++;
+            if (closeAfter > 0)
+                Signals.Send(id, "close", from: id, value: opens, delay: closeAfter);
+        case "close":
+            if (signal.from != id || (int)signal.value == opens)
+                isOpen = false;
+        }
+    }
+
+    void DoFrame() {
+        let target = isOpen ? 1.0 : 0.0;
+        let step = Input.deltaTime * 3;
+        openness = Clamp(openness + Clamp(target - openness, -step, step), 0, 1);
+    }
+
+    void Draw() {
+        let half = width * 0.5;
+        let slide = half * openness;
+        let wood = DrawParams(color: Color(0.55, 0.36, 0.2, 1));
+        let post = DrawParams(color: Color(0.3, 0.3, 0.35, 1));
+        // (each half slides into its post)
+        global.Draw.Rect(Rect(pos.x - half - slide, pos.y - 3, half, 6), 30, wood);
+        global.Draw.Rect(Rect(pos.x + slide, pos.y - 3, half, 6), 30, wood);
+        global.Draw.Rect(Rect(pos.x - half - 3, pos.y - 4, 3, 8), 31, post);
+        global.Draw.Rect(Rect(pos.x + half, pos.y - 4, 3, 8), 31, post);
+    }
+
+    void DrawPreview() { Draw(); }
+}
+
+//--------------------------------------------------------------------------------------------------
+
+// A lever: a click on it in the preview pulls it (back and forth), and its link is sent
+struct Lever : Entity {
+    @Editable SignalLink onPulled;
+    bool isPulled;
+}
+
+extend Lever {
+    void DoFrame() {
+        if (Input.MousePressed(MouseButton.Left) && (Input.cursors.world - pos).Length() <= 8) {
+            isPulled = !isPulled;
+            onPulled.Send(from: id);
+        }
+    }
+
+    void Draw() {
+        global.Draw.Rect(Rect(pos - Vec2(5, 2), Vec2(10, 5)), 30, DrawParams(color: Color(0.3, 0.3, 0.35, 1)));
+        let tip = pos + (isPulled ? Vec2(5, -7) : Vec2(-5, -7));
+        global.Draw.Line(pos, tip, 2, 31, DrawParams(color: Color(0.75, 0.75, 0.8, 1)));
+        global.Draw.Circle(tip, 2, 32, DrawParams(color: Color(0.9, 0.3, 0.25, 1)));
+    }
+
+    void DrawPreview() { Draw(); }
 }

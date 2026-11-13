@@ -6,8 +6,10 @@
 //               view; a list of the levels (a click: another one). Trigger areas as a game uses
 //               them: every area of the Areas layers a trigger of a CollisionWorld (hope's
 //               collision.pg), a probe circle at the mouse; what it enters and leaves is logged,
-//               the areas it is in are outlined. The entities of its Entities layers
-//               (entities.pg: hope's Entities.SpawnLevel), run and drawn in the scene's order
+//               the areas it is in are outlined; an area entered sends its signal, the ghosts near
+//               it are woken (Signals.SendNear). The entities of its Entities layers (entities.pg:
+//               hope's Entities.SpawnLevel), run and drawn in the scene's order, the signals
+//               delivered after their frames
 //     editing   hope's level editor (hope/level_editor.pg; F1 opens it in the internal mode only)
 //               on that level
 //
@@ -189,9 +191,29 @@ extend LevelScene {
         for (let turret in Entities.All[Turret]()) {
             turret.DoFrame();
         }
+        for (let door in Entities.All[Door]()) {
+            door.DoFrame();
+        }
+        for (let lever in Entities.All[Lever]()) {
+            lever.DoFrame();
+        }
+        // The probe and what it enters and leaves: an area entered sends its signal (the probe
+        // stands in for the player); the ghosts near it are woken
+        let mouse = Input.cursors.world;
+        triggers.MoveTo(probe, mouse);
+        triggers.UpdateTriggers();
+        for (let event in triggers.triggerEvents) {
+            let area = &editor.data.layers[event.triggerOwner / 1000].areas[event.triggerOwner % 1000];
+            Draw.LogSticky(150, event.isEnter ? Color.Green : Color.Orange, event.isEnter ? "Entered '" : "Left '", area.name, "' (", area.kind, ")");
+            if (event.isEnter)
+                area.SendSignal();
+        }
+        Signals.SendNear(mouse, 40, "wake");
+        // The signals of this frame, then the destroyed ones gone
+        Signals.Deliver();
         Entities.Flush();
         if (playground.settings.showsHints)
-            Draw.LogLine("entities: ", Entities.count, " (ghosts ", Entities.All[Ghost]().len, ", gone ", ghostsGone, ")");
+            Draw.LogLine("entities: ", Entities.count, " (ghosts ", Entities.All[Ghost]().len, ", gone ", ghostsGone, "), signals waiting ", Signals.pending);
         for (let brazier in Entities.All[Brazier]()) {
             brazier.Draw();
         }
@@ -204,13 +226,11 @@ extend LevelScene {
         for (let turret in Entities.All[Turret]()) {
             turret.Draw();
         }
-        // The probe and what it enters and leaves
-        let mouse = Input.cursors.world;
-        triggers.MoveTo(probe, mouse);
-        triggers.UpdateTriggers();
-        for (let event in triggers.triggerEvents) {
-            let area = &editor.data.layers[event.triggerOwner / 1000].areas[event.triggerOwner % 1000];
-            Draw.LogSticky(150, event.isEnter ? Color.Green : Color.Orange, event.isEnter ? "Entered '" : "Left '", area.name, "' (", area.kind, ")");
+        for (let door in Entities.All[Door]()) {
+            door.Draw();
+        }
+        for (let lever in Entities.All[Lever]()) {
+            lever.Draw();
         }
         Draw.CircleOutline(Circle(mouse, 6), 1, Depth.Nearest, DrawParams(color: Color(1, 1, 1, 0.9)));
         for (let layer in editor.data.layers) {
