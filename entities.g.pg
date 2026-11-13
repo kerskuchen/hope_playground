@@ -25,8 +25,7 @@ Pool[Brazier] entityPool_Brazier;
 ];
 
 Pool[Turret] entityPool_Turret;
-[EntityField, 7] entityFields_Turret = [
-    EntityField("angle", TypeOf[float](), offsetof(Turret, angle), null, null),
+[EntityField, 6] entityFields_Turret = [
     EntityField("range", TypeOf[float](), offsetof(Turret, range), null, null),
     EntityField("turnSpeed", TypeOf[float](), offsetof(Turret, turnSpeed), null, null),
     EntityField("fireInterval", TypeOf[float](), offsetof(Turret, fireInterval), null, null),
@@ -35,10 +34,7 @@ Pool[Turret] entityPool_Turret;
         (Entity* e, void closure(void* item) body) => { for (let item in ((Turret*)e).bullets) { body((void*)item); } }),
     EntityField("cooldown", TypeOf[float](), offsetof(Turret, cooldown), null, null)
 ];
-[EntityExport, 5] entityExports_Turret = [
-    EntityExport("angle", ExportKind.Float, true, 0.0, 360.0, [],
-        (Entity* e, String* text) => ExportText.Write(text, ((Turret*)e).angle),
-        (Entity* e, string text) => ExportText.Read(text, &((Turret*)e).angle)),
+[EntityExport, 4] entityExports_Turret = [
     EntityExport("range", ExportKind.Float, true, 16.0, 200.0, [],
         (Entity* e, String* text) => ExportText.Write(text, ((Turret*)e).range),
         (Entity* e, string text) => ExportText.Read(text, &((Turret*)e).range)),
@@ -133,8 +129,8 @@ void RegisterEntityTypes() {
         Destroyed: null,
         OnSignal: null));
     Entities.Register(EntityType(name: "Turret", info: TypeOf[Turret](), icon: "",
-        fields: entityFields_Turret[0..7],
-        exports: entityExports_Turret[0..5],
+        fields: entityFields_Turret[0..6],
+        exports: entityExports_Turret[0..4],
         pool: &entityPool_Turret,
         Spawn: () => &entityPool_Turret.Add().Entity,
         Make: () => &New[Turret]().Entity,
