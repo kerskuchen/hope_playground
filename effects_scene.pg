@@ -11,7 +11,8 @@
 // the right button's shot (falling, skipping off the ground). 2: a blast at the cursor, its wave
 // moving the smoke, flicking the antennas, throwing the debris again; 3: a rocket from the turret
 // to the mouse, its smoke trail lingering (each puff at its own depth: behind a pillar where it
-// is behind it), a blast where it lands. The campfire is burning already (Prewarm);
+// is behind it), a blast where it lands. The campfire is burning already (Prewarm). 4: the stress
+// test (2000, 4000, 8000 particles at once, timed; 5: y-sorted);
 // curves shape how each value goes from its start to its end.
 
 Vec2 effectsPlatform = Vec2(80, 140);              // where the row's platform drives around
@@ -39,6 +40,11 @@ struct EffectsScene {
     ParticleSystem embers;
     ParticleSystem blast;              // a blast's fireball: hot bits all around
     ParticleSystem trail;              // a rocket's smoke, lingering (each puff at its own depth)
+    ParticleSystem crowd;              // the stress test (4): thousands at once, every feature on
+    int crowdCount;
+    bool isCrowdSorted;
+    double crowdUpdateMs;              // (smoothed over frames)
+    double crowdDrawMs;
     ParticleEmitter rocketExhaust;
     bool isRocketFlying;
     Vec3 rocketPos;
@@ -113,7 +119,12 @@ extend EffectsScene {
             startSize: 0.03, endSize: Between(0.09, 0.13), sizeCurve: Curve.EaseOut(2), startOpacity: Between(0.4, 0.6), endOpacity: 0, opacityCurve: Curve.EaseIn(),
             startColor: Color(0.75, 0.73, 0.7, 1), endColor: Color(0.4, 0.4, 0.42, 1), gravity: -3, drag: 1.5, endWobble: Between(0, 2), wobbleSpeed: Between(0.1, 0.3)), capacity: 400);
         rocketExhaust = ParticleEmitter(rate: 70);
+        // The stress test: smoke all over the arena, fading in and out, rising, swirling
+        crowd = ParticleSystem(ParticleProps(sprite: glow, lifetime: Between(2, 4), radius: Between(0, 150), elevation: Between(20, 90), startSpeed: Between(1, 4), endSpeed: 0,
+            startSize: 0.03, endSize: 0.07, sizeCurve: Curve.EaseOut(), startOpacity: 0, endOpacity: 0.5, opacityCurve: Curve.Keys([Vec2(0, 0), Vec2(0.2, 1), Vec2(1, 0)]),
+            startColor: Color(0.5, 0.5, 0.55, 1), endColor: Color(0.3, 0.3, 0.35, 1), gravity: Between(-12, -4), drag: 1, endWobble: Between(1, 3), wobbleSpeed: Between(0.2, 0.6)), capacity: 8000);
         // Everything reacts to the blasts' waves
+        crowd.waves = &waves;
         trail.waves = &waves;
         fire.waves = &waves;
         exhaust.waves = &waves;
@@ -208,6 +219,22 @@ extend EffectsScene {
                 rocketExhaust.Update(&trail, rocketPos);
             }
         }
+        // The stress test (4: none, 2000, 4000, 8000 at once; 5: y-sorted or one depth): as many
+        // born as went, timed
+        if (Input.KeyPressed(Scancode.Alpha4)) {
+            crowdCount = crowdCount == 0 ? 2000 : crowdCount == 2000 ? 4000 : crowdCount == 4000 ? 8000 : 0;
+            crowd.Clear();
+        }
+        if (Input.KeyPressed(Scancode.Alpha5))
+            isCrowdSorted = !isCrowdSorted;
+        if (crowdCount > 0) {
+            crowd.Emit(Vec3(160, 105, 0), crowdCount - crowd.count);
+            let timer = PerformanceTimer();
+            crowd.Update();
+            crowdUpdateMs = crowdUpdateMs * 0.95 + timer.PeekTime() * 1000 * 0.05;
+            if (playground.settings.showsHints)
+                Draw.LogLine("stress: update ", Round((float)crowdUpdateMs * 100) / 100, " ms, draw ", Round((float)crowdDrawMs * 100) / 100, " ms, end frame ", Round((float)Draw.stats.endFrameSeconds * 100000) / 100, " ms; ", crowd.count, isCrowdSorted ? " y-sorted" : " one depth", " (4 more, 5 sort)");
+        }
         blast.Update();
         trail.Update();
         debris.Update();
@@ -260,6 +287,14 @@ extend EffectsScene {
         embers.Draw(DepthAt(effectsCampfire.y) + 0.6);
         exhaust.Draw((float y) => DepthAt(y));
         trail.Draw((float y) => DepthAt(y));
+        if (crowdCount > 0) {
+            let timer = PerformanceTimer();
+            if (isCrowdSorted)
+                crowd.Draw((float y) => DepthAt(y));
+            else
+                crowd.Draw(DepthAt(105));
+            crowdDrawMs = crowdDrawMs * 0.95 + timer.PeekTime() * 1000 * 0.05;
+        }
         if (isRocketFlying) {
             Draw.Rect(Rect(rocketPos.screen - Vec2(1, 1), Vec2(2, 2)), DepthAt(rocketPos.y), DrawParams(color: Color(0.85, 0.85, 0.9, 1)));
             Draw.Sprite(Draw.GetSprite("light_torch"), Transform(rocketPos.screen - Vec2(4, 4), 0, Vec2(0.06, 0.06)), DepthAt(rocketPos.y) + 0.01, DrawParams(color: Color(1, 0.6, 0.2, 1), additivity: Additivity.Max, light: LightMode.Unlit));
@@ -279,6 +314,7 @@ extend EffectsScene {
         embers.Free();
         blast.Free();
         trail.Free();
+        crowd.Free();
         waves.Free();
     }
 
