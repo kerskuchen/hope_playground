@@ -23,7 +23,7 @@ extend EffectsScene {
     init() {
         tracksAnim = AnimationPlayer(Draw.GetAnim("susi.run"));
         turret = Draw.GetSprite3D("susi_turret");
-        turretAntenna = Antenna(length: 12);
+        turretAntenna = Antenna(length: 5);
         cursorAntenna = Antenna(length: 18, tipColor: Color(0.4, 0.9, 1, 1));
         // (frequency, damping)
         row[0] = Antenna(frequency: 2, damping: 0.1);
