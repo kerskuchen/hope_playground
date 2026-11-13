@@ -8,7 +8,8 @@
 // bounce off the ground, the walls around and the two pillars, roll out, rest and turn into decals.
 // Particles: a campfire (orange and additive, turning late into dark grey smoke that fades),
 // embers rising from it, Susi's exhaust while she drives (puffs fading in and out), sparks with
-// the right button's shot (falling, skipping off the ground);
+// the right button's shot (falling, skipping off the ground). 2: a blast at the cursor, its wave
+// moving the smoke, flicking the antennas, throwing the debris again;
 // curves shape how each value goes from its start to its end.
 
 Vec2 effectsPlatform = Vec2(80, 140);              // where the row's platform drives around
@@ -34,6 +35,8 @@ struct EffectsScene {
     ParticleSystem exhaust;
     ParticleSystem sparks;
     ParticleSystem embers;
+    ParticleSystem blast;              // a blast's fireball: hot bits all around
+    Shockwaves waves;
     ParticleEmitter campfire;
     ParticleEmitter emberSource;
     ParticleEmitter exhaustPipe;
@@ -69,18 +72,19 @@ extend EffectsScene {
         // Particles: a soft round glow (128 px) shrunk
         let glow = Draw.GetSprite("light_torch");
         // The fire: orange and additive, late (then quickly) dark grey smoke, normal; it grows
-        // fast at first, slows down rising, fades early (the smoke thin)
+        // fast at first, slows down rising, fades early (the smoke thin); the drag slows a
+        // blast's push
         let late = Curve.Keys([Vec2(0, 0), Vec2(0.3, 0.05), Vec2(0.55, 1)]);
         fire = ParticleSystem(ParticleProps(sprite: glow, lifetime: Between(1.2, 1.8), spread: 180, elevation: Between(75, 90), radius: Between(0, 3),
             startSpeed: Between(26, 34), endSpeed: Between(6, 10), speedCurve: Curve.EaseOut(),
             startSize: Between(0.05, 0.07), endSize: Between(0.15, 0.21), sizeCurve: Curve.EaseOut(),
             startOpacity: 1, endOpacity: 0, opacityCurve: Curve.EaseOut(1.5),
             startColor: ColorBetween(Color(1, 0.45, 0.1, 1), Color(1, 0.8, 0.25, 1)), endColor: ColorBetween(Color(0.3, 0.29, 0.29, 1), Color(0.4, 0.39, 0.39, 1)), colorCurve: late,
-            startAdditivity: 1, endAdditivity: 0, additivityCurve: late, light: LightMode.Unlit));
+            startAdditivity: 1, endAdditivity: 0, additivityCurve: late, drag: 2, light: LightMode.Unlit));
         // The exhaust: puffs that pop up (fast to their size), fade in and out
         exhaust = ParticleSystem(ParticleProps(sprite: glow, lifetime: Between(0.6, 0.9), elevation: Between(50, 80), startSpeed: Between(10, 16), endSpeed: 4,
             startSize: 0.02, endSize: Between(0.07, 0.1), sizeCurve: Curve.EaseOut(3), startOpacity: 0, endOpacity: 0.7,
-            opacityCurve: Curve.Keys([Vec2(0, 0), Vec2(0.15, 1), Vec2(1, 0)]), startColor: Color(0.45, 0.45, 0.48, 1), endColor: Color(0.3, 0.3, 0.32, 1)));
+            opacityCurve: Curve.Keys([Vec2(0, 0), Vec2(0.15, 1), Vec2(1, 0)]), startColor: Color(0.45, 0.45, 0.48, 1), endColor: Color(0.3, 0.3, 0.32, 1), drag: 2));
         // Sparks: fast and slowing, falling (gravity), skipping off the ground
         sparks = ParticleSystem(ParticleProps(sprite: glow, lifetime: Between(0.4, 0.8), spread: 25, elevation: Between(5, 35), startSpeed: Between(120, 200), endSpeed: Between(10, 30),
             speedCurve: Curve.EaseOut(), startSize: Between(0.03, 0.04), endSize: 0.015, startOpacity: 1, endOpacity: 0.3,
@@ -92,6 +96,22 @@ extend EffectsScene {
             startSize: 1 / chip.dim.x, endSize: 1 / chip.dim.x, rotation: 0, startOpacity: 1, endOpacity: 0, opacityCurve: Curve.EaseIn(),
             startColor: ColorBetween(Color(1, 0.85, 0.4, 1), Color(1, 0.55, 0.15, 1)), endColor: Color(0.9, 0.25, 0.05, 1), startAdditivity: 1, endAdditivity: 1,
             gravity: Between(-50, -30), drag: 2, light: LightMode.Unlit), capacity: 100);
+        // A blast: hot bits all around, fast and slowing hard, orange to dark red
+        blast = ParticleSystem(ParticleProps(sprite: glow, lifetime: Between(0.3, 0.6), spread: 180, elevation: Between(0, 50), startSpeed: Between(60, 130), endSpeed: 0,
+            speedCurve: Curve.EaseOut(3), startSize: Between(0.06, 0.1), endSize: 0.02, startOpacity: 1, endOpacity: 0, opacityCurve: Curve.EaseIn(),
+            startColor: ColorBetween(Color(1, 0.9, 0.5, 1), Color(1, 0.6, 0.2, 1)), endColor: Color(0.95, 0.35, 0.05, 1), startAdditivity: 1, endAdditivity: 1,
+            gravity: 60, waveResponse: 0, light: LightMode.Unlit), capacity: 200);
+        // Everything reacts to the blasts' waves
+        fire.waves = &waves;
+        exhaust.waves = &waves;
+        embers.waves = &waves;
+        sparks.waves = &waves;
+        debris.waves = &waves;
+        turretAntenna.waves = &waves;
+        cursorAntenna.waves = &waves;
+        for (let antenna in row) {
+            antenna.waves = &waves;
+        }
         campfire = ParticleEmitter(rate: 45);
         emberSource = ParticleEmitter(rate: 8);
         exhaustPipe = ParticleEmitter(rate: 30);
@@ -100,8 +120,9 @@ extend EffectsScene {
     void DoFrame() {
         let dt = Input.deltaTime;
         time += dt;
+        waves.Update();                // (before everything that reacts to them)
         if (playground.settings.showsHints)
-            Draw.LogLine("effects scene (F10): antennas: on the mouse, on Susi's turret (WASD drives, the turret aims at the mouse), a row stop and go (loose, default, stiff, no overshoot); 1 wind (", isWindy, ")");
+            Draw.LogLine("effects scene (F10): antennas: on the mouse, on Susi's turret (WASD drives, the turret aims at the mouse), a row stop and go (loose, default, stiff, no overshoot); 1 wind (", isWindy, "), 2 a blast at the mouse");
         let cursor = Input.cursors.world;
         if (Input.KeyPressed(Scancode.Alpha1))
             isWindy = !isWindy;
@@ -142,6 +163,13 @@ extend EffectsScene {
             debris.Burst(Vec3(muzzle.x, muzzle.y, 6), chip, BurstProps(count: 14, direction: turretAngle, spread: 20, elevation: Between(5, 35), speed: Between(150, 260),
                 scale: Vec2(2, 2) / chip.dim, bounciness: Between(1.1, 1.5), color: ColorBetween(Color(0.55, 0.6, 0.7, 1), Color(0.9, 0.55, 0.25, 1))));
         }
+        // A blast at the cursor (2): its fireball, chips, the wave through everything
+        if (Input.KeyPressed(Scancode.Alpha2)) {
+            blast.Emit(Vec3(cursor.x, cursor.y, 3), 40);
+            debris.Burst(Vec3(cursor.x, cursor.y, 4), 8, 160, chip, Color(0.3, 0.28, 0.27, 1), Vec2(2, 2) / chip.dim);
+            waves.Add(Shockwave(center: cursor));
+        }
+        blast.Update();
         debris.Update();
         // Particles: the campfire always, the exhaust while Susi drives (from behind her, low)
         campfire.Update(&fire, Vec3(effectsCampfire.x, effectsCampfire.y, 1));
@@ -192,6 +220,7 @@ extend EffectsScene {
         embers.Draw(DepthAt(effectsCampfire.y) + 0.6);
         exhaust.Draw(depth - 0.5);
         sparks.Draw(Depth.Nearest - 2);
+        blast.Draw(Depth.Nearest - 2);
         cursorAntenna.Draw(Depth.Nearest - 1);
     }
 
@@ -203,6 +232,8 @@ extend EffectsScene {
         exhaust.Free();
         sparks.Free();
         embers.Free();
+        blast.Free();
+        waves.Free();
     }
 
     // (y on the ground as the depth: nearer the bottom, nearer the viewer)
