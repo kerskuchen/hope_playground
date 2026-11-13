@@ -178,11 +178,11 @@ extend StartScene {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Game: one scene at a time, F1 the level scene (preview and editor), F2 the physics debug scene,
 // F3 the start scene, F4 the navigation scene, F6 the audio scene, F7 the lighting scene, F8 the
-// UI scene. A scene lives in its phase (hope/core.pg): the level scene (its editor's data) in the
+// UI scene, F10 the effects scene. A scene lives in its phase (hope/core.pg): the level scene (its editor's data) in the
 // editor phase, the others in the level phase. Switching wipes the phase of the scene that goes
 // and makes the next one in its phase; its frames allocate there too.
 
-enum Scene { Level, Start, Physics, Navigation, Audio, Lighting, Ui }
+enum Scene { Level, Start, Physics, Navigation, Audio, Lighting, Ui, Effects }
 
 // The player's settings (the UI scene's options), kept with hope's Storage (the value 'settings')
 @Serializable
@@ -208,6 +208,7 @@ struct Playground {
     AudioScene* audio;
     LightingScene* lighting;
     UiScene* ui;
+    EffectsScene* effects;
     Settings settings;
     bool areSettingsChanged;       // not saved yet (SaveSettings: leaving the options, the UI scene)
 }
@@ -277,6 +278,10 @@ extend Playground {
             lighting = null;
             Memory.WipeLevel();
         }
+        if (effects != null) {
+            effects = null;
+            Memory.WipeLevel();
+        }
         if (ui != null) {
             SaveSettings();
             ui.Leave();
@@ -284,7 +289,7 @@ extend Playground {
             Memory.WipeLevel();
         }
         scene = next;
-        Draw.isCanvasFree = next != Scene.Start && next != Scene.Lighting && next != Scene.Ui && next != Scene.Level;    // (the games' fixed canvas)
+        Draw.isCanvasFree = next != Scene.Start && next != Scene.Lighting && next != Scene.Ui && next != Scene.Level && next != Scene.Effects;    // (the games' fixed canvas)
         if (next == Scene.Level) {
             ScopeAllocEditor();                    // (the level's data: the presentation is the level phase's)
             level = New[LevelScene]();
@@ -308,6 +313,10 @@ extend Playground {
             ScopeAllocLevel();
             lighting = New[LightingScene]();
             Draw.clearColor = Color.Black;
+        } else if (next == Scene.Effects) {
+            ScopeAllocLevel();
+            effects = New[EffectsScene]();
+            Draw.clearColor = Color(0.13, 0.13, 0.16, 1);
         } else {
             ScopeAllocLevel();
             ui = New[UiScene]();
@@ -335,6 +344,8 @@ extend Playground {
             SwitchTo(Scene.Lighting);
         if (Input.KeyPressed(Scancode.F8) && scene != Scene.Ui)
             SwitchTo(Scene.Ui);
+        if (Input.KeyPressed(Scancode.F10) && scene != Scene.Effects)
+            SwitchTo(Scene.Effects);
         // (Escape: a text field's or a dialog's first)
         let isEscapeTaken = Ui.isTyping || (level != null && level.hasDialog);
         if (Input.KeyPressed(Scancode.Escape) && scene != Scene.Ui && !isEscapeTaken && (level == null || level.AskAboutChanges("quitting"))) {
@@ -342,7 +353,7 @@ extend Playground {
                 level.WriteSession();
             Window.Quit();                         // (in the UI scene Escape goes back; the level editor's unsaved changes ask first)
         }
-        Draw.LogLine("F1 level (again: editor), F2 physics, F3 start, F4 navigation, F6 audio, F7 lighting, F8 UI | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
+        Draw.LogLine("F1 level (again: editor), F2 physics, F3 start, F4 navigation, F6 audio, F7 lighting, F8 UI, F10 effects | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
         // (what the last frame drew: hope's Draw.stats, for the vertex size question)
         let stats = Draw.stats;
         if (settings.showsHints)
@@ -369,6 +380,8 @@ extend Playground {
                 lighting.DoFrame();
             else if (scene == Scene.Ui)
                 ui.DoFrame();
+            else if (scene == Scene.Effects)
+                effects.DoFrame();
             else
                 start.DoFrame();
         }

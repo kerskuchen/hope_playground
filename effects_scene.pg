@@ -1,0 +1,93 @@
+// The effects scene (F10): hope's visual effects (effects.pg) on the fixed canvas. For now the
+// antennas: one on the mouse cursor (shake it), one on Susi's turret (WASD drives her, the turret
+// follows the mouse), and a row on a platform that drives stop and go, each with another feel
+// (left to right: a slow loose spring, the default, a stiffer one, one that does not overshoot).
+
+Vec2 effectsPlatform = Vec2(80, 140);              // where the row's platform drives around
+
+struct EffectsScene {
+    AnimationPlayer tracksAnim;
+    Sprite3D* turret;
+    Vec2 tankPos = Vec2(200, 100);
+    float tankAngle;
+    float turretAngle;
+    Antenna turretAntenna;
+    Antenna cursorAntenna;
+    [Antenna, 4] row;
+    float time;
+}
+
+extend EffectsScene {
+    init() {
+        tracksAnim = AnimationPlayer(Draw.GetAnim("susi.run"));
+        turret = Draw.GetSprite3D("susi_turret");
+        turretAntenna = Antenna(length: 12);
+        cursorAntenna = Antenna(length: 18, tipColor: Color(0.4, 0.9, 1, 1));
+        // (frequency, damping)
+        row[0] = Antenna(frequency: 2, damping: 0.1);
+        row[1] = Antenna();
+        row[2] = Antenna(frequency: 5, damping: 0.4);
+        row[3] = Antenna(frequency: 3, damping: 1);
+        Camera.pos = Vec2(160, 90);
+        Camera.isCentered = true;
+    }
+
+    void DoFrame() {
+        let dt = Input.deltaTime;
+        time += dt;
+        if (playground.settings.showsHints)
+            Draw.LogLine("effects scene (F10): antennas: on the mouse, on Susi's turret (WASD drives, the turret aims at the mouse), a row stop and go (loose, default, stiff, no overshoot)");
+        let cursor = Input.cursors.world;
+
+        // Susi: drives, the turret aims at the mouse; the antenna's base on the turret (its
+        // sprite's first attachment point if it has one, else behind its middle), 6 px up
+        let move = Input.ActionValue2D("move");
+        tankPos = Vec2(Clamp(tankPos.x + move.x * 70 * dt, 10.0, 310.0), Clamp(tankPos.y + move.y * 70 * dt, 20.0, 175.0));
+        if (move.Length() > 0.1) {
+            tankAngle = move.Angle();
+            tracksAnim.Update();
+        }
+        turretAngle = (cursor - tankPos).Angle();
+        let turretXform = Transform(tankPos - Vec2(0, 4), turretAngle);
+        let top = turret.layers.len - 1;
+        let mount = turret.layers.len > 0 && turret.layers[top].attachmentPoints.len > 0
+            ? turret.GetAttachmentPos(top, 0, turretXform)
+            : tankPos + Vec2.FromAngle(turretAngle) * -3;
+        turretAntenna.Update(Vec3(mount.x, mount.y, 6));
+        cursorAntenna.Update(Vec3(cursor.x, cursor.y, 0));
+        // The platform: drives right and back at a constant speed, starting and stopping at
+        // once at each end (a jolt each time)
+        let phase = (time % 4) / 4;
+        let along = phase < 0.4 ? phase / 0.4 : phase < 0.5 ? 1 : phase < 0.9 ? 1 - (phase - 0.5) / 0.4 : 0;
+        let platform = effectsPlatform + Vec2(along * 140, 0);
+        for (let index, antenna in row) {
+            antenna.Update(Vec3(platform.x + index * 12, platform.y, 2));
+        }
+
+        // Drawn by where they stand (y)
+        DrawGround();
+        Draw.Rect(Rect(platform - Vec2(6, 2), Vec2(48, 5)), DepthAt(platform.y), DrawParams(color: Color(0.35, 0.33, 0.4, 1)));
+        for (let antenna in row) {
+            antenna.Draw(DepthAt(platform.y) + 0.5);
+        }
+        let depth = DepthAt(tankPos.y + 5);
+        Draw.Sprite3D(tracksAnim.CurSprite3D(), Transform(tankPos, tankAngle), depth);
+        Draw.Sprite3D(turret, turretXform, depth + 1);
+        turretAntenna.Draw(depth + 2);
+        cursorAntenna.Draw(Depth.Nearest - 1);
+        Draw.Circle(cursor, 1.5, Depth.Nearest - 1, DrawParams(color: Color(0.4, 0.9, 1, 1)));
+    }
+
+    // (y on the ground as the depth: nearer the bottom, nearer the viewer)
+    static float DepthAt(float y) { return 10 + y * 0.1; }
+
+    // A dotted floor: the motion shows against it
+    void DrawGround() {
+        let dots = DrawParams(color: Color(0.22, 0.22, 0.26, 1));
+        for (let y = 10; y < 180; y += 16) {
+            for (let x = 8; x < 320; x += 16) {
+                Draw.Pixel(Vec2(x, y), 1, dots);
+            }
+        }
+    }
+}
