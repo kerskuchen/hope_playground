@@ -17,6 +17,8 @@
 //     3                 the overlays on/off: big repeating textures fixed in the world over the
 //                       floor's tiles (overlay_ground) and the walls (overlay_wall), hope's
 //                       Draw.RegisterOverlay (tools/make_overlays.lua makes the two)
+//     4                 each row of walls shifted along the wall overlay (DrawParams.overlayOffset:
+//                       a sprite's own part of the overlay)
 
 const float LIGHTING_TILE = 8;                     // the occluder grid (the walls)
 Vec2 LIGHTING_FLOOR_ORIGIN = Vec2(-128, -96);      // the floor: 36 x 24 tiles of 16 px from there (beyond the walls)
@@ -94,6 +96,7 @@ struct LightingScene {
     List[Wanderer] wanderers;
     bool isLit = true;
     bool hasOverlays = true;
+    bool shiftsWallRows;               // 4: each wall row looks the overlay up shifted along x (DrawParams.overlayOffset)
     bool hasCamera;                      // (the first frame: the camera there at once)
     int groundOverlay;                   // Draw.RegisterOverlay's ids
     int wallOverlay;
@@ -173,6 +176,8 @@ extend LightingScene {
             isLit = !isLit;
         if (Input.KeyPressed(Scancode.Alpha2))
             SetWallSprite(!usesSoilWall);
+        if (Input.KeyPressed(Scancode.Alpha4))
+            shiftsWallRows = !shiftsWallRows;
         if (Input.KeyPressed(Scancode.Alpha3))
             SetOverlays(!hasOverlays);
         Draw.isLightingEnabled = isLit;
@@ -251,7 +256,7 @@ extend LightingScene {
 
         DrawLights(dt);
         DrawWorld(turretAngle);
-        Draw.LogLine("lighting scene (F7): WASD drive, left mouse shoot, right mouse wall on/off, L brazier, K 60 lights (", wanderers.len > 0, "), 1 lighting (", isLit, "), 2 walls (", usesSoilWall ? "wall_soil" : "wall_dungeon", "), 3 overlays (", hasOverlays, ")");
+        Draw.LogLine("lighting scene (F7): WASD drive, left mouse shoot, right mouse wall on/off, L brazier, K 60 lights (", wanderers.len > 0, "), 1 lighting (", isLit, "), 2 walls (", usesSoilWall ? "wall_soil" : "wall_dungeon", "), 3 overlays (", hasOverlays, "), 4 wall rows shifted (", shiftsWallRows, ")");
         Draw.LogLine("lights ", 1 + projectiles.len + flashes.len + braziers.len + wanderers.len, ": polygons and drawing ", FormatFloat((float)(lightTime * 1000), 3), " ms");
     }
 
@@ -289,8 +294,10 @@ extend LightingScene {
                 let bottom = pos.y + LIGHTING_TILE;
                 let depth = DepthAt(bottom);
                 let overlay = hasOverlays ? wallOverlay : 0;
-                let front = DrawParams(lightAnchor: LightAnchor.Base(bottom + 0.5), overlay: overlay);
-                Draw.SpriteSlice(&wallSlices, 0, 0, pos - Vec2(0, 24), depth, DrawParams(light: LightMode.Ambient, overlay: overlay));
+                // (4: each row of walls its own part of the overlay, so the rows are not alike)
+                let shift = shiftsWallRows ? Vec2(y * 53, 0) : Vec2.Zero;
+                let front = DrawParams(lightAnchor: LightAnchor.Base(bottom + 0.5), overlay: overlay, overlayOffset: shift);
+                Draw.SpriteSlice(&wallSlices, 0, 0, pos - Vec2(0, 24), depth, DrawParams(light: LightMode.Ambient, overlay: overlay, overlayOffset: shift));
                 for (let row in 1..4) {
                     Draw.SpriteSlice(&wallSlices, 0, row, pos - Vec2(0, 24 - row * 8), depth, front);
                 }
