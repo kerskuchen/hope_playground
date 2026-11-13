@@ -6,7 +6,8 @@
 //     1, 2, 3           its intensity: crossfades over the half beat before the next measure
 //     4, 5, 6           its target intensity 1, 2, 3: a layer a measure towards it (ramp up, cool down)
 //     B                 a metronome (AudioPulse): a beep on every beat, higher on a measure's first
-//     Space             the coin at the mouse (spatial)
+//     Space             the coin at the mouse (spatial; a oneshot: each one a little higher or
+//                       lower, louder or softer)
 //     T                 a 440 Hz sine at the mouse: pan, distance and Doppler can be heard
 //     F                 the sine's falloff (linear, inverse)
 //     K                 a minimum loudness of 0.2
@@ -60,7 +61,7 @@ extend AudioScene {
     void DoFrame() {
         let mouse = Input.cursors.screen - (Vec2)Input.windowDim * 0.5;
         if (Input.KeyPressed(Scancode.Space))
-            Audio.SetReverbSend(Audio.PlaySpatial("sfx_coin_double1", mouse, falloff: SineFalloff()), reverbRoom == 0 ? 0 : 0.3);
+            Audio.SetReverbSend(Audio.PlayOneshot("sfx_coin_double1", mouse, pitch: Between(0.9, 1.12), volume: Between(0.7, 1), falloff: SineFalloff()), reverbRoom == 0 ? 0 : 0.3);
         DoSpatialTest(mouse);
         DoMusic();
         Draw.LogLine("DSP time ", (int)(Audio.dspTime * 10) / 10.0, " s, real ", (int)(Audio.dspTimeReal * 10) / 10.0, " s");
