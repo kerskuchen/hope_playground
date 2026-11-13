@@ -6,8 +6,11 @@
 // Debris: a click throws chips of rock and wood all around (Burst); the right button metal chips
 // from Susi's turret the way it aims (BurstProps: a narrow cone, low and fast, bouncy); they
 // bounce off the ground, the walls around and the two pillars, roll out, rest and turn into decals.
+// Particles: a campfire (orange and additive, turning into dark grey smoke that fades), Susi's
+// exhaust while she drives, sparks with the right button's shot.
 
 Vec2 effectsPlatform = Vec2(80, 140);              // where the row's platform drives around
+Vec2 effectsCampfire = Vec2(50, 80);
 
 struct EffectsScene {
     AnimationPlayer tracksAnim;
@@ -25,6 +28,12 @@ struct EffectsScene {
     Decalmap decals;
     DebrisField debris;
     Sprite* chip;                      // (a plain rectangle: the untextured sprite, scaled)
+    ParticleSystem particles;
+    ParticleProps fire;
+    ParticleProps exhaust;
+    ParticleProps sparks;
+    ParticleEmitter campfire;
+    ParticleEmitter exhaustPipe;
 }
 
 extend EffectsScene {
@@ -54,6 +63,20 @@ extend EffectsScene {
         decals = Decalmap(320, 180, depth: 2);
         debris = DebrisField(world: walls, mask: 1, decals: &decals);
         chip = Draw.GetSprite("untextured");
+        // Particles: a soft round glow (128 px) shrunk
+        let glow = Draw.GetSprite("light_torch");
+        fire = ParticleProps(sprite: glow, lifetime: Between(1.2, 1.8), spread: 180, elevation: Between(75, 90), radius: Between(0, 3),
+            startSpeed: Between(22, 30), endSpeed: Between(8, 12), startSize: Between(0.06, 0.09), endSize: Between(0.14, 0.2),
+            startOpacity: 1, endOpacity: 0, startColor: ColorBetween(Color(1, 0.45, 0.1, 1), Color(1, 0.8, 0.25, 1)),
+            endColor: ColorBetween(Color(0.16, 0.15, 0.15, 1), Color(0.26, 0.25, 0.25, 1)), startAdditivity: 1, endAdditivity: 0, light: LightMode.Unlit);
+        exhaust = ParticleProps(sprite: glow, lifetime: Between(0.6, 0.9), elevation: Between(50, 80), startSpeed: Between(10, 16), endSpeed: 4,
+            startSize: Between(0.03, 0.04), endSize: Between(0.07, 0.1), startOpacity: 0.7, endOpacity: 0,
+            startColor: Color(0.45, 0.45, 0.48, 1), endColor: Color(0.3, 0.3, 0.32, 1));
+        sparks = ParticleProps(sprite: glow, lifetime: Between(0.25, 0.5), spread: 25, elevation: Between(0, 25), startSpeed: Between(120, 200), endSpeed: Between(20, 40),
+            startSize: Between(0.03, 0.04), endSize: 0.015, startOpacity: 1, endOpacity: 0.3,
+            startColor: ColorBetween(Color(1, 0.95, 0.6, 1), Color(1, 0.7, 0.3, 1)), endColor: Color(1, 0.35, 0.1, 1), startAdditivity: 1, endAdditivity: 1, light: LightMode.Unlit);
+        campfire = ParticleEmitter(rate: 45);
+        exhaustPipe = ParticleEmitter(rate: 30);
     }
 
     void DoFrame() {
@@ -96,10 +119,24 @@ extend EffectsScene {
         }
         if (Input.MousePressed(MouseButton.Right)) {
             let muzzle = tankPos + Vec2.FromAngle(turretAngle) * 8;
+            sparks.direction = turretAngle;
+            particles.Emit(Vec3(muzzle.x, muzzle.y, 6), 16, sparks);
             debris.Burst(Vec3(muzzle.x, muzzle.y, 6), chip, BurstProps(count: 14, direction: turretAngle, spread: 20, minElevation: 5, maxElevation: 35, minSpeed: 150, maxSpeed: 260,
                 scale: Vec2(2, 2) / chip.dim, minBounciness: 1.1, maxBounciness: 1.5, color: Color(0.55, 0.6, 0.7, 1), otherColor: Color(0.9, 0.55, 0.25, 1)));
         }
         debris.Update();
+        // Particles: the campfire always, the exhaust while Susi drives (from behind her, low)
+        campfire.Update(&particles, Vec3(effectsCampfire.x, effectsCampfire.y, 1), fire);
+        if (move.Length() > 0.1) {
+            let pipe = tankPos - Vec2.FromAngle(tankAngle) * 8;
+            exhaust.direction = tankAngle + 180;
+            exhaustPipe.Update(&particles, Vec3(pipe.x, pipe.y, 3), exhaust);
+        } else {
+            exhaustPipe.isStarted = false;
+        }
+        particles.Update();
+        if (playground.settings.showsHints)
+            Draw.LogLine("particles (a campfire, Susi's exhaust while she drives, sparks with the right click): ", particles.count);
         if (playground.settings.showsHints)
             Draw.LogLine("debris (click: around, right click: from the turret): flying ", debris.CountOf(DebrisState.Flying), ", rolling ", debris.CountOf(DebrisState.Rolling), ", resting ", debris.CountOf(DebrisState.Resting), ", decals waiting ", decals.pendingCount);
         // The platform: drives right and back at a constant speed, starting and stopping at
@@ -126,11 +163,18 @@ extend EffectsScene {
         Draw.Sprite3D(tracksAnim.CurSprite3D(), Transform(tankPos, tankAngle), depth);
         Draw.Sprite3D(turret, turretXform, depth + 1);
         turretAntenna.Draw(depth + 2);
+        // The campfire's logs; the particles above everything on the ground (one depth)
+        Draw.Rect(Rect(effectsCampfire - Vec2(5, 1), Vec2(10, 3)), DepthAt(effectsCampfire.y), DrawParams(color: Color(0.4, 0.26, 0.15, 1)));
+        particles.Draw(Depth.Nearest - 2);
         cursorAntenna.Draw(Depth.Nearest - 1);
     }
 
-    // The scene goes: the decal map's atlas regions back (the rest is in the level phase)
-    void Leave() { decals.Free(); }
+    // The scene goes: the decal map's atlas regions back, the particles' memory (the rest is in
+    // the level phase)
+    void Leave() {
+        decals.Free();
+        particles.Free();
+    }
 
     // (y on the ground as the depth: nearer the bottom, nearer the viewer)
     static float DepthAt(float y) { return 10 + y * 0.1; }
