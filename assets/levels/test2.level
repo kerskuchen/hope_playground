@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "tileSize": 16,
   "size": {"x": 20, "y": 8},
   "cameraBounds": {"x": 0, "y": 0, "w": 0, "h": 0},

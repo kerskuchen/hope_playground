@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "tileSize": 16,
   "size": {"x": 30, "y": 18},
   "cameraBounds": {"x": 0, "y": 0, "w": 0, "h": 0},
@@ -125,8 +125,8 @@
       "isLocked": false,
       "tileset": "",
       "areas": [
-        {"name": "exit_east", "kind": "exit", "rect": {"x": 448, "y": 112, "w": 32, "h": 64}},
-        {"name": "pit", "kind": "damage", "rect": {"x": 96, "y": 192, "w": 64, "h": 48}},
+        {"name": "exit_east", "kind": "exit", "rect": {"x": 448, "y": 112, "w": 32, "h": 64}, "target": "", "signal": ""},
+        {"name": "pit", "kind": "damage", "rect": {"x": 96, "y": 192, "w": 64, "h": 48}, "target": "", "signal": ""},
         {"name": "door_plate", "kind": "plate", "rect": {"x": 112, "y": 176, "w": 48, "h": 16}, "target": "door_1", "signal": "open"}
       ]
     },
@@ -141,7 +141,7 @@
         {
           "type": "Spawner",
           "name": "spawner_1",
-          "pos": {"x": 336, "y": 96},
+          "xform": {"pos": {"x": 336, "y": 96}, "angle": 0, "scale": {"x": 1, "y": 1}},
           "properties": [
             {"name": "interval", "value": "1.5"},
             {"name": "maxCount", "value": "4"},
@@ -152,9 +152,8 @@
         {
           "type": "Turret",
           "name": "turret_1",
-          "pos": {"x": 200, "y": 150},
+          "xform": {"pos": {"x": 200, "y": 150}, "angle": 0, "scale": {"x": 1, "y": 1}},
           "properties": [
-            {"name": "angle", "value": "0"},
             {"name": "range", "value": "140"},
             {"name": "turnSpeed", "value": "120"},
             {"name": "fireInterval", "value": "0.4"},
@@ -164,7 +163,7 @@
         {
           "type": "Brazier",
           "name": "brazier_1",
-          "pos": {"x": 240, "y": 120},
+          "xform": {"pos": {"x": 240, "y": 120}, "angle": 0, "scale": {"x": 1, "y": 1}},
           "properties": [
             {"name": "radius", "value": "32"},
             {"name": "color", "value": "1, 0.7, 0.35, 1"},
@@ -175,7 +174,7 @@
         {
           "type": "Door",
           "name": "door_1",
-          "pos": {"x": 136, "y": 168},
+          "xform": {"pos": {"x": 136, "y": 168}, "angle": 0, "scale": {"x": 1, "y": 1}},
           "properties": [
             {"name": "width", "value": "16"},
             {"name": "closeAfter", "value": "2"}
@@ -184,7 +183,7 @@
         {
           "type": "Lever",
           "name": "lever_1",
-          "pos": {"x": 104, "y": 144},
+          "xform": {"pos": {"x": 104, "y": 144}, "angle": 0, "scale": {"x": 1, "y": 1}},
           "properties": [
             {"name": "onPulled", "value": "door_1.open"}
           ]

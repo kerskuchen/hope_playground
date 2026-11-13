@@ -49,28 +49,28 @@ extend Brazier {
     void DoFrame() { time += Input.deltaTime; }
 
     void Draw() {
-        global.Draw.Rect(Rect(pos - Vec2(3, 1), Vec2(6, 4)), 30, DrawParams(color: Color(0.25, 0.15, 0.1, 1)));
+        global.Draw.Rect(Rect(xform.pos - Vec2(3, 1), Vec2(6, 4)), 30, DrawParams(color: Color(0.25, 0.15, 0.1, 1)));
         if (!isLit)
             return;
         // (the glow: the light sprite, its size breathing with the flicker)
         let wobble = 1 + Sin(time * 9) * 0.06 * flicker + Sin(time * 23) * 0.03 * flicker;
         let glow = global.Draw.GetSprite("light_torch");
         let scale = radius * 2 / Max(1.0, glow.dim.x) * wobble;
-        DrawCentered(glow, pos, scale, 31, DrawParams(color: Color(color.r * 0.5, color.g * 0.5, color.b * 0.5, 0), additivity: Additivity.Max));
-        global.Draw.Circle(pos - Vec2(0, 2), 2 * wobble, 32, DrawParams(color: color));
+        DrawCentered(glow, xform.pos, scale, 31, DrawParams(color: Color(color.r * 0.5, color.g * 0.5, color.b * 0.5, 0), additivity: Additivity.Max));
+        global.Draw.Circle(xform.pos - Vec2(0, 2), 2 * wobble, 32, DrawParams(color: color));
     }
 
     // (the editor: the fire, its radius as a ring)
     void DrawPreview() {
         Draw();
-        global.Draw.CircleOutline(Circle(pos, radius), 1, 33, DrawParams(color: Color(color.r, color.g, color.b, 0.6)));
+        global.Draw.CircleOutline(Circle(xform.pos, radius), 1, 33, DrawParams(color: Color(color.r, color.g, color.b, 0.6)));
     }
 }
 
 //--------------------------------------------------------------------------------------------------
 
 struct Turret : Entity {
-    @Editable @Range(0, 360) float angle;
+    // (it aims its xform's angle: turned in the editor with Q/E, the way it looks at the start)
     @Editable @Range(16, 200) float range = 90;
     @Editable @Range(10, 360) float turnSpeed = 120;      // degrees a second
     @Editable @Range(0.1, 2) float fireInterval = 0.4;
@@ -93,7 +93,7 @@ extend Turret {
         if (aim == null) {
             let nearest = range;
             for (let ghost in Entities.All[Ghost]()) {
-                let distance = (ghost.pos - pos).Length();
+                let distance = (ghost.xform.pos - xform.pos).Length();
                 if (ghost.isAlive && distance < nearest) {
                     nearest = distance;
                     aim = &ghost.Entity;
@@ -101,14 +101,14 @@ extend Turret {
             }
         }
         cooldown -= dt;
-        if (aim != null && (aim.pos - pos).Length() <= range) {
-            let turn = NormalizeAngle((aim.pos - pos).Angle() - angle);
+        if (aim != null && (aim.xform.pos - xform.pos).Length() <= range) {
+            let turn = NormalizeAngle((aim.xform.pos - xform.pos).Angle() - xform.angle);
             let step = turnSpeed * dt;
-            angle += Clamp(turn, -step, step);
+            xform.angle += Clamp(turn, -step, step);
             if (Abs(turn) < 5 && cooldown <= 0) {
                 cooldown = fireInterval;
-                let direction = Vec2.FromAngle(angle);
-                bullets.Add(Bullet(pos + direction * 8, direction * 160, range / 160));
+                let direction = Vec2.FromAngle(xform.angle);
+                bullets.Add(Bullet(xform.pos + direction * 8, direction * 160, range / 160));
             }
         }
         // The bullets: what they touch (a ghost's collider) is found as an entity, its Health hit
@@ -131,9 +131,9 @@ extend Turret {
     }
 
     void Draw() {
-        global.Draw.Circle(pos, 6, 30, DrawParams(color: Color(0.35, 0.35, 0.4, 1)));
-        let direction = Vec2.FromAngle(angle);
-        global.Draw.Line(pos, pos + direction * 10, 3, 31, DrawParams(color: Color(0.75, 0.75, 0.8, 1)));
+        global.Draw.Circle(xform.pos, 6, 30, DrawParams(color: Color(0.35, 0.35, 0.4, 1)));
+        let direction = Vec2.FromAngle(xform.angle);
+        global.Draw.Line(xform.pos, xform.pos + direction * 10, 3, 31, DrawParams(color: Color(0.75, 0.75, 0.8, 1)));
         for (let bullet in bullets) {
             global.Draw.Rect(Rect(bullet.pos - Vec2(1, 1), Vec2(2, 2)), 32, DrawParams(color: Color(1, 0.9, 0.5, 1)));
         }
@@ -142,10 +142,10 @@ extend Turret {
     // (the editor: the turret, its range, a line to its target)
     void DrawPreview() {
         Draw();
-        global.Draw.CircleOutline(Circle(pos, range), 1, 33, DrawParams(color: Color(0.9, 0.3, 0.3, 0.5)));
+        global.Draw.CircleOutline(Circle(xform.pos, range), 1, 33, DrawParams(color: Color(0.9, 0.3, 0.3, 0.5)));
         // (in the editor Resolve finds the placed entity of that name)
         if (let aim = target.Resolve())
-            global.Draw.Line(pos, aim.pos, 1, 33, DrawParams(color: Color(1, 0.94, 0.55, 0.7)));
+            global.Draw.Line(xform.pos, aim.xform.pos, 1, 33, DrawParams(color: Color(1, 0.94, 0.55, 0.7)));
     }
 }
 
@@ -177,24 +177,24 @@ extend Spawner {
             return;
         let ghost = Entities.Spawn[Ghost]();
         let angle = (float)(Random.Hash((ulong)(ghost.id.index * 7919 + Entities.count)) % 360);
-        ghost.pos = pos + Vec2.FromAngle(angle) * radius;
+        ghost.xform.pos = xform.pos + Vec2.FromAngle(angle) * radius;
         ghost.spawner = id;
         ghost.speed = kind == GhostKind.Fast ? 40 : 15;
         ghost.Prepare();
     }
 
     void Draw() {
-        global.Draw.CircleOutline(Circle(pos, 6), 2, 30, DrawParams(color: Color(0.6, 0.5, 0.9, 0.9)));
+        global.Draw.CircleOutline(Circle(xform.pos, 6), 2, 30, DrawParams(color: Color(0.6, 0.5, 0.9, 0.9)));
     }
 
     void DrawPreview() {
         Draw();
-        global.Draw.CircleOutline(Circle(pos, Max(1.0, radius)), 1, 33, DrawParams(color: Color(0.6, 0.5, 0.9, 0.5)));
+        global.Draw.CircleOutline(Circle(xform.pos, Max(1.0, radius)), 1, 33, DrawParams(color: Color(0.6, 0.5, 0.9, 0.5)));
         // (ghosty's animation at the time: a preview is made again every frame)
         let ghosty = AnimationPlayer(global.Draw.GetAnim("ghosty.default"));
         let duration = ghosty.current.duration;
         ghosty.curTime = (float)(platform.TimeSinceStartup() % (double)Max(0.001, duration));
-        DrawCentered(ghosty.CurSprite(), pos, 1, 31, DrawParams(color: Color(0.6, 0.6, 0.6, 0.6)));
+        DrawCentered(ghosty.CurSprite(), xform.pos, 1, 31, DrawParams(color: Color(0.6, 0.6, 0.6, 0.6)));
     }
 }
 
@@ -223,11 +223,11 @@ extend Ghost {
     get bool isAwake() { return awake > 0; }
 
     void Prepare() {
-        goal = pos;
+        goal = xform.pos;
         anim = AnimationPlayer(global.Draw.GetAnim("ghosty.default"));
         anim.curTime = (float)(id.index % 7) * 0.1;      // (not all in step)
         if (entityWorld != null) {
-            let collider = Collider(ColliderShape.Circle(circle: Circle(pos, 5)), LAYER_GHOST, 0);
+            let collider = Collider(ColliderShape.Circle(circle: Circle(xform.pos, 5)), LAYER_GHOST, 0);
             collider.entity = id;
             body = entityWorld.Add(collider);
         }
@@ -244,23 +244,23 @@ extend Ghost {
         awake -= dt;
         time += dt;
         anim.Update();
-        if ((goal - pos).Length() < 2) {
+        if ((goal - xform.pos).Length() < 2) {
             let home = Entities.Get(spawner);
-            let center = home != null ? home.pos : pos;
+            let center = home != null ? home.xform.pos : xform.pos;
             let angle = (float)(Random.Hash((ulong)(id.index * 104729 + (int)(time * 100))) % 360);
             goal = center + Vec2.FromAngle(angle) * 40;
         }
-        let toGoal = goal - pos;
-        pos = pos + toGoal.Normalized() * Min(speed * dt, toGoal.Length());
+        let toGoal = goal - xform.pos;
+        xform.pos = xform.pos + toGoal.Normalized() * Min(speed * dt, toGoal.Length());
         if (entityWorld != null)
-            entityWorld.MoveTo(body, pos);
+            entityWorld.MoveTo(body, xform.pos);
     }
 
     void Draw() {
         let fade = 0.5 + 0.5 * health.hp / Max(1, health.max);
         // (asleep: bluish, dimmer)
         let tint = isAwake ? Color(fade, fade, fade, fade) : Color(0.35 * fade, 0.45 * fade, 0.8 * fade, fade);
-        DrawCentered(anim.CurSprite(), pos, 1, 30 + pos.y * 0.01, DrawParams(color: tint));
+        DrawCentered(anim.CurSprite(), xform.pos, 1, 30 + xform.pos.y * 0.01, DrawParams(color: tint));
     }
 
     // (its collider out of the world)
@@ -273,7 +273,7 @@ extend Ghost {
 
 //--------------------------------------------------------------------------------------------------
 
-// A door across 'width' pixels (left to right through pos): "open" slides its halves apart, and it
+// A door across 'width' pixels (left to right through its position): "open" slides its halves apart, and it
 // sends itself "close" after closeAfter seconds (0: it stays open); a "close" from someone else
 // closes it at once
 @Receives("open, close")
@@ -311,10 +311,10 @@ extend Door {
         let wood = DrawParams(color: Color(0.55, 0.36, 0.2, 1));
         let post = DrawParams(color: Color(0.3, 0.3, 0.35, 1));
         // (each half slides into its post)
-        global.Draw.Rect(Rect(pos.x - half - slide, pos.y - 3, half, 6), 30, wood);
-        global.Draw.Rect(Rect(pos.x + slide, pos.y - 3, half, 6), 30, wood);
-        global.Draw.Rect(Rect(pos.x - half - 3, pos.y - 4, 3, 8), 31, post);
-        global.Draw.Rect(Rect(pos.x + half, pos.y - 4, 3, 8), 31, post);
+        global.Draw.Rect(Rect(xform.pos.x - half - slide, xform.pos.y - 3, half, 6), 30, wood);
+        global.Draw.Rect(Rect(xform.pos.x + slide, xform.pos.y - 3, half, 6), 30, wood);
+        global.Draw.Rect(Rect(xform.pos.x - half - 3, xform.pos.y - 4, 3, 8), 31, post);
+        global.Draw.Rect(Rect(xform.pos.x + half, xform.pos.y - 4, 3, 8), 31, post);
     }
 
     void DrawPreview() { Draw(); }
@@ -330,16 +330,16 @@ struct Lever : Entity {
 
 extend Lever {
     void DoFrame() {
-        if (Input.MousePressed(MouseButton.Left) && (Input.cursors.world - pos).Length() <= 8) {
+        if (Input.MousePressed(MouseButton.Left) && (Input.cursors.world - xform.pos).Length() <= 8) {
             isPulled = !isPulled;
             onPulled.Send(from: id);
         }
     }
 
     void Draw() {
-        global.Draw.Rect(Rect(pos - Vec2(5, 2), Vec2(10, 5)), 30, DrawParams(color: Color(0.3, 0.3, 0.35, 1)));
-        let tip = pos + (isPulled ? Vec2(5, -7) : Vec2(-5, -7));
-        global.Draw.Line(pos, tip, 2, 31, DrawParams(color: Color(0.75, 0.75, 0.8, 1)));
+        global.Draw.Rect(Rect(xform.pos - Vec2(5, 2), Vec2(10, 5)), 30, DrawParams(color: Color(0.3, 0.3, 0.35, 1)));
+        let tip = xform.pos + (isPulled ? Vec2(5, -7) : Vec2(-5, -7));
+        global.Draw.Line(xform.pos, tip, 2, 31, DrawParams(color: Color(0.75, 0.75, 0.8, 1)));
         global.Draw.Circle(tip, 2, 32, DrawParams(color: Color(0.9, 0.3, 0.25, 1)));
     }
 
