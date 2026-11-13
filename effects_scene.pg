@@ -3,8 +3,9 @@
 // follows the mouse; the antenna on the turret's attachment point 3), and a row on a platform
 // that drives stop and go, each with another feel (left to right: a slow loose spring, the
 // default, a stiffer one, one that does not overshoot). 1: a gusty wind from the left.
-// Debris: a click throws chips of rock and wood; they bounce off the ground, the walls around
-// and the two pillars, roll out, rest and turn into decals.
+// Debris: a click throws chips of rock and wood all around (Burst); the right button metal chips
+// from Susi's turret the way it aims (BurstProps: a narrow cone, low and fast, bouncy); they
+// bounce off the ground, the walls around and the two pillars, roll out, rest and turn into decals.
 
 Vec2 effectsPlatform = Vec2(80, 140);              // where the row's platform drives around
 
@@ -93,9 +94,14 @@ extend EffectsScene {
             debris.Burst(Vec3(cursor.x, cursor.y, 6), 10, 130, chip, Color(0.55, 0.52, 0.5, 1), Vec2(3, 3) / chip.dim);
             debris.Burst(Vec3(cursor.x, cursor.y, 6), 6, 150, chip, Color(0.6, 0.4, 0.22, 1), Vec2(5, 2) / chip.dim);
         }
+        if (Input.MousePressed(MouseButton.Right)) {
+            let muzzle = tankPos + Vec2.FromAngle(turretAngle) * 8;
+            debris.Burst(Vec3(muzzle.x, muzzle.y, 6), chip, BurstProps(count: 14, direction: turretAngle, spread: 20, minElevation: 5, maxElevation: 35, minSpeed: 150, maxSpeed: 260,
+                scale: Vec2(2, 2) / chip.dim, minBounciness: 1.1, maxBounciness: 1.5, color: Color(0.55, 0.6, 0.7, 1), otherColor: Color(0.9, 0.55, 0.25, 1)));
+        }
         debris.Update();
         if (playground.settings.showsHints)
-            Draw.LogLine("debris (click): flying ", debris.CountOf(DebrisState.Flying), ", rolling ", debris.CountOf(DebrisState.Rolling), ", resting ", debris.CountOf(DebrisState.Resting), ", decals waiting ", decals.pendingCount);
+            Draw.LogLine("debris (click: around, right click: from the turret): flying ", debris.CountOf(DebrisState.Flying), ", rolling ", debris.CountOf(DebrisState.Rolling), ", resting ", debris.CountOf(DebrisState.Resting), ", decals waiting ", decals.pendingCount);
         // The platform: drives right and back at a constant speed, starting and stopping at
         // once at each end (a jolt each time)
         let phase = (time % 4) / 4;
