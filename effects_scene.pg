@@ -7,7 +7,8 @@
 // from Susi's turret the way it aims (BurstProps: a narrow cone, low and fast, bouncy); they
 // bounce off the ground, the walls around and the two pillars, roll out, rest and turn into decals.
 // Particles: a campfire (orange and additive, turning late into dark grey smoke that fades),
-// Susi's exhaust while she drives (puffs fading in and out), sparks with the right button's shot;
+// embers rising from it, Susi's exhaust while she drives (puffs fading in and out), sparks with
+// the right button's shot (falling, skipping off the ground);
 // curves shape how each value goes from its start to its end.
 
 Vec2 effectsPlatform = Vec2(80, 140);              // where the row's platform drives around
@@ -32,7 +33,9 @@ struct EffectsScene {
     ParticleSystem fire;
     ParticleSystem exhaust;
     ParticleSystem sparks;
+    ParticleSystem embers;
     ParticleEmitter campfire;
+    ParticleEmitter emberSource;
     ParticleEmitter exhaustPipe;
 }
 
@@ -78,10 +81,19 @@ extend EffectsScene {
         exhaust = ParticleSystem(ParticleProps(sprite: glow, lifetime: Between(0.6, 0.9), elevation: Between(50, 80), startSpeed: Between(10, 16), endSpeed: 4,
             startSize: 0.02, endSize: Between(0.07, 0.1), sizeCurve: Curve.EaseOut(3), startOpacity: 0, endOpacity: 0.7,
             opacityCurve: Curve.Keys([Vec2(0, 0), Vec2(0.15, 1), Vec2(1, 0)]), startColor: Color(0.45, 0.45, 0.48, 1), endColor: Color(0.3, 0.3, 0.32, 1)));
-        sparks = ParticleSystem(ParticleProps(sprite: glow, lifetime: Between(0.25, 0.5), spread: 25, elevation: Between(0, 25), startSpeed: Between(120, 200), endSpeed: Between(20, 40),
+        // Sparks: fast and slowing, falling (gravity), skipping off the ground
+        sparks = ParticleSystem(ParticleProps(sprite: glow, lifetime: Between(0.4, 0.8), spread: 25, elevation: Between(5, 35), startSpeed: Between(120, 200), endSpeed: Between(10, 30),
             speedCurve: Curve.EaseOut(), startSize: Between(0.03, 0.04), endSize: 0.015, startOpacity: 1, endOpacity: 0.3,
-            startColor: ColorBetween(Color(1, 0.95, 0.6, 1), Color(1, 0.7, 0.3, 1)), endColor: Color(1, 0.35, 0.1, 1), startAdditivity: 1, endAdditivity: 1, light: LightMode.Unlit), capacity: 200);
+            startColor: ColorBetween(Color(1, 0.95, 0.6, 1), Color(1, 0.7, 0.3, 1)), endColor: Color(1, 0.35, 0.1, 1), startAdditivity: 1, endAdditivity: 1,
+            gravity: 400, drag: 1, groundBounce: 0.4, light: LightMode.Unlit), capacity: 200);
+        // Embers: single pixels, rising from the fire (negative gravity; the drag keeps them at 15 .. 25
+        // px/s), glowing out
+        embers = ParticleSystem(ParticleProps(sprite: chip, lifetime: Between(1.5, 2.5), radius: Between(0, 4), elevation: Between(20, 60), startSpeed: Between(5, 15), endSpeed: 0,
+            startSize: 1 / chip.dim.x, endSize: 1 / chip.dim.x, rotation: 0, startOpacity: 1, endOpacity: 0, opacityCurve: Curve.EaseIn(),
+            startColor: ColorBetween(Color(1, 0.85, 0.4, 1), Color(1, 0.55, 0.15, 1)), endColor: Color(0.9, 0.25, 0.05, 1), startAdditivity: 1, endAdditivity: 1,
+            gravity: Between(-50, -30), drag: 2, light: LightMode.Unlit), capacity: 100);
         campfire = ParticleEmitter(rate: 45);
+        emberSource = ParticleEmitter(rate: 8);
         exhaustPipe = ParticleEmitter(rate: 30);
     }
 
@@ -133,6 +145,7 @@ extend EffectsScene {
         debris.Update();
         // Particles: the campfire always, the exhaust while Susi drives (from behind her, low)
         campfire.Update(&fire, Vec3(effectsCampfire.x, effectsCampfire.y, 1));
+        emberSource.Update(&embers, Vec3(effectsCampfire.x, effectsCampfire.y, 3));
         if (move.Length() > 0.1) {
             let pipe = tankPos - Vec2.FromAngle(tankAngle) * 8;
             exhaust.props.direction = tankAngle + 180;
@@ -143,8 +156,9 @@ extend EffectsScene {
         fire.Update();
         exhaust.Update();
         sparks.Update();
+        embers.Update();
         if (playground.settings.showsHints)
-            Draw.LogLine("particles (a campfire, Susi's exhaust while she drives, sparks with the right click): ", fire.count, " fire, ", exhaust.count, " exhaust, ", sparks.count, " sparks");
+            Draw.LogLine("particles (a campfire, Susi's exhaust while she drives, sparks with the right click): ", fire.count, " fire, ", exhaust.count, " exhaust, ", sparks.count, " sparks, ", embers.count, " embers");
         if (playground.settings.showsHints)
             Draw.LogLine("debris (click: around, right click: from the turret): flying ", debris.CountOf(DebrisState.Flying), ", rolling ", debris.CountOf(DebrisState.Rolling), ", resting ", debris.CountOf(DebrisState.Resting), ", decals waiting ", decals.pendingCount);
         // The platform: drives right and back at a constant speed, starting and stopping at
@@ -175,6 +189,7 @@ extend EffectsScene {
         // above everything (each system one depth)
         Draw.Rect(Rect(effectsCampfire - Vec2(5, 1), Vec2(10, 3)), DepthAt(effectsCampfire.y), DrawParams(color: Color(0.4, 0.26, 0.15, 1)));
         fire.Draw(DepthAt(effectsCampfire.y) + 0.5);
+        embers.Draw(DepthAt(effectsCampfire.y) + 0.6);
         exhaust.Draw(depth - 0.5);
         sparks.Draw(Depth.Nearest - 2);
         cursorAntenna.Draw(Depth.Nearest - 1);
@@ -187,6 +202,7 @@ extend EffectsScene {
         fire.Free();
         exhaust.Free();
         sparks.Free();
+        embers.Free();
     }
 
     // (y on the ground as the depth: nearer the bottom, nearer the viewer)
