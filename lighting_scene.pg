@@ -186,11 +186,11 @@ extend LightingScene {
         if (FitsAt(tankPos + Vec2(0, step.y)))
             tankPos.y += step.y;
         if (move.Length() > 0.1) {
-            tankAngle = Atan2(move.y, move.x) / DegToRad;
+            tankAngle = move.Angle();
             tracksAnim.Update();
         }
         let aim = cursor - tankPos;
-        let turretAngle = Atan2(aim.y, aim.x) / DegToRad;
+        let turretAngle = aim.Angle();
         // The camera: a third of the way to the mouse (from where it is on the screen, not the
         // world: no feedback through the camera's own move)
         Camera.followSpeed = 5;

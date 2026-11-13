@@ -102,13 +102,12 @@ extend Turret {
         }
         cooldown -= dt;
         if (aim != null && (aim.pos - pos).Length() <= range) {
-            let wanted = Atan2(aim.pos.y - pos.y, aim.pos.x - pos.x) / DegToRad;
-            let turn = AngleDifference(angle, wanted);
+            let turn = NormalizeAngle((aim.pos - pos).Angle() - angle);
             let step = turnSpeed * dt;
             angle += Clamp(turn, -step, step);
             if (Abs(turn) < 5 && cooldown <= 0) {
                 cooldown = fireInterval;
-                let direction = Vec2(Cos(angle * DegToRad), Sin(angle * DegToRad));
+                let direction = Vec2.FromAngle(angle);
                 bullets.Add(Bullet(pos + direction * 8, direction * 160, range / 160));
             }
         }
@@ -131,21 +130,9 @@ extend Turret {
         }
     }
 
-    // The difference from 'from' to 'to' in degrees, -180 .. 180
-    static float AngleDifference(float from, float to) {
-        let difference = to - from;
-        while (difference > 180) {
-            difference -= 360;
-        }
-        while (difference < -180) {
-            difference += 360;
-        }
-        return difference;
-    }
-
     void Draw() {
         global.Draw.Circle(pos, 6, 30, DrawParams(color: Color(0.35, 0.35, 0.4, 1)));
-        let direction = Vec2(Cos(angle * DegToRad), Sin(angle * DegToRad));
+        let direction = Vec2.FromAngle(angle);
         global.Draw.Line(pos, pos + direction * 10, 3, 31, DrawParams(color: Color(0.75, 0.75, 0.8, 1)));
         for (let bullet in bullets) {
             global.Draw.Rect(Rect(bullet.pos - Vec2(1, 1), Vec2(2, 2)), 32, DrawParams(color: Color(1, 0.9, 0.5, 1)));
@@ -190,7 +177,7 @@ extend Spawner {
             return;
         let ghost = Entities.Spawn[Ghost]();
         let angle = (float)(Random.Hash((ulong)(ghost.id.index * 7919 + Entities.count)) % 360);
-        ghost.pos = pos + Vec2(Cos(angle * DegToRad), Sin(angle * DegToRad)) * radius;
+        ghost.pos = pos + Vec2.FromAngle(angle) * radius;
         ghost.spawner = id;
         ghost.speed = kind == GhostKind.Fast ? 40 : 15;
         ghost.Prepare();
@@ -261,7 +248,7 @@ extend Ghost {
             let home = Entities.Get(spawner);
             let center = home != null ? home.pos : pos;
             let angle = (float)(Random.Hash((ulong)(id.index * 104729 + (int)(time * 100))) % 360);
-            goal = center + Vec2(Cos(angle * DegToRad), Sin(angle * DegToRad)) * 40;
+            goal = center + Vec2.FromAngle(angle) * 40;
         }
         let toGoal = goal - pos;
         pos = pos + toGoal.Normalized() * Min(speed * dt, toGoal.Length());

@@ -470,7 +470,7 @@ extend PhysicsScene {
             // The open side
             let middle = (wall.start + wall.end) * 0.5;
             let direction = wall.direction;
-            let front = Vec2(-direction.y, direction.x).NormalizedOr(Vec2(0, -1));
+            let front = direction.Perpendicular().NormalizedOr(Vec2(0, -1));
             Draw.Line(middle, middle + front * 5, thin, 2, Color(0.6, 0.6, 0.7, 1));
         }
         allWalls.Free();
@@ -497,25 +497,25 @@ extend PhysicsScene {
         // The player, its slide steps and its last hit's normal
         let body = world.Get(player).shape.circle;
         Draw.CircleOutline(body, 1.5 * pixel, 5, ramTime > 0 ? Color(1, 0.3, 0.3, 1) : Color(0.3, 1, 0.4, 1));
-        // The external velocities (where they drift)
+        // The external velocities (where they drift; debug arrows: at the window's resolution)
         if (!playerExternal.isResting)
-            Draw.Line(body.center, body.center + playerExternal.linear * 0.1, thin, 6, Color(0.3, 1, 1, 1));
+            Draw.DebugVector(body.center, playerExternal.linear * 0.1, Color(0.3, 1, 1, 1));
         for (let v in vehicles) {
             if (!v.external.isResting)
-                Draw.Line(ToWorld(v.center), ToWorld(v.center) + v.external.linear * 0.1, thin, 6, Color(0.3, 1, 1, 1));
+                Draw.DebugVector(ToWorld(v.center), v.external.linear * 0.1, Color(0.3, 1, 1, 1));
         }
         for (let step in 1..playerPath.len) {
             Draw.Line(playerPath[step - 1], playerPath[step], thin, 6, Color(1, 1, 1, 1));
         }
         if (playerNormal != Vec2(0, 0))
-            Draw.Line(body.center, body.center + playerNormal * (body.radius + 12), thin, 6, Color(1, 0.3, 0.3, 1));
+            Draw.DebugArrow(body.center, playerNormal, body.radius + 12, Color(1, 0.3, 0.3, 1));
 
         // The aim: the ray to the hit, the hit's normal
         let aimEnd = aimHit.hasIntersection ? aimHit.point : aimRay.end;
         Draw.Line(aimRay.start, aimEnd, thin, 7, Color(1, 0.2, 0.8, 0.8));
         if (aimHit.hasIntersection) {
             Draw.CircleOutline(Circle(aimHit.point, Max(aimHit.radius, 3.0)), thin, 7, Color(1, 0.2, 0.8, 1));
-            Draw.Line(aimHit.contact, aimHit.contact + aimHit.normal * 20, thin, 7, Color(1, 1, 0.2, 1));
+            Draw.DebugArrow(aimHit.contact, aimHit.normal, 20, Color(1, 1, 0.2, 1));
         }
 
         // Shots with their trails, explosions (with their blast)
