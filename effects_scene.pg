@@ -1,4 +1,4 @@
-// The effects scene (F10): hope's visual effects (effects.pg) on the fixed canvas. For now the
+// The effects scene (F10): hope's visual effects (effects.pg) on the fixed canvas. The
 // antennas: one on the mouse cursor (shake it), one on Susi's turret (WASD drives her, the turret
 // follows the mouse; the antenna on the turret's attachment point 3), and a row on a platform
 // that drives stop and go, each with another feel (left to right: a slow loose spring, the
@@ -9,7 +9,9 @@
 // Particles: a campfire (orange and additive, turning late into dark grey smoke that fades),
 // embers rising from it, Susi's exhaust while she drives (puffs fading in and out), sparks with
 // the right button's shot (falling, skipping off the ground). 2: a blast at the cursor, its wave
-// moving the smoke, flicking the antennas, throwing the debris again;
+// moving the smoke, flicking the antennas, throwing the debris again; 3: a rocket from the turret
+// to the mouse, its smoke trail lingering (each puff at its own depth: behind a pillar where it
+// is behind it), a blast where it lands. The campfire is burning already (Prewarm);
 // curves shape how each value goes from its start to its end.
 
 Vec2 effectsPlatform = Vec2(80, 140);              // where the row's platform drives around
@@ -36,6 +38,11 @@ struct EffectsScene {
     ParticleSystem sparks;
     ParticleSystem embers;
     ParticleSystem blast;              // a blast's fireball: hot bits all around
+    ParticleSystem trail;              // a rocket's smoke, lingering (each puff at its own depth)
+    ParticleEmitter rocketExhaust;
+    bool isRocketFlying;
+    Vec3 rocketPos;
+    Vec2 rocketTarget;
     Shockwaves waves;
     ParticleEmitter campfire;
     ParticleEmitter emberSource;
@@ -101,7 +108,13 @@ extend EffectsScene {
             speedCurve: Curve.EaseOut(3), startSize: Between(0.06, 0.1), endSize: 0.02, startOpacity: 1, endOpacity: 0, opacityCurve: Curve.EaseIn(),
             startColor: ColorBetween(Color(1, 0.9, 0.5, 1), Color(1, 0.6, 0.2, 1)), endColor: Color(0.95, 0.35, 0.05, 1), startAdditivity: 1, endAdditivity: 1,
             gravity: 60, waveResponse: 0, light: LightMode.Unlit), capacity: 200);
+        // A rocket's trail: puffs that grow, linger and fade slowly, drifting a little (a sway)
+        trail = ParticleSystem(ParticleProps(sprite: glow, lifetime: Between(2.5, 3.5), spread: 180, elevation: Between(-20, 60), startSpeed: Between(3, 8), endSpeed: 1,
+            startSize: 0.03, endSize: Between(0.09, 0.13), sizeCurve: Curve.EaseOut(2), startOpacity: Between(0.4, 0.6), endOpacity: 0, opacityCurve: Curve.EaseIn(),
+            startColor: Color(0.75, 0.73, 0.7, 1), endColor: Color(0.4, 0.4, 0.42, 1), gravity: -3, drag: 1.5, endWobble: Between(0, 2), wobbleSpeed: Between(0.1, 0.3)), capacity: 400);
+        rocketExhaust = ParticleEmitter(rate: 70);
         // Everything reacts to the blasts' waves
+        trail.waves = &waves;
         fire.waves = &waves;
         exhaust.waves = &waves;
         embers.waves = &waves;
@@ -114,6 +127,9 @@ extend EffectsScene {
         }
         campfire = ParticleEmitter(rate: 45);
         emberSource = ParticleEmitter(rate: 12);
+        // (burning already when the scene shows)
+        campfire.Prewarm(&fire, Vec3(effectsCampfire.x, effectsCampfire.y, 1), 2);
+        emberSource.Prewarm(&embers, Vec3(effectsCampfire.x, effectsCampfire.y, 3), 2);
         exhaustPipe = ParticleEmitter(rate: 30);
     }
 
@@ -122,7 +138,7 @@ extend EffectsScene {
         time += dt;
         waves.Update();                // (before everything that reacts to them)
         if (playground.settings.showsHints)
-            Draw.LogLine("effects scene (F10): antennas: on the mouse, on Susi's turret (WASD drives, the turret aims at the mouse), a row stop and go (loose, default, stiff, no overshoot); 1 wind (", isWindy, "), 2 a blast at the mouse");
+            Draw.LogLine("effects scene (F10): antennas: on the mouse, on Susi's turret (WASD drives, the turret aims at the mouse), a row stop and go (loose, default, stiff, no overshoot); 1 wind (", isWindy, "), 2 a blast at the mouse, 3 a rocket to it");
         let cursor = Input.cursors.world;
         if (Input.KeyPressed(Scancode.Alpha1))
             isWindy = !isWindy;
@@ -169,7 +185,31 @@ extend EffectsScene {
             debris.Burst(Vec3(cursor.x, cursor.y, 4), 8, 160, chip, Color(0.3, 0.28, 0.27, 1), Vec2(2, 2) / chip.dim);
             waves.Add(Shockwave(center: cursor));
         }
+        // A rocket from the turret to the mouse (3): its trail, a blast where it lands
+        if (Input.KeyPressed(Scancode.Alpha3) && !isRocketFlying) {
+            let muzzle = tankPos + Vec2.FromAngle(turretAngle) * 8;
+            rocketPos = Vec3(muzzle.x, muzzle.y, 6);
+            rocketTarget = cursor;
+            rocketExhaust = ParticleEmitter(rate: 70);
+            isRocketFlying = true;
+        }
+        if (isRocketFlying) {
+            let ground = Vec2(rocketPos.x, rocketPos.y);
+            let toTarget = rocketTarget - ground;
+            let step = 160 * dt;
+            if (toTarget.Length() <= step) {
+                isRocketFlying = false;
+                blast.Emit(Vec3(rocketTarget.x, rocketTarget.y, 3), 40);
+                debris.Burst(Vec3(rocketTarget.x, rocketTarget.y, 4), 8, 160, chip, Color(0.3, 0.28, 0.27, 1), Vec2(2, 2) / chip.dim);
+                waves.Add(Shockwave(center: rocketTarget));
+            } else {
+                let next = ground + toTarget.Normalized() * step;
+                rocketPos = Vec3(next.x, next.y, 6);
+                rocketExhaust.Update(&trail, rocketPos);
+            }
+        }
         blast.Update();
+        trail.Update();
         debris.Update();
         // Particles: the campfire always, the exhaust while Susi drives (from behind her, low)
         campfire.Update(&fire, Vec3(effectsCampfire.x, effectsCampfire.y, 1));
@@ -218,7 +258,12 @@ extend EffectsScene {
         Draw.Rect(Rect(effectsCampfire - Vec2(5, 1), Vec2(10, 3)), DepthAt(effectsCampfire.y), DrawParams(color: Color(0.4, 0.26, 0.15, 1)));
         fire.Draw(DepthAt(effectsCampfire.y) + 0.5);
         embers.Draw(DepthAt(effectsCampfire.y) + 0.6);
-        exhaust.Draw(depth - 0.5);
+        exhaust.Draw((float y) => DepthAt(y));
+        trail.Draw((float y) => DepthAt(y));
+        if (isRocketFlying) {
+            Draw.Rect(Rect(rocketPos.screen - Vec2(1, 1), Vec2(2, 2)), DepthAt(rocketPos.y), DrawParams(color: Color(0.85, 0.85, 0.9, 1)));
+            Draw.Sprite(Draw.GetSprite("light_torch"), Transform(rocketPos.screen - Vec2(4, 4), 0, Vec2(0.06, 0.06)), DepthAt(rocketPos.y) + 0.01, DrawParams(color: Color(1, 0.6, 0.2, 1), additivity: Additivity.Max, light: LightMode.Unlit));
+        }
         sparks.Draw(Depth.Nearest - 2);
         blast.Draw(Depth.Nearest - 2);
         cursorAntenna.Draw(Depth.Nearest - 1);
@@ -233,6 +278,7 @@ extend EffectsScene {
         sparks.Free();
         embers.Free();
         blast.Free();
+        trail.Free();
         waves.Free();
     }
 
