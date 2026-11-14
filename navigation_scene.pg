@@ -133,8 +133,7 @@ extend NavScene {
         }
         planner.Update(dt);
         // Where the others are (separation: agents on the same path keep apart)
-        let positions = List[Vec2]();
-        defer positions.Free();
+        let positions = temp List[Vec2]();
         for (let agent in agents) {
             positions.Add(agent.pos);
         }
