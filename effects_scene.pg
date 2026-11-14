@@ -233,7 +233,8 @@ extend EffectsScene {
             crowd.Update();
             crowdUpdateMs = crowdUpdateMs * 0.95 + timer.PeekTime() * 1000 * 0.05;
             if (playground.settings.showsHints)
-                Draw.LogLine("stress: update {Round((float)crowdUpdateMs * 100) / 100} ms, draw {Round((float)crowdDrawMs * 100) / 100} ms, end frame {Round((float)Draw.stats.endFrameSeconds * 100000) / 100} ms; {crowd.count}{isCrowdSorted ? " y-sorted" : " one depth"} (4 more, 5 sort)");
+                Draw.LogLine("stress: {crowd.count} particles{isCrowdSorted ? " y-sorted" : " one depth"} (4 more, 5 sort; F12: their times)");
+            Perf.Line("effects stress: update {crowdUpdateMs:F2} ms, draw {crowdDrawMs:F2} ms, end frame {Draw.stats.endFrameSeconds * 1000:F2} ms");
         }
         blast.Update();
         trail.Update();

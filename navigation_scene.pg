@@ -161,8 +161,7 @@ extend NavScene {
 
         Render(cursor);
         Draw.LogLine("navigation scene (F4): left mouse target, right mouse paint {BrushName(brush)} (1 floor, 2 wall, 3 water, 4 low wall, 5 breakable), Tab agent, N nodes, S separation ({separates}), middle mouse pan, wheel zoom");
-        if (planner.plansLastFrame > 0)
-            Draw.LogSticky(60, Color.White, "planned {planner.plansLastFrame} path(s) in {planner.timeLastFrame * 1000:F3} ms ({planner.waiting} waiting)");
+        Perf.Line("navigation: the last frame planned {planner.plansLastFrame} path(s) in {planner.timeLastFrame * 1000:F3} ms ({planner.waiting} waiting)");
         for (let i, agent in agents) {
             let path = planner.PathOf(agent.nav);
             if (path == null)
