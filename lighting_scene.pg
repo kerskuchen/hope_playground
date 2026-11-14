@@ -256,8 +256,8 @@ extend LightingScene {
 
         DrawLights(dt);
         DrawWorld(turretAngle);
-        Draw.LogLine("lighting scene (F7): WASD drive, left mouse shoot, right mouse wall on/off, L brazier, K 60 lights (", wanderers.len > 0, "), 1 lighting (", isLit, "), 2 walls (", usesSoilWall ? "wall_soil" : "wall_dungeon", "), 3 overlays (", hasOverlays, "), 4 wall rows shifted (", shiftsWallRows, ")");
-        Draw.LogLine("lights ", 1 + projectiles.len + flashes.len + braziers.len + wanderers.len, ": polygons and drawing ", FormatFloat((float)(lightTime * 1000), 3), " ms");
+        Draw.LogLine("lighting scene (F7): WASD drive, left mouse shoot, right mouse wall on/off, L brazier, K 60 lights ({wanderers.len > 0}), 1 lighting ({isLit}), 2 walls ({usesSoilWall ? "wall_soil" : "wall_dungeon"}), 3 overlays ({hasOverlays}), 4 wall rows shifted ({shiftsWallRows})");
+        Draw.LogLine("lights {1 + projectiles.len + flashes.len + braziers.len + wanderers.len}: polygons and drawing {(float)(lightTime * 1000):F3} ms");
     }
 
     // Every light into the light map (DrawSpace.Light), each through its visibility polygon

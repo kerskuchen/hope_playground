@@ -158,18 +158,18 @@ extend NavScene {
                 BreakWalls(agent);
         }
         if (planner.stuckReplans > 0)
-            Draw.LogLine("stuck and planned again: ", planner.stuckReplans);
+            Draw.LogLine("stuck and planned again: {planner.stuckReplans}");
 
         Render(cursor);
-        Draw.LogLine("navigation scene (F4): left mouse target, right mouse paint ", BrushName(brush), " (1 floor, 2 wall, 3 water, 4 low wall, 5 breakable), Tab agent, N nodes, S separation (", separates, "), middle mouse pan, wheel zoom");
+        Draw.LogLine("navigation scene (F4): left mouse target, right mouse paint {BrushName(brush)} (1 floor, 2 wall, 3 water, 4 low wall, 5 breakable), Tab agent, N nodes, S separation ({separates}), middle mouse pan, wheel zoom");
         if (planner.plansLastFrame > 0)
-            Draw.LogSticky(60, Color.White, "planned ", planner.plansLastFrame, " path(s) in ", FormatFloat(planner.timeLastFrame * 1000, 3), " ms (", planner.waiting, " waiting)");
+            Draw.LogSticky(60, Color.White, "planned {planner.plansLastFrame} path(s) in {planner.timeLastFrame * 1000:F3} ms ({planner.waiting} waiting)");
         for (let i, agent in agents) {
             let path = planner.PathOf(agent.nav);
             if (path == null)
                 continue;
-            Draw.LogLineColored(agent.color, i == selected ? "> " : "  ", agent.name, ": ", path.reachesTarget ? "reaches the target" : "to the nearest point",
-                ", ", path.waypoints.len, " waypoints, cost ", FormatFloat(path.cost, 1));
+            Draw.LogLineColored(agent.color, "{i == selected ? "> " : "  "}{agent.name}: {path.reachesTarget ? "reaches the target" : "to the nearest point"}",
+                ", {path.waypoints.len} waypoints, cost {path.cost:F1}");
         }
     }
 

@@ -64,7 +64,7 @@ extend AudioScene {
             Audio.SetReverbSend(Audio.PlayOneshot("sfx_coin_double1", mouse, pitch: Between(0.9, 1.12), volume: Between(0.7, 1), falloff: SineFalloff()), reverbRoom == 0 ? 0 : 0.3);
         DoSpatialTest(mouse);
         DoMusic();
-        Draw.LogLine("DSP time ", (int)(Audio.dspTime * 10) / 10.0, " s, real ", (int)(Audio.dspTimeReal * 10) / 10.0, " s");
+        Draw.LogLine("DSP time {(int)(Audio.dspTime * 10) / 10.0} s, real {(int)(Audio.dspTimeReal * 10) / 10.0} s");
         Render(mouse);
     }
 
@@ -98,8 +98,8 @@ extend AudioScene {
             Audio.Stop(tick, fadeOut: 0.03, at: AudioTime.At(beat.time + 0.06));
         }
         let beatNow = Audio.IndexAt(AudioBeat.Beat, Audio.dspTime, bpm);
-        Draw.LogLine("M music (", hasMusic, "), 1 2 3 intensity (", hasMusic ? music.intensity + 1 : 0, "), 4 5 6 target (", hasMusic ? music.targetIntensity + 1 : 0, "), B metronome (", isTicking, "): ", bpm, " BPM, measure ",
-            Audio.IndexAt(AudioBeat.Measure, Audio.dspTime, bpm), " beat ", beatNow % 4 + 1);
+        Draw.LogLine("M music ({hasMusic}), 1 2 3 intensity ({hasMusic ? music.intensity + 1 : 0}), 4 5 6 target ({hasMusic ? music.targetIntensity + 1 : 0}), B metronome ({isTicking}): {bpm} BPM, measure ",
+            "{Audio.IndexAt(AudioBeat.Measure, Audio.dspTime, bpm)} beat {beatNow % 4 + 1}");
     }
 
     void DoSpatialTest(Vec2 mouse) {
@@ -146,10 +146,10 @@ extend AudioScene {
         if (Input.KeyPressed(Scancode.G))
             Audio.globalPlaybackSpeed = Audio.globalPlaybackSpeed < 1 ? 1 : 0.5;
         Audio.SetPosition(sine, sinePosition, sineVelocity);
-        Draw.LogLine("audio scene (F6): T sine, F falloff (", sineFalloff, "), K minimum loudness (", isSineFloored, "), R reverb (", reverbRoom == 0 ? "dry" : (reverbRoom == 1 ? "small room" : "big hall, wetter far away"), "), L low-pass (", isSineFiltered, "), G slow motion (", Audio.globalPlaybackSpeed, "), Space coin");
+        Draw.LogLine("audio scene (F6): T sine, F falloff ({sineFalloff}), K minimum loudness ({isSineFloored}), R reverb ({reverbRoom == 0 ? "dry" : (reverbRoom == 1 ? "small room" : "big hall, wetter far away")}), L low-pass ({isSineFiltered}), G slow motion ({Audio.globalPlaybackSpeed}), Space coin");
         if (let info = Audio.GetStream(sine)) {
-            Draw.LogLine("sine at ", mouse.Flooredi(), " moving ", sineVelocity.Flooredi(), " px/s: volume ", (int)(info.volume * 100), " %, pan ",
-                (int)(info.pan * 100), " %, reverb ", (int)(info.reverbSend * 100), " %, playback speed ", (int)(info.playbackSpeed * 1000) / 1000.0, " (", (int)(440 * info.playbackSpeed * Audio.globalPlaybackSpeed), " Hz), low-pass ", (int)(info.lowpass * 100), " %");
+            Draw.LogLine("sine at {mouse.Flooredi()} moving {sineVelocity.Flooredi()} px/s: volume {(int)(info.volume * 100)} %, pan ",
+                "{(int)(info.pan * 100)} %, reverb {(int)(info.reverbSend * 100)} %, playback speed {(int)(info.playbackSpeed * 1000) / 1000.0} ({(int)(440 * info.playbackSpeed * Audio.globalPlaybackSpeed)} Hz), low-pass {(int)(info.lowpass * 100)} %");
         }
     }
 

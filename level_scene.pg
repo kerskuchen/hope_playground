@@ -163,7 +163,7 @@ extend LevelScene {
 
     void PreviewFrame() {
         if (playground.settings.showsHints)
-            Draw.LogLine("Level scene (F1: the editor): the level '", editor.levelName, "' as a game shows it (the list: another one), arrow keys move the view, the mouse is a probe for the trigger areas");
+            Draw.LogLine("Level scene (F1: the editor): the level '{editor.levelName}' as a game shows it (the list: another one), arrow keys move the view, the mouse is a probe for the trigger areas");
         let move = Vec2(0, 0);
         if (Input.KeyDown(Scancode.Left)) move.x -= 1;
         if (Input.KeyDown(Scancode.Right)) move.x += 1;
@@ -204,7 +204,7 @@ extend LevelScene {
         triggers.UpdateTriggers();
         for (let event in triggers.triggerEvents) {
             let area = &editor.data.layers[event.triggerOwner / 1000].areas[event.triggerOwner % 1000];
-            Draw.LogSticky(150, event.isEnter ? Color.Green : Color.Orange, event.isEnter ? "Entered '" : "Left '", area.name, "' (", area.kind, ")");
+            Draw.LogSticky(150, event.isEnter ? Color.Green : Color.Orange, "{event.isEnter ? "Entered '" : "Left '"}{area.name}' ({area.kind})");
             if (event.isEnter)
                 area.SendSignal();
         }
@@ -213,7 +213,7 @@ extend LevelScene {
         Signals.Deliver();
         Entities.Flush();
         if (playground.settings.showsHints)
-            Draw.LogLine("entities: ", Entities.count, " (ghosts ", Entities.All[Ghost]().len, ", gone ", ghostsGone, "), signals waiting ", Signals.pending);
+            Draw.LogLine("entities: {Entities.count} (ghosts {Entities.All[Ghost]().len}, gone {ghostsGone}), signals waiting {Signals.pending}");
         for (let brazier in Entities.All[Brazier]()) {
             brazier.Draw();
         }

@@ -149,7 +149,7 @@ extend EffectsScene {
         time += dt;
         waves.Update();                // (before everything that reacts to them)
         if (playground.settings.showsHints)
-            Draw.LogLine("effects scene (F10): antennas: on the mouse, on Susi's turret (WASD drives, the turret aims at the mouse), a row stop and go (loose, default, stiff, no overshoot); 1 wind (", isWindy, "), 2 a blast at the mouse, 3 a rocket to it");
+            Draw.LogLine("effects scene (F10): antennas: on the mouse, on Susi's turret (WASD drives, the turret aims at the mouse), a row stop and go (loose, default, stiff, no overshoot); 1 wind ({isWindy}), 2 a blast at the mouse, 3 a rocket to it");
         let cursor = Input.cursors.world;
         if (Input.KeyPressed(Scancode.Alpha1))
             isWindy = !isWindy;
@@ -233,7 +233,7 @@ extend EffectsScene {
             crowd.Update();
             crowdUpdateMs = crowdUpdateMs * 0.95 + timer.PeekTime() * 1000 * 0.05;
             if (playground.settings.showsHints)
-                Draw.LogLine("stress: update ", Round((float)crowdUpdateMs * 100) / 100, " ms, draw ", Round((float)crowdDrawMs * 100) / 100, " ms, end frame ", Round((float)Draw.stats.endFrameSeconds * 100000) / 100, " ms; ", crowd.count, isCrowdSorted ? " y-sorted" : " one depth", " (4 more, 5 sort)");
+                Draw.LogLine("stress: update {Round((float)crowdUpdateMs * 100) / 100} ms, draw {Round((float)crowdDrawMs * 100) / 100} ms, end frame {Round((float)Draw.stats.endFrameSeconds * 100000) / 100} ms; {crowd.count}{isCrowdSorted ? " y-sorted" : " one depth"} (4 more, 5 sort)");
         }
         blast.Update();
         trail.Update();
@@ -253,9 +253,9 @@ extend EffectsScene {
         sparks.Update();
         embers.Update();
         if (playground.settings.showsHints)
-            Draw.LogLine("particles (a campfire, Susi's exhaust while she drives, sparks with the right click): ", fire.count, " fire, ", exhaust.count, " exhaust, ", sparks.count, " sparks, ", embers.count, " embers");
+            Draw.LogLine("particles (a campfire, Susi's exhaust while she drives, sparks with the right click): {fire.count} fire, {exhaust.count} exhaust, {sparks.count} sparks, {embers.count} embers");
         if (playground.settings.showsHints)
-            Draw.LogLine("debris (click: around, right click: from the turret): flying ", debris.CountOf(DebrisState.Flying), ", rolling ", debris.CountOf(DebrisState.Rolling), ", resting ", debris.CountOf(DebrisState.Resting), ", decals waiting ", decals.pendingCount);
+            Draw.LogLine("debris (click: around, right click: from the turret): flying {debris.CountOf(DebrisState.Flying)}, rolling {debris.CountOf(DebrisState.Rolling)}, resting {debris.CountOf(DebrisState.Resting)}, decals waiting {decals.pendingCount}");
         // The platform: drives right and back at a constant speed, starting and stopping at
         // once at each end (a jolt each time)
         let phase = (time % 4) / 4;

@@ -95,7 +95,7 @@ extend StartScene {
         }
         if (isFollowingSusi)
             Camera.target = susi.tracks.xform.pos - Camera.viewportDim * (0.5 / Camera.zoom);
-        Draw.LogLine("C camera follows Susi (", isFollowingSusi, ")");
+        Draw.LogLine("C camera follows Susi ({isFollowingSusi})");
 
         Draw.Sprite(Draw.GetSprite("background"), Vec2(0, 0), 0);
 
@@ -130,7 +130,7 @@ extend StartScene {
                 Draw.Line(Vec2(0, y), Vec2(320, y), 0.35, 90, grid);
             }
         }
-        Draw.LogLine("6 world grid at the window's resolution (", showsGrid, "); ghosty floats between a far and a near sorcy");
+        Draw.LogLine("6 world grid at the window's resolution ({showsGrid}); ghosty floats between a far and a near sorcy");
 
         time += 1;
 
@@ -152,18 +152,18 @@ extend StartScene {
                 rumble = Camera.AddShake(Shake.Random(1, 0, speed: 35));
             isRumbling = !isRumbling;
         }
-        Draw.LogLine("shakes: 1 pendulum (to the mouse), 2 random, 3 rotational, 4 rumble (", isRumbling, "): offset ", Camera.shakeOffset.Flooredi(), ", rotation ", (int)(Camera.shakeRotation * 10) / 10.0);
+        Draw.LogLine("shakes: 1 pendulum (to the mouse), 2 random, 3 rotational, 4 rumble ({isRumbling}): offset {Camera.shakeOffset.Flooredi()}, rotation {(int)(Camera.shakeRotation * 10) / 10.0}");
 
         susi.DoFrame();
 
         let cursors = Input.cursors;
         Draw.LogLine("hello klaine feeese!!");
-        Draw.LogLine("screen = ", cursors.screen.Flooredi());
-        Draw.LogLine("ui     = ", cursors.ui.Flooredi());
-        Draw.LogLine("world  = ", cursors.world.Flooredi());
-        Draw.LogLine("cam-pos      = ", Camera.pos);
-        Draw.LogLine("cam-zoom     = ", Camera.zoom);
-        Draw.LogLine("cam-viewport = ", Camera.viewportDim);
+        Draw.LogLine("screen = {cursors.screen.Flooredi()}");
+        Draw.LogLine("ui     = {cursors.ui.Flooredi()}");
+        Draw.LogLine("world  = {cursors.world.Flooredi()}");
+        Draw.LogLine("cam-pos      = {Camera.pos}");
+        Draw.LogLine("cam-zoom     = {Camera.zoom}");
+        Draw.LogLine("cam-viewport = {Camera.viewportDim}");
 
         Draw.Rect(cursors.world, Vec2.Ones, Depth.Nearest, DrawParams(color: Color.Magenta, space: DrawSpace.World));
         Draw.Rect(cursors.ui + Vec2.UnitX, Vec2.Ones, Depth.Nearest, DrawParams(color: Color.Blue, space: DrawSpace.UI));
@@ -354,12 +354,12 @@ extend Playground {
                 level.WriteSession();
             Window.Quit();                         // (in the UI scene Escape goes back; the level editor's unsaved changes ask first)
         }
-        Draw.LogLine("F1 level (again: editor), F2 physics, F3 start, F4 navigation, F6 audio, F7 lighting, F8 UI, F10 effects | level ", Memory.level.used / 1024, " KiB, editor ", Memory.editor.used / 1024, " KiB, persistent ", Memory.persistent.used / 1024, " KiB");
+        Draw.LogLine("F1 level (again: editor), F2 physics, F3 start, F4 navigation, F6 audio, F7 lighting, F8 UI, F10 effects | level {Memory.level.used / 1024} KiB, editor {Memory.editor.used / 1024} KiB, persistent {Memory.persistent.used / 1024} KiB");
         // (what the last frame drew: hope's Draw.stats, for the vertex size question)
         let stats = Draw.stats;
         if (settings.showsHints)
-            Draw.LogLine("draw: ", stats.vertices, " vertices (", stats.vertices / 4, " quads), ", stats.indices, " indices, ", stats.renderCalls, " render calls, ",
-                stats.bytes / 1024, " KiB uploaded, end frame ", FormatFloat((float)(stats.endFrameSeconds * 1000), 3), " ms");
+            Draw.LogLine("draw: {stats.vertices} vertices ({stats.vertices / 4} quads), {stats.indices} indices, {stats.renderCalls} render calls, ",
+                "{stats.bytes / 1024} KiB uploaded, end frame {(float)(stats.endFrameSeconds * 1000):F3} ms");
         if (scene == Scene.Level) {
             ScopeAllocEditor();
             level.DoFrame();

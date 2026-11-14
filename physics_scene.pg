@@ -420,15 +420,15 @@ extend PhysicsScene {
 
         Render(cursor, aimRay, &aimHit);
         let broken = crateBroken.Count((bool* isBroken) => *isBroken);
-        Draw.LogLine("physics scene (F2): WASD move, mouse aim, space shoot, Q wide shots (", wideShots, "), E ram, left/right mouse add/remove tiles, 1/2 circle size");
+        Draw.LogLine("physics scene (F2): WASD move, mouse aim, space shoot, Q wide shots ({wideShots}), E ram, left/right mouse add/remove tiles, 1/2 circle size");
         for (let i, v in vehicles) {
-            Draw.LogLine("vehicle ", i, " (mass ", v.mass, "): speed ", (int)v.external.linear.Length(), " px/s, turning ", (int)v.external.angular, " deg/s");
+            Draw.LogLine("vehicle {i} (mass {v.mass}): speed {(int)v.external.linear.Length()} px/s, turning {(int)v.external.angular} deg/s");
         }
-        Draw.LogLine("circle radius ", body.radius, ", slide steps ", playerPath.len - 1, ", shots ", shots.len, ", colliders ", world.count,
-            ", crates broken ", broken, "/", crateCells.len);
+        Draw.LogLine("circle radius {body.radius}, slide steps {playerPath.len - 1}, shots {shots.len}, colliders {world.count}",
+            ", crates broken {broken}/{crateCells.len}");
         if (aimHit.hasIntersection)
-            Draw.LogLine("aim: ", aimHit.isTile ? TFormat("tile ", aimHit.cell) : OwnerName(aimHit.owner), " at ", aimHit.point, " normal ", aimHit.normal,
-                " impact angle ", FormatFloat(aimHit.impactAngle, 1), aimHit.startsInside ? " (starts inside)" : "");
+            Draw.LogLine("aim: {aimHit.isTile ? temp "tile {aimHit.cell}" : OwnerName(aimHit.owner)} at {aimHit.point} normal {aimHit.normal}",
+                " impact angle {aimHit.impactAngle:F1}{aimHit.startsInside ? " (starts inside)" : ""}");
     }
 
     // An explosion: drawn for a while, the crates and the wall tiles in its blast break (right
