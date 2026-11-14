@@ -145,7 +145,7 @@ extend PhysicsScene {
         vehicles.Add(DebugVehicle(center: Vec2(44, 5), halfDim: Vec2(1.8, 1), angle: 0, mass: 3));
         vehicles.Add(DebugVehicle(center: Vec2(56, 33), halfDim: Vec2(2.6, 1.5), angle: 10, mass: 10));
         // Crates on open cells (deterministic, away from the player's start)
-        let random = (uint)12345;
+        let random = 12345u;
         while (crateCells.len < PHYSICS_CRATES) {
             random = random * 1103515245 + 12345;
             let x = 1 + (int)((random >> 8) % (uint)(PHYSICS_COLUMNS - 2));
