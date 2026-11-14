@@ -354,7 +354,8 @@ extend Playground {
                 level.WriteSession();
             Window.Quit();                         // (in the UI scene Escape goes back; the level editor's unsaved changes ask first)
         }
-        Draw.LogLine("F1 level (again: editor), F2 physics, F3 start, F4 navigation, F6 audio, F7 lighting, F8 UI, F10 effects | level {Memory.level.used / 1024} KiB, editor {Memory.editor.used / 1024} KiB, persistent {Memory.persistent.used / 1024} KiB");
+        Draw.LogLine("F1 level (again: editor), F2 physics, F3 start, F4 navigation, F6 audio, F7 lighting, F8 UI, F10 effects");
+        Draw.LogLine("level {Memory.level.used / 1024} KiB, editor {Memory.editor.used / 1024} KiB, persistent {Memory.persistent.used / 1024} KiB");
         // (what the last frame drew: hope's Draw.stats, for the vertex size question)
         let stats = Draw.stats;
         if (settings.showsHints)
