@@ -93,7 +93,7 @@ extend EffectsScene {
             startSize: Between(0.05, 0.07), endSize: Between(0.15, 0.21), sizeCurve: Curve.EaseOut(),
             startOpacity: 1, endOpacity: 0, opacityCurve: Curve.EaseOut(1.5),
             startColor: ColorBetween(Color(1, 0.45, 0.1, 1), Color(1, 0.8, 0.25, 1)), endColor: ColorBetween(Color(0.3, 0.29, 0.29, 1), Color(0.4, 0.39, 0.39, 1)), colorCurve: late,
-            startAdditivity: 1, endAdditivity: 0, additivityCurve: late, drag: 2, light: LightMode.Unlit));
+            startAdditivity: 1, endAdditivity: 0, additivityCurve: late, drag: 2, glow: 1));
         // The exhaust: puffs that pop up (fast to their size), fade in and out
         exhaust = ParticleSystem(ParticleProps(sprite: glow, lifetime: Between(0.6, 0.9), elevation: Between(50, 80), startSpeed: Between(10, 16), endSpeed: 4,
             startSize: 0.02, endSize: Between(0.07, 0.1), sizeCurve: Curve.EaseOut(3), startOpacity: 0, endOpacity: 0.7,
@@ -102,18 +102,18 @@ extend EffectsScene {
         sparks = ParticleSystem(ParticleProps(sprite: glow, lifetime: Between(0.4, 0.8), spread: 25, elevation: Between(5, 35), startSpeed: Between(120, 200), endSpeed: Between(10, 30),
             speedCurve: Curve.EaseOut(), startSize: Between(0.03, 0.04), endSize: 0.015, startOpacity: 1, endOpacity: 0.3,
             startColor: ColorBetween(Color(1, 0.95, 0.6, 1), Color(1, 0.7, 0.3, 1)), endColor: Color(1, 0.35, 0.1, 1), startAdditivity: 1, endAdditivity: 1,
-            gravity: 400, drag: 1, groundBounce: 0.4, light: LightMode.Unlit), capacity: 200);
+            gravity: 400, drag: 1, groundBounce: 0.4, glow: 1), capacity: 200);
         // Embers: single pixels, rising from the fire (negative gravity; the drag keeps them at 15 .. 25
         // px/s), swirling wider as they rise (a corkscrew each, turning either way), glowing out
         embers = ParticleSystem(ParticleProps(sprite: chip, lifetime: Between(1.5, 2.5), radius: Between(0, 4), elevation: Between(20, 60), startSpeed: Between(5, 15), endSpeed: 0,
             startSize: 1 / chip.dim.x, endSize: 1 / chip.dim.x, rotation: 0, startOpacity: 1, endOpacity: 0, opacityCurve: Curve.EaseIn(),
             startColor: ColorBetween(Color(1, 0.85, 0.4, 1), Color(1, 0.55, 0.15, 1)), endColor: Color(0.9, 0.25, 0.05, 1), startAdditivity: 1, endAdditivity: 1,
-            gravity: Between(-50, -30), drag: 2, startWobble: 0, endWobble: Between(2, 5), wobbleCurve: Curve.EaseOut(), wobbleSpeed: Between(0.4, 1.2), light: LightMode.Unlit), capacity: 100);
+            gravity: Between(-50, -30), drag: 2, startWobble: 0, endWobble: Between(2, 5), wobbleCurve: Curve.EaseOut(), wobbleSpeed: Between(0.4, 1.2), glow: 1), capacity: 100);
         // A blast: hot bits all around, fast and slowing hard, orange to dark red
         blast = ParticleSystem(ParticleProps(sprite: glow, lifetime: Between(0.3, 0.6), spread: 180, elevation: Between(0, 50), startSpeed: Between(60, 130), endSpeed: 0,
             speedCurve: Curve.EaseOut(3), startSize: Between(0.06, 0.1), endSize: 0.02, startOpacity: 1, endOpacity: 0, opacityCurve: Curve.EaseIn(),
             startColor: ColorBetween(Color(1, 0.9, 0.5, 1), Color(1, 0.6, 0.2, 1)), endColor: Color(0.95, 0.35, 0.05, 1), startAdditivity: 1, endAdditivity: 1,
-            gravity: 60, waveResponse: 0, light: LightMode.Unlit), capacity: 200);
+            gravity: 60, waveResponse: 0, glow: 1), capacity: 200);
         // A rocket's trail: puffs that grow, linger and fade slowly, drifting a little (a sway)
         trail = ParticleSystem(ParticleProps(sprite: glow, lifetime: Between(2.5, 3.5), spread: 180, elevation: Between(-20, 60), startSpeed: Between(3, 8), endSpeed: 1,
             startSize: 0.03, endSize: Between(0.09, 0.13), sizeCurve: Curve.EaseOut(2), startOpacity: Between(0.4, 0.6), endOpacity: 0, opacityCurve: Curve.EaseIn(),
@@ -298,7 +298,7 @@ extend EffectsScene {
         }
         if (isRocketFlying) {
             Draw.Rect(Rect(rocketPos.screen - Vec2(1, 1), Vec2(2, 2)), DepthAt(rocketPos.y), DrawParams(color: Color(0.85, 0.85, 0.9, 1)));
-            Draw.Sprite(Draw.GetSprite("light_torch"), Transform(rocketPos.screen - Vec2(4, 4), 0, Vec2(0.06, 0.06)), DepthAt(rocketPos.y) + 0.01, DrawParams(color: Color(1, 0.6, 0.2, 1), additivity: Additivity.Max, light: LightMode.Unlit));
+            Draw.Sprite(Draw.GetSprite("light_torch"), Transform(rocketPos.screen - Vec2(4, 4), 0, Vec2(0.06, 0.06)), DepthAt(rocketPos.y) + 0.01, DrawParams(color: Color(1, 0.6, 0.2, 1), additivity: Additivity.Max, glow: 1));
         }
         sparks.Draw(Depth.Nearest - 2);
         blast.Draw(Depth.Nearest - 2);

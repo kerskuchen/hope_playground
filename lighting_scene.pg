@@ -82,6 +82,7 @@ struct Wanderer {
 struct LightingScene {
     OccluderMap walls;
     TilemapLayer floor;
+    Sprite* wallSprite;                  // wall_dungeon or wall_soil
     SpriteGridSlice wallSlices;          // the wall sprite's 4 rows of 8 px: the top, 3 of the front
     bool usesSoilWall;
     Sprite* light;
@@ -136,7 +137,8 @@ extend LightingScene {
 
     void SetWallSprite(bool soil) {
         usesSoilWall = soil;
-        wallSlices = SpriteGridSlice(Draw.GetSprite(soil ? "wall_soil" : "wall_dungeon"), 1, 4, 0, 0);
+        wallSprite = Draw.GetSprite(soil ? "wall_soil" : "wall_dungeon");
+        wallSlices = SpriteGridSlice(wallSprite, 1, 4, 0, 0);
     }
 
     // Before the scene goes: lighting off for the others
@@ -297,7 +299,14 @@ extend LightingScene {
                 // (4: each row of walls its own part of the overlay, so the rows are not alike)
                 let shift = shiftsWallRows ? Vec2(y * 53, 0) : Vec2.Zero;
                 let front = DrawParams(lightAnchor: LightAnchor.Base(bottom + 0.5), overlay: overlay, overlayOffset: shift);
-                Draw.SpriteSlice(&wallSlices, 0, 0, pos - Vec2(0, 24), depth, DrawParams(light: LightMode.Ambient, overlay: overlay, overlayOffset: shift));
+                // A wall with a light mask (its cap shaded there) or a pivot: the whole sprite at its
+                // tile (its pivot); one with neither (wall_dungeon, a .qoi): the cap row cut off
+                // and shaded
+                if (wallSprite.lightMaskTexture >= 0 || wallSprite.pivot != Vec2.Zero) {
+                    Draw.Sprite(wallSprite, pos, depth, front);
+                    continue;
+                }
+                Draw.SpriteSlice(&wallSlices, 0, 0, pos - Vec2(0, 24), depth, DrawParams(shade: 1, overlay: overlay, overlayOffset: shift));
                 for (let row in 1..4) {
                     Draw.SpriteSlice(&wallSlices, 0, row, pos - Vec2(0, 24 - row * 8), depth, front);
                 }
@@ -310,12 +319,12 @@ extend LightingScene {
         Draw.Sprite3D(tracksAnim.CurSprite3D(), tracks, depth, tank);
         Draw.Sprite3D(turret, Transform(tankPos - Vec2(0, 4), turretAngle), depth + 1, tank);
         // Projectiles and flashes: bright, unlit
-        let glow = DrawParams(color: Color(1, 0.9, 0.55, 1), light: LightMode.Unlit);
+        let glow = DrawParams(color: Color(1, 0.9, 0.55, 1), glow: 1);
         for (let shot in projectiles) {
             Draw.Rect(Rect(shot.pos - Vec2(1, 1), Vec2(2, 2)), DepthAt(shot.pos.y) + 2, glow);
         }
         for (let brazier in braziers) {
-            Draw.Rect(Rect(brazier.pos - Vec2(1.5, 1.5), Vec2(3, 3)), DepthAt(brazier.pos.y), DrawParams(color: Color(1, 0.7, 0.3, 1), light: LightMode.Unlit));
+            Draw.Rect(Rect(brazier.pos - Vec2(1.5, 1.5), Vec2(3, 3)), DepthAt(brazier.pos.y), DrawParams(color: Color(1, 0.7, 0.3, 1), glow: 1));
         }
     }
 
