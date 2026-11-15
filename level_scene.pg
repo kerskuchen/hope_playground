@@ -251,7 +251,7 @@ extend LevelScene {
         let names = LevelEditor.LevelNames();
         with Ui.Scroll(Min(Max(1, names.len), 8) * (Ui.ButtonHeight() + Ui.style.spacing)) {
             for (let index, level in names) {
-                if (Ui.Button(*level, id: index, align: UiAlign.Left, isToggled: *level == editor.levelName) && *level != editor.levelName
+                if (Ui.Button(*level, align: UiAlign.Left, isToggled: *level == editor.levelName) && *level != editor.levelName
                         && editor.AskAboutChanges("previewing another level"))
                     Request(*level, LevelSceneStart.Preview);
             }
