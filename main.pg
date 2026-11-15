@@ -13,7 +13,7 @@ struct SusiTracks {
 
 extend SusiTracks {
     init() {
-        tracksAnim = AnimationPlayer(Anims.susi_run);
+        tracksAnim = AnimationPlayer(Draw.GetAnim("susi.run"));
         xform = Vec2(100, 100);
     }
 
@@ -34,7 +34,7 @@ struct Susi {
 
 extend Susi {
     init() {
-        turretSprite = Sprites3D.susi_turret;
+        turretSprite = Draw.GetSprite3D("susi_turret");
         tracks = SusiTracks();
     }
 
@@ -61,8 +61,8 @@ struct StartScene {
 extend StartScene {
     init() {
         susi = Susi();
-        sorcyAnim = AnimationPlayer(Anims.sorcy_run);
-        ghostyAnim = AnimationPlayer(Anims.ghosty_default);
+        sorcyAnim = AnimationPlayer(Draw.GetAnim("sorcy.run"));
+        ghostyAnim = AnimationPlayer(Draw.GetAnim("ghosty.default"));
     }
 
     // Before the scene goes: its camera effects stop
@@ -97,7 +97,7 @@ extend StartScene {
             Camera.target = susi.tracks.xform.pos - Camera.viewportDim * (0.5 / Camera.zoom);
         Draw.LogLine("C camera follows Susi ({isFollowingSusi})");
 
-        Draw.Sprite(Sprites.background, Vec2(0, 0), 0);
+        Draw.Sprite(Draw.GetSprite("background"), Vec2(0, 0), 0);
 
         sorcyAnim.Update();
         let sorcy = sorcyAnim.CurSprite();
@@ -110,7 +110,7 @@ extend StartScene {
         // Translucent sorting: ghosty (translucent, depth 20) floats between a far sorcy (depth 15)
         // and a near one (depth 25), drawn in the opposite order (near, ghosty, far): it must be
         // in front of the far one and behind the near one
-        let idle = Anims.sorcy_idle.frames[0].sprite;
+        let idle = Draw.GetAnim("sorcy.idle").frames[0].sprite;
         let ghostX = 175 + 55 * Sin(time * 0.02);
         let movesLeft = Cos(time * 0.02) < 0;              // (the asset looks to the right)
         ghostyAnim.Update();

@@ -116,13 +116,13 @@ extend LightingScene {
         }
         groundOverlay = Draw.RegisterOverlay("overlay_ground", OverlayMode.SoftLight, 1);
         wallOverlay = Draw.RegisterOverlay("overlay_wall", OverlayMode.SoftLight, 1);
-        floor = TilemapLayer(Tileset(Sprites.floor_dungeon, Vec2i(16, 16)), 36, 24, depth: 1, origin: LIGHTING_FLOOR_ORIGIN);
+        floor = TilemapLayer(Tileset(Draw.GetSprite("floor_dungeon"), Vec2i(16, 16)), 36, 24, depth: 1, origin: LIGHTING_FLOOR_ORIGIN);
         floor.Fill(0);
         SetOverlays(true);
         SetWallSprite(false);
-        light = Sprites.light_torch;
-        tracksAnim = AnimationPlayer(Anims.susi_run);
-        turret = Sprites3D.susi_turret;
+        light = Draw.GetSprite("light_torch");
+        tracksAnim = AnimationPlayer(Draw.GetAnim("susi.run"));
+        turret = Draw.GetSprite3D("susi_turret");
         tankPos = Vec2(60, 120);
         torch = LightFlicker(1);
     }

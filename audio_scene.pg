@@ -32,7 +32,7 @@ struct AudioScene {
 
 extend AudioScene {
     init() {
-        bpm = Audio.RecordingBpm(Sounds.level1_step1);
+        bpm = Audio.RecordingBpm("level1-step1");
         metronome = AudioPulse(AudioBeat.Beat, bpm);
         StartMusic();
     }
@@ -61,7 +61,7 @@ extend AudioScene {
     void DoFrame() {
         let mouse = Input.cursors.screen - (Vec2)Input.windowDim * 0.5;
         if (Input.KeyPressed(Scancode.Space))
-            Audio.SetReverbSend(Audio.PlayOneshot(Sounds.sfx_coin_double1, mouse, pitch: Between(0.9, 1.12), volume: Between(0.7, 1), falloff: SineFalloff()), reverbRoom == 0 ? 0 : 0.3);
+            Audio.SetReverbSend(Audio.PlayOneshot("sfx_coin_double1", mouse, pitch: Between(0.9, 1.12), volume: Between(0.7, 1), falloff: SineFalloff()), reverbRoom == 0 ? 0 : 0.3);
         DoSpatialTest(mouse);
         DoMusic();
         Draw.LogLine("DSP time {(int)(Audio.dspTime * 10) / 10.0} s, real {(int)(Audio.dspTimeReal * 10) / 10.0} s");
@@ -94,7 +94,7 @@ extend AudioScene {
         // Each beat scheduled ahead at its exact time: a short beep (an octave higher on a measure's first)
         for (let beat = isTicking ? metronome.Poll() : AudioPulseBeat(); beat.isDue; beat = metronome.Poll()) {
             let first = beat.index % 4 == 0;
-            let tick = Audio.Play(Sounds.debug_sine440, AudioTrack.Sound, volume: 0.25, playbackSpeed: first ? 2 : 1, start: AudioTime.At(beat.time), fadeIn: 0.005);
+            let tick = Audio.Play("debug_sine440", AudioTrack.Sound, volume: 0.25, playbackSpeed: first ? 2 : 1, start: AudioTime.At(beat.time), fadeIn: 0.005);
             Audio.Stop(tick, fadeOut: 0.03, at: AudioTime.At(beat.time + 0.06));
         }
         let beatNow = Audio.IndexAt(AudioBeat.Beat, Audio.dspTime, bpm);
@@ -134,7 +134,7 @@ extend AudioScene {
                 sine = AudioStreamId(0);
             }
             if (!isPlaying || restart) {
-                sine = Audio.PlaySpatial(Sounds.debug_sine440, sinePosition, sineVelocity, SineFalloff(), volume: 0.5, loop: true, fadeIn: 0.05);
+                sine = Audio.PlaySpatial("debug_sine440", sinePosition, sineVelocity, SineFalloff(), volume: 0.5, loop: true, fadeIn: 0.05);
                 Audio.SetLowpass(sine, isSineFiltered ? 0.6 : 0);
                 Audio.SetReverbSend(sine, reverbRoom == 0 ? 0 : 0.3);
             }
