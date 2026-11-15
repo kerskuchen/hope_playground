@@ -139,8 +139,8 @@ extend EffectsScene {
         campfire = ParticleEmitter(rate: 45);
         emberSource = ParticleEmitter(rate: 12);
         // (burning already when the scene shows)
-        campfire.Prewarm(&fire, Vec3(effectsCampfire.x, effectsCampfire.y, 1), 2);
-        emberSource.Prewarm(&embers, Vec3(effectsCampfire.x, effectsCampfire.y, 3), 2);
+        campfire.Prewarm(&fire, Vec3(effectsCampfire, 1), 2);
+        emberSource.Prewarm(&embers, Vec3(effectsCampfire, 3), 2);
         exhaustPipe = ParticleEmitter(rate: 30);
     }
 
@@ -176,46 +176,46 @@ extend EffectsScene {
         let mount = turret.layers.len > 0 && turret.layers[0].attachmentPoints.len > 3
             ? turret.layers[0].GetAttachmentPos(3, onGround)
             : tankPos + Vec2.FromAngle(turretAngle) * -3;
-        turretAntenna.Update(Vec3(mount.x, mount.y, 4 + turret.layers.len));
-        cursorAntenna.Update(Vec3(cursor.x, cursor.y, 0));
+        turretAntenna.Update(Vec3(mount, 4 + turret.layers.len));
+        cursorAntenna.Update(Vec3(cursor, 0));
         // Debris: a click throws rock chips and wood splinters from the cursor
         if (Input.MousePressed(MouseButton.Left)) {
-            debris.Burst(Vec3(cursor.x, cursor.y, 6), 10, 130, chip, Color(0.55, 0.52, 0.5, 1), Vec2(3, 3) / chip.dim);
-            debris.Burst(Vec3(cursor.x, cursor.y, 6), 6, 150, chip, Color(0.6, 0.4, 0.22, 1), Vec2(5, 2) / chip.dim);
+            debris.Burst(Vec3(cursor, 6), 10, 130, chip, Color(0.55, 0.52, 0.5, 1), Vec2(3, 3) / chip.dim);
+            debris.Burst(Vec3(cursor, 6), 6, 150, chip, Color(0.6, 0.4, 0.22, 1), Vec2(5, 2) / chip.dim);
         }
         if (Input.MousePressed(MouseButton.Right)) {
             let muzzle = tankPos + Vec2.FromAngle(turretAngle) * 8;
             sparks.props.direction = turretAngle;
-            sparks.Emit(Vec3(muzzle.x, muzzle.y, 6), 16);
-            debris.Burst(Vec3(muzzle.x, muzzle.y, 6), chip, BurstProps(count: 14, direction: turretAngle, spread: 20, elevation: Between(5, 35), speed: Between(150, 260),
+            sparks.Emit(Vec3(muzzle, 6), 16);
+            debris.Burst(Vec3(muzzle, 6), chip, BurstProps(count: 14, direction: turretAngle, spread: 20, elevation: Between(5, 35), speed: Between(150, 260),
                 scale: Vec2(2, 2) / chip.dim, bounciness: Between(1.1, 1.5), color: ColorBetween(Color(0.55, 0.6, 0.7, 1), Color(0.9, 0.55, 0.25, 1))));
         }
         // A blast at the cursor (2): its fireball, chips, the wave through everything
         if (Input.KeyPressed(Scancode.Alpha2)) {
-            blast.Emit(Vec3(cursor.x, cursor.y, 3), 40);
-            debris.Burst(Vec3(cursor.x, cursor.y, 4), 8, 160, chip, Color(0.3, 0.28, 0.27, 1), Vec2(2, 2) / chip.dim);
+            blast.Emit(Vec3(cursor, 3), 40);
+            debris.Burst(Vec3(cursor, 4), 8, 160, chip, Color(0.3, 0.28, 0.27, 1), Vec2(2, 2) / chip.dim);
             waves.Add(Shockwave(center: cursor));
         }
         // A rocket from the turret to the mouse (3): its trail, a blast where it lands
         if (Input.KeyPressed(Scancode.Alpha3) && !isRocketFlying) {
             let muzzle = tankPos + Vec2.FromAngle(turretAngle) * 8;
-            rocketPos = Vec3(muzzle.x, muzzle.y, 6);
+            rocketPos = Vec3(muzzle, 6);
             rocketTarget = cursor;
             rocketExhaust = ParticleEmitter(rate: 70);
             isRocketFlying = true;
         }
         if (isRocketFlying) {
-            let ground = Vec2(rocketPos.x, rocketPos.y);
+            let ground = rocketPos.xy;
             let toTarget = rocketTarget - ground;
             let step = 160 * dt;
             if (toTarget.Length() <= step) {
                 isRocketFlying = false;
-                blast.Emit(Vec3(rocketTarget.x, rocketTarget.y, 3), 40);
-                debris.Burst(Vec3(rocketTarget.x, rocketTarget.y, 4), 8, 160, chip, Color(0.3, 0.28, 0.27, 1), Vec2(2, 2) / chip.dim);
+                blast.Emit(Vec3(rocketTarget, 3), 40);
+                debris.Burst(Vec3(rocketTarget, 4), 8, 160, chip, Color(0.3, 0.28, 0.27, 1), Vec2(2, 2) / chip.dim);
                 waves.Add(Shockwave(center: rocketTarget));
             } else {
                 let next = ground + toTarget.Normalized() * step;
-                rocketPos = Vec3(next.x, next.y, 6);
+                rocketPos = Vec3(next, 6);
                 rocketExhaust.Update(&trail, rocketPos);
             }
         }
@@ -240,12 +240,12 @@ extend EffectsScene {
         trail.Update();
         debris.Update();
         // Particles: the campfire always, the exhaust while Susi drives (from behind her, low)
-        campfire.Update(&fire, Vec3(effectsCampfire.x, effectsCampfire.y, 1));
-        emberSource.Update(&embers, Vec3(effectsCampfire.x, effectsCampfire.y, 3));
+        campfire.Update(&fire, Vec3(effectsCampfire, 1));
+        emberSource.Update(&embers, Vec3(effectsCampfire, 3));
         if (move.Length() > 0.1) {
             let pipe = tankPos - Vec2.FromAngle(tankAngle) * 8;
             exhaust.props.direction = tankAngle + 180;
-            exhaustPipe.Update(&exhaust, Vec3(pipe.x, pipe.y, 3));
+            exhaustPipe.Update(&exhaust, Vec3(pipe, 3));
         } else {
             exhaustPipe.isStarted = false;
         }
