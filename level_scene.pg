@@ -32,7 +32,7 @@ enum LevelSceneStart {
 const uint LAYER_PROBE = 1;           // the preview's probe (the triggers' mask)
 
 void SetLevelSceneName(string name) {
-    ScopeAllocPersistent();
+    with ScopeAllocPersistent();
     levelSceneName = name.Copy();
 }
 
@@ -50,8 +50,7 @@ struct LevelScene {
 extend LevelScene {
     init() {
         // The level: the one opened (levelSceneName), else the one open last, else the first
-        {
-            ScopeAllocTemp();
+        with ScopeAllocTemp() {
             let names = LevelEditor.LevelNames();
             let last = LevelEditor.LastLevel();
             let chosen = levelSceneName.len > 0 ? levelSceneName : names.Find((string* candidate) => *candidate == last) != null ? last : names.len > 0 ? names[0] : "test";
@@ -97,7 +96,7 @@ extend LevelScene {
     // Every area of the Areas layers a trigger (its owner: layer * 1000 + its index), the probe a
     // circle at the mouse
     void MakeTriggers() {
-        ScopeAllocLevel();
+        with ScopeAllocLevel();
         let data = &editor.data;
         triggers = New[CollisionWorld](Box(Vec2(0, 0), Vec2(data.pixelSize)), 64);
         for (let layerIndex, layer in data.layers) {
@@ -245,13 +244,12 @@ extend LevelScene {
         // The levels there are: a click previews another one (a panel of the window's pixels, as
         // the editor's: the fixed canvas would make it big; the arrow keys are the view's)
         Ui.BlockKeys();
-        Ui.InScreen();
-        Ui.WithFont(Ui.style.fontName, 2);
-        Ui.Panel(UiAnchor.RightTop, 220, 0, Vec2i(-8, 150));       // (below the log's lines)
+        with Ui.InScreen();
+        with Ui.WithFont(Ui.style.fontName, 2);
+        with Ui.Panel(UiAnchor.RightTop, 220, 0, Vec2i(-8, 150));       // (below the log's lines)
         Ui.Label("Levels", UiAlign.Left, Ui.style.textFocused);
         let names = LevelEditor.LevelNames();
-        {
-            Ui.Scroll(Min(Max(1, names.len), 8) * (Ui.ButtonHeight() + Ui.style.spacing));
+        with Ui.Scroll(Min(Max(1, names.len), 8) * (Ui.ButtonHeight() + Ui.style.spacing)) {
             for (let index, level in names) {
                 if (Ui.Button(*level, id: index, align: UiAlign.Left, isToggled: *level == editor.levelName) && *level != editor.levelName
                         && editor.AskAboutChanges("previewing another level"))

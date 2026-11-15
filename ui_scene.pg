@@ -37,12 +37,11 @@ extend UiScene {
     }
 
     void TitleScreen() {
-        {
-            Ui.WithFont("ark-pixel-12px-proportional_bordered", 2);
-            Ui.Area(UiAnchor.Top, 300, 0, Vec2i(0, 18));
+        with Ui.WithFont("ark-pixel-12px-proportional_bordered", 2) {
+            with Ui.Area(UiAnchor.Top, 300, 0, Vec2i(0, 18));
             Ui.Label("hope playground", UiAlign.Center);
         }
-        Ui.Panel(UiAnchor.Center, 110, 0, Vec2i(0, 18));
+        with Ui.Panel(UiAnchor.Center, 110, 0, Vec2i(0, 18));
         if (Ui.Button("Play"))
             wantsToPlay = true;
         if (Ui.Button("Options"))
@@ -54,7 +53,7 @@ extend UiScene {
     }
 
     void OptionsScreen() {
-        Ui.Panel(UiAnchor.Center, 220);
+        with Ui.Panel(UiAnchor.Center, 220);
         Ui.Label("Options", UiAlign.Center, Ui.style.textFocused);
         Ui.Space(2);
         let settings = &playground.settings;
@@ -89,13 +88,12 @@ extend UiScene {
             ControlsRow("Attack 2", "attack_2"),
             ControlsRow("Attack 3", "attack_3"),
         ];
-        Ui.Panel(UiAnchor.Center, 316, 170);
+        with Ui.Panel(UiAnchor.Center, 316, 170);
         Ui.Label("Controls", UiAlign.Center, Ui.style.textFocused);
-        {
-            Ui.Scroll(Ui.area.h - Ui.ButtonHeight() - Ui.style.spacing);
+        with Ui.Scroll(Ui.area.h - Ui.ButtonHeight() - Ui.style.spacing) {
             Ui.Controls(rows, labelPart: 0.25);
         }
-        Ui.Columns(2);
+        with Ui.Columns(2);
         if (Ui.Button("Reset"))
             Input.ResetBindings();
         Ui.FocusByDefault();
@@ -104,10 +102,9 @@ extend UiScene {
     }
 
     void CreditsScreen() {
-        Ui.Panel(UiAnchor.Center, 280, 164);
+        with Ui.Panel(UiAnchor.Center, 280, 164);
         Ui.Label("Credits", UiAlign.Center, Ui.style.textFocused);
-        {
-            Ui.Scroll(Ui.area.h - Ui.ButtonHeight() - Ui.style.spacing);
+        with Ui.Scroll(Ui.area.h - Ui.ButtonHeight() - Ui.style.spacing) {
             Ui.Text(gamePack.credits);
         }
         Ui.FocusByDefault();
