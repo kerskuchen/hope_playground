@@ -117,6 +117,7 @@ extend LevelScene {
             previewPos = Camera.pos;
             preview.Free();
             preview = null;
+            triggers = null;           // (the level phase: wiped next)
             entityWorld = null;
         }
     }
