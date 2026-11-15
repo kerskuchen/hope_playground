@@ -1,7 +1,7 @@
 // The lighting scene (F7, in the level phase, the fixed 320 x 180 canvas): hope's lights and
 // shadows (lighting.pg) in DungeonTracks' mood. The floor (16 px tiles) and the walls (an 8 px
-// occluder grid, tall 3/4 sprites: the front lit from the ground in front of the wall, the top at
-// the ambient) under a lavender ambient; Susi carries a flickering torch, projectiles carry
+// occluder grid, wall_soil: tall 3/4 sprites placed by their pivot, the front lit from the ground in
+// front of the wall, the cap shaded by the sprite's light mask) under a lavender ambient; Susi carries a flickering torch, projectiles carry
 // small lights and burst at the walls.
 //
 //     WASD              drive Susi (the turret follows the mouse)
@@ -10,7 +10,6 @@
 //     L                 a brazier at the mouse (a flickering light that stays)
 //     K                 60 moving lights on/off (a stress test)
 //     1                 lighting on/off
-//     2                 the walls: wall_dungeon (DungeonTracks' colors) / wall_soil
 // The camera follows a point a third of the way from Susi to the mouse (it glides there: the
 // overlays stay where they are in the world); the floor goes on a little beyond the outer walls.
 //
@@ -82,9 +81,7 @@ struct Wanderer {
 struct LightingScene {
     OccluderMap walls;
     TilemapLayer floor;
-    Sprite* wallSprite;                  // wall_dungeon or wall_soil
-    SpriteGridSlice wallSlices;          // the wall sprite's 4 rows of 8 px: the top, 3 of the front
-    bool usesSoilWall;
+    Sprite* wallSprite;                  // wall_soil (its pivot at the tile, its cap shaded by its light mask)
     Sprite* light;
     AnimationPlayer tracksAnim;
     Sprite3D* turret;
@@ -120,7 +117,7 @@ extend LightingScene {
         floor = TilemapLayer(Tileset(Draw.GetSprite("floor_dungeon"), Vec2i(16, 16)), 36, 24, depth: 1, origin: LIGHTING_FLOOR_ORIGIN);
         floor.Fill(0);
         SetOverlays(true);
-        SetWallSprite(false);
+        wallSprite = Draw.GetSprite("wall_soil");
         light = Draw.GetSprite("light_torch");
         tracksAnim = AnimationPlayer(Draw.GetAnim("susi.run"));
         turret = Draw.GetSprite3D("susi_turret");
@@ -133,12 +130,6 @@ extend LightingScene {
         hasOverlays = on;
         floor.drawParams.overlay = on ? groundOverlay : 0;
         floor.Refresh();                 // (its chunks record again with it)
-    }
-
-    void SetWallSprite(bool soil) {
-        usesSoilWall = soil;
-        wallSprite = Draw.GetSprite(soil ? "wall_soil" : "wall_dungeon");
-        wallSlices = SpriteGridSlice(wallSprite, 1, 4, 0, 0);
     }
 
     // Before the scene goes: lighting off for the others
@@ -176,8 +167,6 @@ extend LightingScene {
         let cursor = Input.cursors.world;
         if (Input.KeyPressed(Scancode.Alpha1))
             isLit = !isLit;
-        if (Input.KeyPressed(Scancode.Alpha2))
-            SetWallSprite(!usesSoilWall);
         if (Input.KeyPressed(Scancode.Alpha4))
             shiftsWallRows = !shiftsWallRows;
         if (Input.KeyPressed(Scancode.Alpha3))
@@ -258,7 +247,7 @@ extend LightingScene {
 
         DrawLights(dt);
         DrawWorld(turretAngle);
-        Draw.LogLine("lighting scene (F7): WASD drive, left mouse shoot, right mouse wall on/off, L brazier, K 60 lights ({wanderers.len > 0}), 1 lighting ({isLit}), 2 walls ({usesSoilWall ? "wall_soil" : "wall_dungeon"}), 3 overlays ({hasOverlays}), 4 wall rows shifted ({shiftsWallRows})");
+        Draw.LogLine("lighting scene (F7): WASD drive, left mouse shoot, right mouse wall on/off, L brazier, K 60 lights ({wanderers.len > 0}), 1 lighting ({isLit}), 3 overlays ({hasOverlays}), 4 wall rows shifted ({shiftsWallRows})");
         Perf.Line("lighting: {1 + projectiles.len + flashes.len + braziers.len + wanderers.len} lights, polygons and drawing {(float)(lightTime * 1000):F3} ms");
     }
 
@@ -286,8 +275,8 @@ extend LightingScene {
 
     void DrawWorld(float turretAngle) {
         floor.Draw(Camera.viewportRect);
-        // The walls: the front's three rows lit at the ground in front of the wall (the row of
-        // pixels below its footprint), the top at the ambient (DungeonTracks' dark tops)
+        // The walls: lit at the ground in front of the wall (the row of pixels below its
+        // footprint), the cap at the ambient by the light mask (DungeonTracks' dark tops)
         for (let y in 0..LIGHTING_ROWS) {
             for (let x in 0..LIGHTING_COLUMNS) {
                 if (!walls.Get(x, y))
@@ -299,17 +288,7 @@ extend LightingScene {
                 // (4: each row of walls its own part of the overlay, so the rows are not alike)
                 let shift = shiftsWallRows ? Vec2(y * 53, 0) : Vec2.Zero;
                 let front = DrawParams(lightAnchor: LightAnchor.Base(bottom + 0.5), overlay: overlay, overlayOffset: shift);
-                // A wall with a light mask (its cap shaded there) or a pivot: the whole sprite at its
-                // tile (its pivot); one with neither (wall_dungeon, a .qoi): the cap row cut off
-                // and shaded
-                if (wallSprite.lightMaskTexture >= 0 || wallSprite.pivot != Vec2.Zero) {
-                    Draw.Sprite(wallSprite, pos, depth, front);
-                    continue;
-                }
-                Draw.SpriteSlice(&wallSlices, 0, 0, pos - Vec2(0, 24), depth, DrawParams(shade: 1, overlay: overlay, overlayOffset: shift));
-                for (let row in 1..4) {
-                    Draw.SpriteSlice(&wallSlices, 0, row, pos - Vec2(0, 24 - row * 8), depth, front);
-                }
+                Draw.Sprite(wallSprite, pos, depth, front);
             }
         }
         // Susi: lit where she stands; the turret on her 4 layers
