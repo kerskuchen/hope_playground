@@ -463,7 +463,7 @@ extend PhysicsScene {
                     Draw.Rect(tiles.CellBox(x, y).ToRect(), 1, Color(0.25, 0.27, 0.35, 1));
             }
         }
-        with ScopeAllocTemp();                    // (this frame's walls: temp memory, not the level phase)
+        with temp;                    // (this frame's walls: temp memory, not the level phase)
         let allWalls = Obstacles();
         tiles.AddWalls(tiles.bounds, &allWalls);
         for (let wall in allWalls.walls) {

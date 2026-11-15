@@ -292,34 +292,34 @@ extend Playground {
         scene = next;
         Draw.isCanvasFree = next != Scene.Start && next != Scene.Lighting && next != Scene.Ui && next != Scene.Level && next != Scene.Effects;    // (the games' fixed canvas)
         if (next == Scene.Level) {
-            with ScopeAllocEditor();                    // (the level's data: the presentation is the level phase's)
+            with editor;                    // (the level's data: the presentation is the level phase's)
             level = New[LevelScene]();
         } else if (next == Scene.Start) {
-            with ScopeAllocLevel();
+            with level;
             start = New[StartScene]();
             Draw.clearColor = Color.Black;
         } else if (next == Scene.Physics) {
-            with ScopeAllocLevel();
+            with level;
             physics = New[PhysicsScene]();
             Draw.clearColor = Color.Grey(0.12);
         } else if (next == Scene.Navigation) {
-            with ScopeAllocLevel();
+            with level;
             navigation = New[NavScene]();
             Draw.clearColor = Color.Grey(0.08);
         } else if (next == Scene.Audio) {
-            with ScopeAllocLevel();
+            with level;
             audio = New[AudioScene]();
             Draw.clearColor = Color.Grey(0.1);
         } else if (next == Scene.Lighting) {
-            with ScopeAllocLevel();
+            with level;
             lighting = New[LightingScene]();
             Draw.clearColor = Color.Black;
         } else if (next == Scene.Effects) {
-            with ScopeAllocLevel();
+            with level;
             effects = New[EffectsScene]();
             Draw.clearColor = Color(0.13, 0.13, 0.16, 1);
         } else {
-            with ScopeAllocLevel();
+            with level;
             ui = New[UiScene]();
             Draw.clearColor = Color(0.09, 0.07, 0.13, 1);
         }
@@ -356,7 +356,7 @@ extend Playground {
         }
         Draw.LogLine("F1 level (again: editor), F2 physics, F3 start, F4 navigation, F6 audio, F7 lighting, F8 UI, F10 effects; F12 performance and memory");
         if (scene == Scene.Level) {
-            with ScopeAllocEditor();
+            with editor;
             level.DoFrame();
             // Another level: the scene made again with it (its changes were asked about)
             if (level.requestedLevel.len > 0) {
@@ -365,7 +365,7 @@ extend Playground {
                 SwitchTo(Scene.Level);
             }
         } else {
-            with ScopeAllocLevel();
+            with level;
             if (scene == Scene.Physics)
                 physics.DoFrame();
             else if (scene == Scene.Navigation)

@@ -32,7 +32,7 @@ enum LevelSceneStart {
 const uint LAYER_PROBE = 1;           // the preview's probe (the triggers' mask)
 
 void SetLevelSceneName(string name) {
-    with ScopeAllocPersistent();
+    with persist;
     levelSceneName = name.Copy();
 }
 
@@ -50,7 +50,7 @@ struct LevelScene {
 extend LevelScene {
     init() {
         // The level: the one opened (levelSceneName), else the one open last, else the first
-        with ScopeAllocTemp() {
+        with temp {
             let names = LevelEditor.LevelNames();
             let last = LevelEditor.LastLevel();
             let chosen = levelSceneName.len > 0 ? levelSceneName : names.Find((string* candidate) => *candidate == last) != null ? last : names.len > 0 ? names[0] : "test";
@@ -96,7 +96,7 @@ extend LevelScene {
     // Every area of the Areas layers a trigger (its owner: layer * 1000 + its index), the probe a
     // circle at the mouse
     void MakeTriggers() {
-        with ScopeAllocLevel();
+        with level;
         let data = &editor.data;
         triggers = New[CollisionWorld](Box(Vec2(0, 0), Vec2(data.pixelSize)), 64);
         for (let layerIndex, layer in data.layers) {
