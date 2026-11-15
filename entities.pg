@@ -54,7 +54,7 @@ extend Brazier {
             return;
         // (the glow: the light sprite, its size breathing with the flicker)
         let wobble = 1 + Sin(time * 9) * 0.06 * flicker + Sin(time * 23) * 0.03 * flicker;
-        let glow = global.Draw.GetSprite("light_torch");
+        let glow = global.Sprites.light_torch;
         let scale = radius * 2 / Max(1.0, glow.dim.x) * wobble;
         DrawCentered(glow, xform.pos, scale, 31, DrawParams(color: Color(color.r * 0.5, color.g * 0.5, color.b * 0.5, 0), additivity: Additivity.Max));
         global.Draw.Circle(xform.pos - Vec2(0, 2), 2 * wobble, 32, DrawParams(color: color));
@@ -191,7 +191,7 @@ extend Spawner {
         Draw();
         global.Draw.CircleOutline(Circle(xform.pos, Max(1.0, radius)), 1, 33, DrawParams(color: Color(0.6, 0.5, 0.9, 0.5)));
         // (ghosty's animation at the time: a preview is made again every frame)
-        let ghosty = AnimationPlayer(global.Draw.GetAnim("ghosty.default"));
+        let ghosty = AnimationPlayer(global.Anims.ghosty_default);
         let duration = ghosty.current.duration;
         ghosty.curTime = (float)(platform.TimeSinceStartup() % (double)Max(0.001, duration));
         DrawCentered(ghosty.CurSprite(), xform.pos, 1, 31, DrawParams(color: Color(0.6, 0.6, 0.6, 0.6)));
@@ -224,7 +224,7 @@ extend Ghost {
 
     void Prepare() {
         goal = xform.pos;
-        anim = AnimationPlayer(global.Draw.GetAnim("ghosty.default"));
+        anim = AnimationPlayer(global.Anims.ghosty_default);
         anim.curTime = (float)(id.index % 7) * 0.1;      // (not all in step)
         if (entityWorld != null) {
             let collider = Collider(ColliderShape.Circle(circle: Circle(xform.pos, 5)), LAYER_GHOST, 0);

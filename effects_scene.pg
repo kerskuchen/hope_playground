@@ -57,8 +57,8 @@ struct EffectsScene {
 
 extend EffectsScene {
     init() {
-        tracksAnim = AnimationPlayer(Draw.GetAnim("susi.run"));
-        turret = Draw.GetSprite3D("susi_turret");
+        tracksAnim = AnimationPlayer(Anims.susi_run);
+        turret = Sprites3D.susi_turret;
         turretAntenna = Antenna(length: 5);
         cursorAntenna = Antenna(length: 18, tipColor: Color(0.4, 0.9, 1, 1));
         // (frequency, damping)
@@ -83,7 +83,7 @@ extend EffectsScene {
         debris = DebrisField(world: walls, mask: 1, decals: &decals);
         chip = Draw.GetSprite("untextured");
         // Particles: a soft round glow (128 px) shrunk
-        let glow = Draw.GetSprite("light_torch");
+        let glow = Sprites.light_torch;
         // The fire: orange and additive, late (then quickly) dark grey smoke, normal; it grows
         // fast at first, slows down rising, fades early (the smoke thin); the drag slows a
         // blast's push
@@ -298,7 +298,7 @@ extend EffectsScene {
         }
         if (isRocketFlying) {
             Draw.Rect(Rect(rocketPos.screen - Vec2(1, 1), Vec2(2, 2)), DepthAt(rocketPos.y), DrawParams(color: Color(0.85, 0.85, 0.9, 1)));
-            Draw.Sprite(Draw.GetSprite("light_torch"), Transform(rocketPos.screen - Vec2(4, 4), 0, Vec2(0.06, 0.06)), DepthAt(rocketPos.y) + 0.01, DrawParams(color: Color(1, 0.6, 0.2, 1), additivity: Additivity.Max, light: LightMode.Unlit));
+            Draw.Sprite(Sprites.light_torch, Transform(rocketPos.screen - Vec2(4, 4), 0, Vec2(0.06, 0.06)), DepthAt(rocketPos.y) + 0.01, DrawParams(color: Color(1, 0.6, 0.2, 1), additivity: Additivity.Max, light: LightMode.Unlit));
         }
         sparks.Draw(Depth.Nearest - 2);
         blast.Draw(Depth.Nearest - 2);
