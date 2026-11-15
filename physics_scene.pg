@@ -146,6 +146,9 @@ extend PhysicsScene {
         vehicles.Add(DebugVehicle(center: Vec2(56, 33), halfDim: Vec2(2.6, 1.5), angle: 10, mass: 10));
         // Crates on open cells (deterministic, away from the player's start)
         let random = 12345u;
+        crateCells.Reserve(PHYSICS_CRATES);
+        crateBroken.Reserve(PHYSICS_CRATES);
+        crates.Reserve(PHYSICS_CRATES);
         while (crateCells.len < PHYSICS_CRATES) {
             random = random * 1103515245 + 12345;
             let x = 1 + (int)((random >> 8) % (uint)(PHYSICS_COLUMNS - 2));
@@ -189,7 +192,9 @@ extend PhysicsScene {
     Vec2 ToWorld(Vec2 cells) { return tiles.origin + cells * cell; }
 
     void BuildWorld(Vec2 playerCell, float playerRadius) {
-        world = CollisionWorld(tiles.bounds, cell * 3, &tiles, LAYER_WALLS);
+        // (the player, the obstacles, two per vehicle, the crates)
+        let colliders = 1 + circleCells.len + boxCells.len + 2 * vehicles.len + crateCells.len;
+        world = CollisionWorld(tiles.bounds, cell * 3, &tiles, LAYER_WALLS, colliders);
         hasWorld = true;
         player = world.Add(Collider(ColliderShape.Circle(circle: Circle(ToWorld(playerCell), playerRadius * cell)),
             LAYER_NAVIGATION, LAYER_WALLS | LAYER_OBSTACLE | LAYER_CRATE | LAYER_NAVIGATION, OWNER_PLAYER));
