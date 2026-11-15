@@ -245,7 +245,7 @@ extend LevelScene {
         // the editor's: the fixed canvas would make it big; the arrow keys are the view's)
         Ui.BlockKeys();
         with Ui.InScreen();
-        with Ui.WithFont(Ui.style.fontName, 2);
+        with Ui.Font(Ui.style.fontName, 2);
         with Ui.Panel(UiAnchor.RightTop, 220, 0, Vec2i(-8, 150));       // (below the log's lines)
         Ui.Label("Levels", UiAlign.Left, Ui.style.textFocused);
         let names = LevelEditor.LevelNames();

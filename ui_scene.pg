@@ -37,7 +37,7 @@ extend UiScene {
     }
 
     void TitleScreen() {
-        with Ui.WithFont("ark-pixel-12px-proportional_bordered", 2) {
+        with Ui.Font("ark-pixel-12px-proportional_bordered", 2) {
             with Ui.Area(UiAnchor.Top, 300, 0, Vec2i(0, 18));
             Ui.Label("hope playground", UiAlign.Center);
         }
