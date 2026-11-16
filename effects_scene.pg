@@ -305,18 +305,9 @@ extend EffectsScene {
         cursorAntenna.Draw(Depth.Nearest - 1);
     }
 
-    // The scene goes: the decal map's atlas regions back, the particles' memory (the rest is in
-    // the level phase)
+    // The scene goes: the decal map's atlas regions back (its memory goes with the level phase)
     void Leave() {
-        decals.Free();
-        fire.Free();
-        exhaust.Free();
-        sparks.Free();
-        embers.Free();
-        blast.Free();
-        trail.Free();
-        crowd.Free();
-        waves.Free();
+        decals.ReleaseSprites();
     }
 
     // (y on the ground as the depth: nearer the bottom, nearer the viewer)

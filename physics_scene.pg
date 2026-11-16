@@ -177,13 +177,9 @@ extend PhysicsScene {
             let circle = world.Get(player).shape.circle;
             playerCell = (circle.center - tiles.origin) / cell;
             playerRadius = circle.radius / cell;
-            world.Free();
         }
         cell = newCell;
         tiles = TileCollision(&solid, cell, newOrigin);
-        for (let shot in shots) {
-            shot.trail.Free();
-        }
         shots.Clear();
         explosions.Clear();
         BuildWorld(playerCell, playerRadius);
@@ -413,7 +409,6 @@ extend PhysicsScene {
             if (shot.trail.len > 64)
                 shot.trail.RemoveAt(0);
             if (step != ProjectileStep.Flying) {                 // exploded, or out of the world
-                shot.trail.Free();
                 shots.RemoveAt(i);
             }
         }

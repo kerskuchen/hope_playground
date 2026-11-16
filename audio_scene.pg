@@ -73,7 +73,6 @@ extend AudioScene {
         if (Input.KeyPressed(Scancode.M)) {
             if (hasMusic) {
                 music.Stop(fadeOut: 1);
-                music.Free();
                 hasMusic = false;
             } else {
                 StartMusic();

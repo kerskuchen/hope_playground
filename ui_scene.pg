@@ -21,10 +21,6 @@ extend UiScene {
         Camera.rotation = 0;                   // (the start scene turns it)
     }
 
-    void Leave() {
-        screens.Free();
-    }
-
     void DoFrame() {
         if (playground.settings.showsHints)
             Draw.LogLine("UI scene (F8): mouse, arrows/WASD + Enter/Space + Escape, or a gamepad (d-pad/stick, A, B)");

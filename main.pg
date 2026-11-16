@@ -281,7 +281,6 @@ extend Playground {
         }
         if (ui != null) {
             SaveSettings();
-            ui.Leave();
             ui = null;
             Memory.WipeLevel();
         }

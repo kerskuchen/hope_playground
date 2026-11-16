@@ -306,13 +306,4 @@ extend LightingScene {
             Draw.Rect(Rect(brazier.pos - Vec2(1.5, 1.5), Vec2(3, 3)), DepthAt(brazier.pos.y), DrawParams(color: Color(1, 0.7, 0.3, 1), glow: 1));
         }
     }
-
-    void Free() {
-        walls.Free();
-        floor.Free();
-        projectiles.Free();
-        flashes.Free();
-        braziers.Free();
-        wanderers.Free();
-    }
 }

@@ -79,7 +79,7 @@ extend LevelScene {
 
     // The scene goes (main.pg; its memory goes with the level phase)
     void Leave() {
-        preview.Free();
+        preview.ReleaseSprites();
         entityWorld = null;
     }
 
