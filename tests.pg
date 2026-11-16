@@ -7,8 +7,68 @@ void RegisterTests() {
     Test.Add("every scene starts", TestScenes);
     Test.Add("the editor over every scene", TestEditorInScenes, maxFrames: 2400);
     Test.Add("F5 in every scene", TestRestartInScenes);
-    Test.Add("the phases stay as they are in every scene", TestSteadyMemory, maxFrames: 9000);
+    Test.Add("the phases stay as they are in every scene", TestSteadyMemory, maxFrames: 10800);
     Test.Add("E rams, and the ram ends", TestRam);
+    Test.Add("Susi walks on six legs", TestLegs, maxFrames: 900);
+}
+
+// The legs scene: walking, turning, against a pillar, a shove, standing; every frame: no leg
+// longer than its segments for long, planted feet where they were and not in a wall
+[Vec3, 8] legsLastFeet;
+[int, 8] legsStretched;          // (frames in a row: held back by a wall, it steps soon)
+
+void TestLegs(TestRun* run) {
+    let f = run.frame;
+    if (f == 1) {
+        run.Hold(Scancode.LShift);
+        run.Press(Scancode.F10);
+    }
+    if (f == 2) {
+        run.Release(Scancode.LShift);
+    }
+    if (f < 5) {
+        return;
+    }
+    let scene = playground.legs;
+    run.Check(scene != null, "Shift+F10 shows the legs scene");
+    if (scene == null) {
+        return;
+    }
+    let rig = &scene.rig;
+    for (let index, leg in rig.legs[0..rig.legCount]) {
+        let length = (leg.foot - leg.hip).Length();
+        legsStretched[index] = length > rig.setup.thigh + rig.setup.shin + 0.5 ? legsStretched[index] + 1 : 0;
+        run.Check(legsStretched[index] <= 4, "leg {index} stretched to {length:F1} for {legsStretched[index]} frames (frame {f})");
+        let isStretched = length >= rig.setup.thigh + rig.setup.shin - 0.1;
+        if (f > 6 && leg.clock.state == FootState.Planted && !leg.hasLanded && !isStretched) {
+            run.Check((leg.foot - legsLastFeet[index]).Length() < 0.01, "planted foot {index} slid at frame {f}");
+        }
+        for (let box in scene.wallBoxes) {
+            if (leg.clock.state != FootState.Planted) {
+                break;                     // (in the air it may pass over a wall's end)
+            }
+            let p = leg.foot.xy;
+            run.Check(!(box.min.x < p.x && p.x < box.max.x && box.min.y < p.y && p.y < box.max.y), "foot {index} ({leg.clock}) in a wall at frame {f}: {p}, from {leg.stepFrom} to {leg.stepTo}, body {scene.xform.pos}");
+        }
+        legsLastFeet[index] = leg.foot;
+    }
+    // to the right (walking: Shift), then running, up into the wall, left into the pillar, a shove
+    if (f == 10) { run.Hold(Scancode.LShift); run.Hold(Scancode.D); }
+    if (f == 60) { run.Screenshot("walk"); }
+    if (f == 100) { run.Release(Scancode.LShift); }
+    if (f == 130) { run.Screenshot("run"); }
+    if (f == 150) { run.Release(Scancode.D); run.Hold(Scancode.W); }
+    if (f == 165) { run.Screenshot("turning"); }
+    if (f == 185) { run.Release(Scancode.W); run.Hold(Scancode.A); }
+    if (f == 330) { run.Screenshot("at the pillar"); }
+    if (f == 345) { run.Release(Scancode.A); run.Press(Scancode.G); }
+    if (f == 420) { run.Screenshot("stood still"); run.Press(Scancode.Alpha1); }
+    if (f == 440) { run.Hold(Scancode.S); }
+    if (f == 480) { run.Screenshot("dog knees"); run.Release(Scancode.S); }
+    if (f == 560) {
+        run.Check(rig.stillTime > 0.3, "she stands still at the end");
+        run.Pass();
+    }
 }
 
 // (the physics scene's StateClock: Driving, Ramming for PHYSICS_RAM_TIME or to what stops it)
@@ -32,8 +92,16 @@ void TestRam(TestRun* run) {
 }
 
 // The scenes and their keys, in an order that goes from each one to each other kind
-[Scene, 8] testScenes = [Scene.Level, Scene.Physics, Scene.Start, Scene.Navigation, Scene.Audio, Scene.Lighting, Scene.Ui, Scene.Effects];
-[Scancode, 8] testSceneKeys = [Scancode.F9, Scancode.F2, Scancode.F3, Scancode.F4, Scancode.F6, Scancode.F7, Scancode.F8, Scancode.F10];
+[Scene, 9] testScenes = [Scene.Level, Scene.Physics, Scene.Start, Scene.Navigation, Scene.Audio, Scene.Lighting, Scene.Ui, Scene.Effects, Scene.Legs];
+[Scancode, 9] testSceneKeys = [Scancode.F9, Scancode.F2, Scancode.F3, Scancode.F4, Scancode.F6, Scancode.F7, Scancode.F8, Scancode.F10, Scancode.F10];    // (the legs: with Shift, PressScene)
+
+// The key of scene 'index' (the legs scene's with Shift)
+void PressScene(TestRun* run, int index) {
+    run.Press(testSceneKeys[index]);
+    if (testScenes[index] == Scene.Legs) {
+        run.Press(Scancode.LShift);
+    }
+}
 
 // (every 'period' frames the next scene: its key pressed at the period's start; the scene at 'at')
 int SceneAt(TestRun* run, int period) { return (run.frame / period) % testScenes.len; }
@@ -46,7 +114,7 @@ void TestScenes(TestRun* run) {
         return;
     }
     if (run.frame % period == 1) {
-        run.Press(testSceneKeys[index]);
+        PressScene(run, index);
     }
     if (run.frame % period == period - 1) {
         run.Check(playground.scene == testScenes[index], "{testSceneKeys[index]} shows the scene {testScenes[index]} ({playground.scene})");
@@ -67,7 +135,7 @@ void TestEditorInScenes(TestRun* run) {
     let scene = index % testScenes.len;
     let step = run.frame % period;
     if (step == 1) {
-        run.Press(testSceneKeys[scene]);
+        PressScene(run, scene);
     }
     if (step == 20) {
         run.Press(Scancode.F1);
@@ -95,7 +163,7 @@ void TestRestartInScenes(TestRun* run) {
     }
     let step = run.frame % period;
     if (step == 1) {
-        run.Press(testSceneKeys[index]);
+        PressScene(run, index);
     }
     if (step == 15) {
         run.Press(Scancode.F5);
@@ -121,7 +189,7 @@ void TestSteadyMemory(TestRun* run) {
     }
     let step = run.frame % period;
     if (step == 1) {
-        run.Press(testSceneKeys[index]);
+        PressScene(run, index);
     }
     for (let point in 0..3) {
         if (step == 720 + point * 179) {

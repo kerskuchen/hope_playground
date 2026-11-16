@@ -1,0 +1,147 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// The legs scene (Shift+F10): Susi on six legs (hope's legs.pg). WASD (or the stick) walks her:
+// she turns towards where she goes while she walks, and in place first if it is behind her; Q and
+// E turn her in place; Shift walks slowly (faster runs: the groups step together); the right
+// mouse button shoves her away from the cursor. 1: the knees out (a spider) or back (a dog),
+// 2: two, three or four pairs, G: the rest positions, the steps' targets and the hips.
+//
+// The setup is made again every frame (LegsSetup): change a number, save, and she walks on with it.
+
+LegSetup LegsSetup(KneeBend bend, int pairs) {
+    return LegSetup(pairs: pairs, bend: bend);
+}
+
+struct LegsScene {
+    AnimationPlayer bodyAnim;          // (Susi's first frame: no tracks running)
+    Transform xform = Transform(Vec2(160, 110), 0);
+    Vec2 velocity;                     // her own (walking)
+    Vec2 push;                         // from outside (a shove), dying down
+    LegRig rig;
+    KneeBend bend;
+    int pairs = 3;
+    bool showsDebug;
+    CollisionWorld* walls;             // the arena's border and two pillars
+    [Box, 6] wallBoxes;
+}
+
+extend LegsScene {
+    init() {
+        bodyAnim = AnimationPlayer(Draw.GetAnim("susi.run"));
+        Camera.pos = Vec2(160, 90);
+        Camera.isCentered = true;
+        wallBoxes[0] = Box(Vec2(0, 30), Vec2(320, 34));
+        wallBoxes[1] = Box(Vec2(0, 176), Vec2(320, 180));
+        wallBoxes[2] = Box(Vec2(0, 30), Vec2(4, 180));
+        wallBoxes[3] = Box(Vec2(316, 30), Vec2(320, 180));
+        wallBoxes[4] = Box(Vec2(80, 70), Vec2(100, 120));
+        wallBoxes[5] = Box(Vec2(220, 60), Vec2(260, 72));
+        walls = New[CollisionWorld](Box(Vec2(0, 0), Vec2(320, 180)), 32);
+        for (let box in wallBoxes) {
+            walls.Add(Collider(ColliderShape.Box(box: *box), 1, 0));
+        }
+        rig = LegRig(LegsSetup(bend, pairs), BodyDim(), walls, 1);
+    }
+
+    // Susi's footprint: her sprite's trimmed size (x: along her forward)
+    Vec2 BodyDim() {
+        let stack = bodyAnim.CurSprite3D();
+        let layer = stack.layers[stack.layers.len / 2];
+        return Vec2(layer.trimmedRect.w, layer.trimmedRect.h);
+    }
+
+    void DoFrame() {
+        let dt = Input.deltaTime;
+        if (Input.KeyPressed(Scancode.Alpha1)) {
+            bend = bend == KneeBend.Out ? KneeBend.Back : KneeBend.Out;
+        }
+        if (Input.KeyPressed(Scancode.Alpha2)) {
+            pairs = pairs == 3 ? 4 : pairs == 4 ? 2 : 3;
+        }
+        if (Input.KeyPressed(Scancode.G)) {
+            showsDebug = !showsDebug;
+        }
+        rig.setup = LegsSetup(bend, pairs);
+
+        // Walking: towards the stick, turning that way at 240°/s; what is behind her she turns to
+        // (nearly) in place first; Q/E turn in place
+        let move = Input.ActionValue2D("move");
+        let maxSpeed = Input.isShiftDown ? 25.0 : 75.0;
+        let wanted = Vec2(0, 0);
+        if (move.Length() > 0.1) {
+            let turn = NormalizeAngle(move.Angle() - xform.angle);
+            xform.angle += Clamp(turn, -240 * dt, 240 * dt);
+            let facing = Clamp(Cos(turn * DegToRad), 0.15, 1.0);
+            wanted = move * maxSpeed * facing;
+        }
+        if (Input.KeyDown(Scancode.Q)) {
+            xform.angle -= 120 * dt;
+        }
+        if (Input.KeyDown(Scancode.E)) {
+            xform.angle += 120 * dt;
+        }
+        xform.angle = NormalizeAngle(xform.angle);
+        let change = wanted - velocity;
+        let maxChange = 220 * dt;
+        velocity += change.Length() > maxChange ? change.Normalized() * maxChange : change;
+        // A shove (the right mouse button): away from the cursor
+        if (Input.MousePressed(MouseButton.Right)) {
+            push += (xform.pos - Input.cursors.world).NormalizedOr(Vec2(1, 0)) * 160;
+        }
+        push = push * Max(0.0, 1 - 4 * dt);
+        MoveBody((velocity + push) * dt);
+
+        rig.Update(xform);
+
+        // Drawing: the floor, the walls, her shadow, the far legs, her body (raised, leaning),
+        // the near legs
+        DrawGround();
+        for (let box in wallBoxes) {
+            Draw.Rect(Rect(box.min, box.max - box.min), DepthAt(box.max.y), DrawParams(color: Color(0.3, 0.28, 0.34, 1)));
+        }
+        let depth = DepthAt(xform.pos.y);
+        rig.DrawShadow(depth - 0.05);
+        rig.DrawLegs(depth, false);
+        Draw.Sprite3D(bodyAnim.CurSprite3D(), Transform(xform.pos + rig.bodyOffset, xform.angle), depth, shear: rig.shear);
+        rig.DrawLegs(depth, true);
+        if (showsDebug) {
+            rig.DrawDebug(Depth.Nearest - 1);
+        }
+        if (playground.settings.showsHints) {
+            Draw.LogLine("legs scene (Shift+F10): WASD walks (Shift slowly), Q/E turn, right click shoves; 1 knees {bend}, 2 pairs {pairs}, G debug ({showsDebug})");
+            Draw.LogLine("{rig}");
+        }
+    }
+
+    // Her body (a circle) through the walls: slides along what it hits
+    void MoveBody(Vec2 motion) {
+        let radius = rig.bodyDim.y * 0.5 + 1;
+        for (let attempt in 0..2) {
+            if (motion.Length() < 0.0001) {
+                return;
+            }
+            let hit = walls.CircleCast(Circle(xform.pos, radius), motion, 1);
+            if (!hit.hasIntersection) {
+                xform.pos += motion;
+                return;
+            }
+            let t = Max(hit.tEnter, 0.0);
+            xform.pos += motion * t + hit.normalEnter * 0.05;
+            let rest = motion * (1 - t);
+            motion = rest - hit.normalEnter * Vec2.Dot(rest, hit.normalEnter);    // (along the wall)
+            velocity -= hit.normalEnter * Min(Vec2.Dot(velocity, hit.normalEnter), 0.0);
+            push -= hit.normalEnter * Min(Vec2.Dot(push, hit.normalEnter), 0.0);
+        }
+    }
+
+    // (y on the ground as the depth: nearer the bottom, nearer the viewer)
+    static float DepthAt(float y) { return 10 + y * 0.1; }
+
+    void DrawGround() {
+        let dots = DrawParams(color: Color(0.22, 0.22, 0.26, 1));
+        for (let y = 42; y < 180; y += 12) {
+            for (let x = 8; x < 320; x += 12) {
+                Draw.Pixel(Vec2(x, y), 1, dots);
+            }
+        }
+    }
+}
