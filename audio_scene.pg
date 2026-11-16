@@ -44,10 +44,12 @@ extend AudioScene {
 
     // Before the scene goes: its streams stop
     void Leave() {
-        if (hasMusic)
+        if (hasMusic) {
             music.Stop(fadeOut: 0.3);
-        if (sine.value != 0)
+        }
+        if (sine.value != 0) {
             Audio.Stop(sine, fadeOut: 0.05);
+        }
         Audio.globalPlaybackSpeed = 1;
     }
 
@@ -60,8 +62,9 @@ extend AudioScene {
 
     void DoFrame() {
         let mouse = Input.cursors.screen - (Vec2)Input.windowDim * 0.5;
-        if (Input.KeyPressed(Scancode.Space))
+        if (Input.KeyPressed(Scancode.Space)) {
             Audio.SetReverbSend(Audio.PlayOneshot("sfx_coin_double1", mouse, pitch: Between(0.9, 1.12), volume: Between(0.7, 1), falloff: SineFalloff()), reverbRoom == 0 ? 0 : 0.3);
+        }
         DoSpatialTest(mouse);
         DoMusic();
         Draw.LogLine("DSP time {(int)(Audio.dspTime * 10) / 10.0} s, real {(int)(Audio.dspTimeReal * 10) / 10.0} s");
@@ -79,13 +82,16 @@ extend AudioScene {
             }
         }
         for (let level in 0..3) {
-            if (hasMusic && Input.KeyPressed((Scancode)((int)Scancode.Alpha1 + level)))
+            if (hasMusic && Input.KeyPressed((Scancode)((int)Scancode.Alpha1 + level))) {
                 music.SetIntensity(level);
-            if (hasMusic && Input.KeyPressed((Scancode)((int)Scancode.Alpha4 + level)))
+            }
+            if (hasMusic && Input.KeyPressed((Scancode)((int)Scancode.Alpha4 + level))) {
                 music.SetTargetIntensity(level);
+            }
         }
-        if (hasMusic)
+        if (hasMusic) {
             music.Update();
+        }
         if (Input.KeyPressed(Scancode.B)) {
             isTicking = !isTicking;
             metronome = AudioPulse(AudioBeat.Beat, bpm);
@@ -121,10 +127,12 @@ extend AudioScene {
         }
         if (Input.KeyPressed(Scancode.R)) {
             reverbRoom = (reverbRoom + 1) % 3;
-            if (reverbRoom == 1)
+            if (reverbRoom == 1) {
                 Audio.SetReverb(AudioReverbParams(roomSize: 0.3, damping: 0.7, wetGain: 1, preDelay: 0.005));
-            if (reverbRoom == 2)
+            }
+            if (reverbRoom == 2) {
                 Audio.SetReverb(AudioReverbParams(roomSize: 0.92, damping: 0.25, wetGain: 1, preDelay: 0.04));
+            }
             restart = isPlaying;                  // (the distance's reverb is the falloff's)
         }
         if (Input.KeyPressed(Scancode.T) || restart) {
@@ -142,8 +150,9 @@ extend AudioScene {
             isSineFiltered = !isSineFiltered;
             Audio.SetLowpass(sine, isSineFiltered ? 0.6 : 0, rampDuration: 0.3);
         }
-        if (Input.KeyPressed(Scancode.G))
+        if (Input.KeyPressed(Scancode.G)) {
             Audio.globalPlaybackSpeed = Audio.globalPlaybackSpeed < 1 ? 1 : 0.5;
+        }
         Audio.SetPosition(sine, sinePosition, sineVelocity);
         Draw.LogLine("audio scene (F6): T sine, F falloff ({sineFalloff}), K minimum loudness ({isSineFloored}), R reverb ({reverbRoom == 0 ? "dry" : (reverbRoom == 1 ? "small room" : "big hall, wetter far away")}), L low-pass ({isSineFiltered}), G slow motion ({Audio.globalPlaybackSpeed}), Space coin");
         if (let info = Audio.GetStream(sine)) {
@@ -171,7 +180,8 @@ extend AudioScene {
         Draw.Line(center - Vec2(0, 8), center + Vec2(0, 8), 1, 3, screen(Color.White));
         let isPlaying = sine.value != 0 && !Audio.IsFinished(sine);
         Draw.Circle(Circle(center + mouse, 5), 3, screen(isPlaying ? Color(1, 0.9, 0.3, 1) : Color(0.5, 0.5, 0.5, 0.8)));
-        if (isPlaying)
+        if (isPlaying) {
             Draw.Line(center + mouse, center + mouse + sineVelocity * 0.1, 1, 3, screen(Color(0.3, 1, 1, 1)));
+        }
     }
 }

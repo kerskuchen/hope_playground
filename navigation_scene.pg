@@ -111,20 +111,26 @@ extend NavScene {
         Camera.allowPanning = true;
         Camera.allowZooming = true;
         let cursor = Input.cursors.world;
-        if (Input.MousePressed(MouseButton.Left))
+        if (Input.MousePressed(MouseButton.Left)) {
             target = cursor;
-        for (let i in 0..5) {
-            if (Input.KeyPressed((Scancode)((int)Scancode.Alpha1 + i)))
-                brush = (byte)i;
         }
-        if (Input.MouseDown(MouseButton.Right))
+        for (let i in 0..5) {
+            if (Input.KeyPressed((Scancode)((int)Scancode.Alpha1 + i))) {
+                brush = (byte)i;
+            }
+        }
+        if (Input.MouseDown(MouseButton.Right)) {
             nav.Set(nav.terrain.WorldToCell(cursor, NAV_TILE), brush);
-        if (Input.KeyPressed(Scancode.Tab))
+        }
+        if (Input.KeyPressed(Scancode.Tab)) {
             selected = (selected + 1) % agents.len;
-        if (Input.KeyPressed(Scancode.N))
+        }
+        if (Input.KeyPressed(Scancode.N)) {
             showsNodes = !showsNodes;
-        if (Input.KeyPressed(Scancode.S))
+        }
+        if (Input.KeyPressed(Scancode.S)) {
             separates = !separates;
+        }
 
         // Every agent asks every frame; the scheduler plans what is needed
         let dt = Input.deltaTime;
@@ -141,8 +147,9 @@ extend NavScene {
             let heading = planner.NextWaypoint(agent.nav, agent.pos, 1);
             let toward = heading - agent.pos;
             let distance = toward.Length();
-            if (distance < 0.01)
+            if (distance < 0.01) {
                 continue;
+            }
             let direction = toward / distance;
             // Away from every other agent within its size + 1 tiles (its own position is skipped)
             agent.push = separates ? NavSeparation(agent.pos, (agent.size + 1) * NAV_TILE, positions) : Vec2(0, 0);
@@ -150,22 +157,26 @@ extend NavScene {
             let step = Min(NAV_SPEED * dt, distance);
             // Only where it still fits (this scene has no collision world): else along its path
             let moved = agent.pos + steer * step;
-            if (!nav.IsWalkable(agent.profile, agent.size, nav.NodeAt(agent.size, moved)))
+            if (!nav.IsWalkable(agent.profile, agent.size, nav.NodeAt(agent.size, moved))) {
                 moved = agent.pos + direction * step;
+            }
             agent.pos = moved;
-            if (agent.breaksWalls)
+            if (agent.breaksWalls) {
                 BreakWalls(agent);
+            }
         }
-        if (planner.stuckReplans > 0)
+        if (planner.stuckReplans > 0) {
             Draw.LogLine("stuck and planned again: {planner.stuckReplans}");
+        }
 
         Render(cursor);
         Draw.LogLine("navigation scene (F4): left mouse target, right mouse paint {BrushName(brush)} (1 floor, 2 wall, 3 water, 4 low wall, 5 breakable), Tab agent, N nodes, S separation ({separates}), middle mouse pan, wheel zoom");
         Perf.Line("navigation: the last frame planned {planner.plansLastFrame} path(s) in {planner.timeLastFrame * 1000:F3} ms ({planner.waiting} waiting)");
         for (let i, agent in agents) {
             let path = planner.PathOf(agent.nav);
-            if (path == null)
+            if (path == null) {
                 continue;
+            }
             Draw.LogLineColored(agent.color, "{i == selected ? "> " : "  "}{agent.name}: {path.reachesTarget ? "reaches the target" : "to the nearest point"}",
                 ", {path.waypoints.len} waypoints, cost {path.cost:F1}");
         }
@@ -177,8 +188,9 @@ extend NavScene {
         let cells = nav.terrain.WorldRectToCells(Rect(agent.pos - Vec2(half), Vec2(2 * half)), NAV_TILE);
         for (let y in cells.y..cells.y + cells.h) {
             for (let x in cells.x..cells.x + cells.w) {
-                if (nav.terrain.TryGet(x, y, NAV_FLOOR) == NAV_BREAKABLE)
+                if (nav.terrain.TryGet(x, y, NAV_FLOOR) == NAV_BREAKABLE) {
                     nav.Set(x, y, NAV_FLOOR);
+                }
             }
         }
     }
@@ -201,16 +213,19 @@ extend NavScene {
             }
         }
         let chosen = &agents[selected];
-        if (showsNodes)
+        if (showsNodes) {
             nav.DrawNodes(chosen.profile, chosen.size, region, 2);
+        }
         for (let i, agent in agents) {
             let half = agent.size * 0.5 * NAV_TILE;
             Draw.Rect(Rect(agent.pos - Vec2(half), Vec2(2 * half)), 4, Color(agent.color.r * 0.6, agent.color.g * 0.6, agent.color.b * 0.6, 0.8));
             let pathColor = i == selected ? agent.color : Color(agent.color.r, agent.color.g, agent.color.b, 0.35);
-            if (let path = planner.PathOf(agent.nav))
+            if (let path = planner.PathOf(agent.nav)) {
                 path.Draw(agent.pos, i == selected ? 6 : 5, pathColor);
-            if (separates && agent.push != Vec2(0, 0))
+            }
+            if (separates && agent.push != Vec2(0, 0)) {
                 Draw.Line(agent.pos, agent.pos + agent.push * 2 * NAV_TILE, 1.5, 7, Color.White);
+            }
         }
         // The target and the cursor's cell
         Draw.Line(target - Vec2(5, 5), target + Vec2(5, 5), 1.5, 7, Color.White);

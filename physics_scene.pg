@@ -154,8 +154,9 @@ extend PhysicsScene {
             let x = 1 + (int)((random >> 8) % (uint)(PHYSICS_COLUMNS - 2));
             random = random * 1103515245 + 12345;
             let y = 1 + (int)((random >> 8) % (uint)(PHYSICS_ROWS - 2));
-            if (solid.Get(x, y) || (Vec2(x, y) - Vec2(8, 12)).Length() < 4)
+            if (solid.Get(x, y) || (Vec2(x, y) - Vec2(8, 12)).Length() < 4) {
                 continue;
+            }
             crateCells.Add(Vec2(x + 0.5, y + 0.5));
             crateBroken.Add(false);
         }
@@ -168,8 +169,9 @@ extend PhysicsScene {
         let canvas = Vec2(Draw.canvasDim);
         let newCell = Max(Floor(Min((canvas.x - 40) / PHYSICS_COLUMNS, (canvas.y - 170) / PHYSICS_ROWS)), 4.0);
         let newOrigin = Vec2(Floor((canvas.x - newCell * PHYSICS_COLUMNS) * 0.5), 150);
-        if (hasWorld && newCell == cell && newOrigin == tiles.origin)
+        if (hasWorld && newCell == cell && newOrigin == tiles.origin) {
             return;
+        }
         // Where the player was, in cells
         let playerCell = Vec2(8, 12);
         let playerRadius = 2.0 / 3;
@@ -221,8 +223,9 @@ extend PhysicsScene {
     // A crate breaks (its collider goes away)
     void BreakCrate(int owner) {
         let index = owner - OWNER_CRATE;
-        if (index < 0 || crates.len <= index || crateBroken[index])
+        if (index < 0 || crates.len <= index || crateBroken[index]) {
             return;
+        }
         world.Remove(crates[index]);
         crates[index] = ColliderId.None;
         crateBroken[index] = true;
@@ -251,8 +254,9 @@ extend PhysicsScene {
         for (let i, v in vehicles) {
             if (!v.external.isResting) {
                 let slide = world.Slide(vehicleBodies[i], v.external.linear * dt);
-                if (slide.hasHit)
+                if (slide.hasHit) {
                     v.external.HitSurface(slide.lastNormal, PHYSICS_SLIDE_RESTITUTION);
+                }
                 v.center = (slide.center - tiles.origin) / cell;
                 v.angle += v.external.angular * dt;
                 v.external.Damp(dt);
@@ -283,8 +287,9 @@ extend PhysicsScene {
         ramTime -= dt;
         if (!stop.hasIntersection) {
             world.MoveTo(player, body.center + motion);
-            if (ramTime <= 0)
+            if (ramTime <= 0) {
                 playerExternal.linear = ramVelocity * 0.3;   // the dash ends: coasting out
+            }
             return;
         }
         world.MoveTo(player, stop.enter + stop.normalEnter * SLIDE_SKIN);
@@ -296,8 +301,9 @@ extend PhysicsScene {
         let restitution = vehicle != null ? PHYSICS_RAM_RESTITUTION_VEHICLE : PHYSICS_RAM_RESTITUTION_WALL;
         let inverseMasses = 1 / PHYSICS_PLAYER_MASS + (vehicle != null ? 1 / vehicle.mass : 0);
         let impulse = (1 + restitution) * closing / inverseMasses;
-        if (vehicle != null)
+        if (vehicle != null) {
             PushVehicle(vehicle, -normal * impulse, stop.enter - normal * body.radius);
+        }
         playerExternal.linear = ramVelocity;
         playerExternal.ApplyLinearImpulse(normal * impulse, PHYSICS_PLAYER_MASS);
         // The screen swings along the ram, by how hard it hit
@@ -321,28 +327,36 @@ extend PhysicsScene {
         // Tiles
         let cursorCell = tiles.CellAt(cursor);
         if (solid.rect.Contains(cursorCell)) {
-            if (Input.MouseDown(MouseButton.Left))
+            if (Input.MouseDown(MouseButton.Left)) {
                 solid.Set(cursorCell, true);
-            if (Input.MouseDown(MouseButton.Right))
+            }
+            if (Input.MouseDown(MouseButton.Right)) {
                 solid.Set(cursorCell, false);
+            }
         }
         let body = world.Get(player).shape.circle;
-        if (Input.KeyPressed(Scancode.Alpha1))
+        if (Input.KeyPressed(Scancode.Alpha1)) {
             body.radius = Max(body.radius - cell / 6, cell / 6);
-        if (Input.KeyPressed(Scancode.Alpha2))
+        }
+        if (Input.KeyPressed(Scancode.Alpha2)) {
             body.radius = Min(body.radius + cell / 6, cell * 3);
+        }
         world.SetShape(player, ColliderShape.Circle(circle: body));
 
         // Moving: slides along walls and obstacles, crates it runs into break
         let direction = Vec2(0, 0);
-        if (Input.KeyDown(Scancode.A))
+        if (Input.KeyDown(Scancode.A)) {
             direction.x -= 1;
-        if (Input.KeyDown(Scancode.D))
+        }
+        if (Input.KeyDown(Scancode.D)) {
             direction.x += 1;
-        if (Input.KeyDown(Scancode.W))
+        }
+        if (Input.KeyDown(Scancode.W)) {
             direction.y -= 1;
-        if (Input.KeyDown(Scancode.S))
+        }
+        if (Input.KeyDown(Scancode.S)) {
             direction.y += 1;
+        }
         // E rams towards the mouse; while ramming there is no steering
         if (Input.KeyPressed(Scancode.E) && ramTime <= 0) {
             ramTime = PHYSICS_RAM_TIME;
@@ -356,19 +370,22 @@ extend PhysicsScene {
             let motion = (direction.NormalizedOr(Vec2(0, 0)) * PHYSICS_MOVE_SPEED * (cell / 24) + playerExternal.linear) * dt;
             let slide = world.Slide(player, motion, &touched, &playerPath);
             playerNormal = slide.lastNormal;
-            if (slide.hasHit)
+            if (slide.hasHit) {
                 playerExternal.HitSurface(slide.lastNormal, PHYSICS_SLIDE_RESTITUTION);
+            }
             playerExternal.Damp(dt);
         }
         for (let hit in touched) {
-            if (!hit.isTile && hit.owner >= OWNER_CRATE)
+            if (!hit.isTile && hit.owner >= OWNER_CRATE) {
                 BreakCrate(hit.owner);
+            }
         }
         body = world.Get(player).shape.circle;
 
         // Aiming: a ray to the cursor and on
-        if (Input.KeyPressed(Scancode.Q))
+        if (Input.KeyPressed(Scancode.Q)) {
             wideShots = !wideShots;
+        }
         let shotRadius = wideShots ? PHYSICS_WIDE_SHOT_RADIUS * cell : 0.0;
         let aim = (cursor - body.center).NormalizedOr(Vec2(1, 0));
         let muzzle = body.center + aim * (body.radius + shotRadius + 4);
@@ -391,8 +408,9 @@ extend PhysicsScene {
             let step = shot.Step(dt, &world, SHOT_MASK,
                 (ProjectileHit* hit) => {
                     shot.trail.Add(hit.point);
-                    if (!hit.isTile && hit.owner >= OWNER_CRATE)
+                    if (!hit.isTile && hit.owner >= OWNER_CRATE) {
                         BreakCrate(hit.owner);
+                    }
                     if (!hit.isTile && let vehicle = VehicleOf(hit.owner)) {
                         PushVehicle(vehicle, hit.direction * PHYSICS_SHOT_IMPULSE * (cell / 24), hit.contact);
                         Camera.AddShake(Shake.Pendulum(hit.direction, 2 * (cell / 24), 0.15, speed: 40));    // a kick along the shot
@@ -406,16 +424,18 @@ extend PhysicsScene {
                     return false;
                 }
             );
-            if (shot.trail.len > 64)
+            if (shot.trail.len > 64) {
                 shot.trail.RemoveAt(0);
+            }
             if (step != ProjectileStep.Flying) {                 // exploded, or out of the world
                 shots.RemoveAt(i);
             }
         }
         for (let i = explosions.len - 1; i >= 0; i--) {
             explosions[i].age += dt;
-            if (explosions[i].age > 1)
+            if (explosions[i].age > 1) {
                 explosions.RemoveAt(i);
+            }
         }
 
         Render(cursor, aimRay, &aimHit);
@@ -426,9 +446,10 @@ extend PhysicsScene {
         }
         Draw.LogLine("circle radius {body.radius}, slide steps {playerPath.len - 1}, shots {shots.len}, colliders {world.count}",
             ", crates broken {broken}/{crateCells.len}");
-        if (aimHit.hasIntersection)
+        if (aimHit.hasIntersection) {
             Draw.LogLine("aim: {aimHit.isTile ? temp "tile {aimHit.cell}" : OwnerName(aimHit.owner)} at {aimHit.point} normal {aimHit.normal}",
                 " impact angle {aimHit.impactAngle:F1}{aimHit.startsInside ? " (starts inside)" : ""}");
+        }
     }
 
     // An explosion: drawn for a while, the crates and the wall tiles in its blast break (right
@@ -448,8 +469,9 @@ extend PhysicsScene {
                 return;
             }
             let border = found.cell.x == 0 || found.cell.y == 0 || found.cell.x == solid.w - 1 || found.cell.y == solid.h - 1;
-            if (!border)
+            if (!border) {
                 solid.Set(found.cell.x, found.cell.y, false);
+            }
         });
     }
 
@@ -459,8 +481,9 @@ extend PhysicsScene {
         // Tiles, and their walls (all of them: the merged exposed faces)
         for (let y in 0..solid.h) {
             for (let x in 0..solid.w) {
-                if (solid.Get(x, y))
+                if (solid.Get(x, y)) {
                     Draw.Rect(tiles.CellBox(x, y).ToRect(), 1, Color(0.25, 0.27, 0.35, 1));
+                }
             }
         }
         with temp;                    // (this frame's walls: temp memory, not the level phase)
@@ -480,12 +503,14 @@ extend PhysicsScene {
 
         // The colliders, by layer
         for (let slot in world.slots) {
-            if (!slot.isUsed || slot.collider.owner == OWNER_PLAYER)
+            if (!slot.isUsed || slot.collider.owner == OWNER_PLAYER) {
                 continue;
+            }
             let layer = slot.collider.layer;
             let color = layer == LAYER_CRATE ? Color(1, 0.6, 0.2, 1) : layer == LAYER_HITBOX ? Color(0.85, 0.45, 1, 1) : Color(0.4, 0.8, 1, 1);
-            if (layer == LAYER_CRATE)
+            if (layer == LAYER_CRATE) {
                 Draw.Rect(slot.collider.shape.box.ToRect(), 3, Color(0.55, 0.33, 0.12, 1));
+            }
             DrawShape(slot.collider.shape, color);
         }
 
@@ -498,17 +523,20 @@ extend PhysicsScene {
         let body = world.Get(player).shape.circle;
         Draw.CircleOutline(body, 1.5 * pixel, 5, ramTime > 0 ? Color(1, 0.3, 0.3, 1) : Color(0.3, 1, 0.4, 1));
         // The external velocities (where they drift; debug arrows: at the window's resolution)
-        if (!playerExternal.isResting)
+        if (!playerExternal.isResting) {
             Draw.DebugVector(body.center, playerExternal.linear * 0.1, Color(0.3, 1, 1, 1));
+        }
         for (let v in vehicles) {
-            if (!v.external.isResting)
+            if (!v.external.isResting) {
                 Draw.DebugVector(ToWorld(v.center), v.external.linear * 0.1, Color(0.3, 1, 1, 1));
+            }
         }
         for (let step in 1..playerPath.len) {
             Draw.Line(playerPath[step - 1], playerPath[step], thin, 6, Color(1, 1, 1, 1));
         }
-        if (playerNormal != Vec2(0, 0))
+        if (playerNormal != Vec2(0, 0)) {
             Draw.DebugArrow(body.center, playerNormal, body.radius + 12, Color(1, 0.3, 0.3, 1));
+        }
 
         // The aim: the ray to the hit, the hit's normal
         let aimEnd = aimHit.hasIntersection ? aimHit.point : aimRay.end;
@@ -523,10 +551,12 @@ extend PhysicsScene {
             for (let i in 1..shot.trail.len) {
                 Draw.Line(shot.trail[i - 1], shot.trail[i], thin, 8, Color(1, 0.8, 0.3, 0.6));
             }
-            if (shot.trail.len > 0)
+            if (shot.trail.len > 0) {
                 Draw.Line(*shot.trail.last, shot.position, thin, 8, Color(1, 0.8, 0.3, 0.6));
-            if (shot.radius > 0)
+            }
+            if (shot.radius > 0) {
                 Draw.CircleOutline(Circle(shot.position, shot.radius), thin, 9, Color(1, 0.9, 0.4, 1));
+            }
             Draw.Circle(shot.position, 2.5, 9, Color(1, 0.9, 0.4, 1));
         }
         for (let explosion in explosions) {

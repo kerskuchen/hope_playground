@@ -20,8 +20,9 @@ string levelSceneName = "";
 const uint LAYER_PROBE = 1;           // the preview's probe (the triggers' mask)
 
 void SetLevelSceneName(string name) {
-    if (name == levelSceneName)
+    if (name == levelSceneName) {
         return;
+    }
     with persist;
     levelSceneName = name.Copy();
 }
@@ -50,8 +51,9 @@ extend LevelScene {
         // The entities (in the level phase, like the drawing: wiped with it)
         entityWorld = triggers;
         for (let layer in data.layers) {
-            if (layer.case == LevelLayer.Entities)
+            if (layer.case == LevelLayer.Entities) {
                 Entities.SpawnLevel(layer);
+            }
         }
         Draw.isCanvasFree = false;
         Camera.rotation = 0;
@@ -68,8 +70,9 @@ extend LevelScene {
     void MakeTriggers() {
         triggers = New[CollisionWorld](Box(Vec2(0, 0), Vec2(data.pixelSize)), 64);
         for (let layerIndex, layer in data.layers) {
-            if (layer.case != LevelLayer.Areas)
+            if (layer.case != LevelLayer.Areas) {
                 continue;
+            }
             for (let index, area in layer.areas) {
                 triggers.AddTrigger(area.shape, LAYER_PROBE, owner: layerIndex * 1000 + index);
             }
@@ -92,13 +95,22 @@ extend LevelScene {
     // Preview: what a game makes of the level (its own presentation: here every layer, ground first)
 
     void DoFrame() {
-        if (playground.settings.showsHints)
+        if (playground.settings.showsHints) {
             Draw.LogLine("Level scene (F1: the editor): the level '{levelSceneName}' as a game shows it (the list: another one), arrow keys move the view, the mouse is a probe for the trigger areas");
+        }
         let move = Vec2(0, 0);
-        if (Input.KeyDown(Scancode.Left)) move.x -= 1;
-        if (Input.KeyDown(Scancode.Right)) move.x += 1;
-        if (Input.KeyDown(Scancode.Up)) move.y -= 1;
-        if (Input.KeyDown(Scancode.Down)) move.y += 1;
+        if (Input.KeyDown(Scancode.Left)) {
+            move.x -= 1;
+        }
+        if (Input.KeyDown(Scancode.Right)) {
+            move.x += 1;
+        }
+        if (Input.KeyDown(Scancode.Up)) {
+            move.y -= 1;
+        }
+        if (Input.KeyDown(Scancode.Down)) {
+            move.y += 1;
+        }
         let half = Camera.viewportDim * 0.5;
         let bounds = data.cameraRect;
         let pos = Camera.pos + move * 160 * Input.deltaTime;
@@ -135,15 +147,17 @@ extend LevelScene {
         for (let event in triggers.triggerEvents) {
             let area = &data.layers[event.triggerOwner / 1000].areas[event.triggerOwner % 1000];
             Draw.LogSticky(150, event.isEnter ? Color.Green : Color.Orange, "{event.isEnter ? "Entered '" : "Left '"}{area.name}' ({area.kind})");
-            if (event.isEnter)
+            if (event.isEnter) {
                 area.SendSignal();
+            }
         }
         Signals.SendNear(mouse, 40, "wake");
         // The signals of this frame, then the destroyed ones gone
         Signals.Deliver();
         Entities.Flush();
-        if (playground.settings.showsHints)
+        if (playground.settings.showsHints) {
             Draw.LogLine("entities: {Entities.count} (ghosts {Entities.All[Ghost]().len}, gone {ghostsGone}), signals waiting {Signals.pending}");
+        }
         for (let brazier in Entities.All[Brazier]()) {
             brazier.Draw();
         }
@@ -164,11 +178,13 @@ extend LevelScene {
         }
         Draw.CircleOutline(Circle(mouse, 6), 1, Depth.Nearest, DrawParams(color: Color(1, 1, 1, 0.9)));
         for (let layer in data.layers) {
-            if (layer.case != LevelLayer.Areas)
+            if (layer.case != LevelLayer.Areas) {
                 continue;
+            }
             for (let area in layer.areas) {
-                if (!Overlap.BoxCircle(area.box, Circle(mouse, 6)))
+                if (!Overlap.BoxCircle(area.box, Circle(mouse, 6))) {
                     continue;
+                }
                 Draw.RectOutline(LevelEditor.RectOf(area.rect), 1, Depth.Nearest, DrawParams(color: LevelEditor.AreaColor(area.kind)));
             }
         }
@@ -182,8 +198,9 @@ extend LevelScene {
         let names = LevelEditor.LevelNames();
         with Ui.Scroll(Min(Max(1, names.len), 8) * (Ui.ButtonHeight() + Ui.style.spacing)) {
             for (let index, level in names) {
-                if (Ui.Button(*level, align: UiAlign.Left, isToggled: *level == levelSceneName) && *level != levelSceneName)
+                if (Ui.Button(*level, align: UiAlign.Left, isToggled: *level == levelSceneName) && *level != levelSceneName) {
                     Request(*level);
+                }
             }
         }
     }

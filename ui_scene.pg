@@ -22,8 +22,9 @@ extend UiScene {
     }
 
     void DoFrame() {
-        if (playground.settings.showsHints)
+        if (playground.settings.showsHints) {
             Draw.LogLine("UI scene (F8): mouse, arrows/WASD + Enter/Space + Escape, or a gamepad (d-pad/stick, A, B)");
+        }
         switch (screens.top) {
         case MenuScreen.Title: TitleScreen();
         case MenuScreen.Options: OptionsScreen();
@@ -38,14 +39,18 @@ extend UiScene {
             Ui.Label("hope playground", UiAlign.Center);
         }
         with Ui.Panel(UiAnchor.Center, 110, 0, Vec2i(0, 18));
-        if (Ui.Button("Play"))
+        if (Ui.Button("Play")) {
             wantsToPlay = true;
-        if (Ui.Button("Options"))
+        }
+        if (Ui.Button("Options")) {
             screens.Push(MenuScreen.Options);
-        if (Ui.Button("Credits"))
+        }
+        if (Ui.Button("Credits")) {
             screens.Push(MenuScreen.Credits);
-        if (Ui.Button("Quit"))
+        }
+        if (Ui.Button("Quit")) {
             Window.Quit();
+        }
     }
 
     void OptionsScreen() {
@@ -56,15 +61,17 @@ extend UiScene {
         let changed = Ui.Slider("Music", &settings.music, 0, 1, 0.1);
         changed = Ui.Slider("Sounds", &settings.sounds, 0, 1, 0.1) || changed;
         let fullscreen = Window.isFullscreen;
-        if (Ui.Checkbox("Fullscreen", &fullscreen))
+        if (Ui.Checkbox("Fullscreen", &fullscreen)) {
             Window.isFullscreen = fullscreen;
+        }
         changed = Ui.Checkbox("Show hints", &settings.showsHints) || changed;
         if (changed) {
             settings.Apply();
             playground.areSettingsChanged = true;
         }
-        if (Ui.Button("Controls"))
+        if (Ui.Button("Controls")) {
             screens.Push(MenuScreen.Controls);
+        }
         Ui.Space(2);
         if (Ui.Button("Back") || Ui.cancelPressed) {
             playground.SaveSettings();
@@ -90,11 +97,13 @@ extend UiScene {
             Ui.Controls(rows, labelPart: 0.25);
         }
         with Ui.Columns(2);
-        if (Ui.Button("Reset"))
+        if (Ui.Button("Reset")) {
             Input.ResetBindings();
+        }
         Ui.FocusByDefault();
-        if (Ui.Button("Back") || Ui.cancelPressed)
+        if (Ui.Button("Back") || Ui.cancelPressed) {
             screens.Pop();
+        }
     }
 
     void CreditsScreen() {
@@ -104,7 +113,8 @@ extend UiScene {
             Ui.Text(gamePack.credits);
         }
         Ui.FocusByDefault();
-        if (Ui.Button("Back") || Ui.cancelPressed)
+        if (Ui.Button("Back") || Ui.cancelPressed) {
             screens.Pop();
+        }
     }
 }

@@ -148,11 +148,13 @@ extend EffectsScene {
         let dt = Input.deltaTime;
         time += dt;
         waves.Update();                // (before everything that reacts to them)
-        if (playground.settings.showsHints)
+        if (playground.settings.showsHints) {
             Draw.LogLine("effects scene (F10): antennas: on the mouse, on Susi's turret (WASD drives, the turret aims at the mouse), a row stop and go (loose, default, stiff, no overshoot); 1 wind ({isWindy}), 2 a blast at the mouse, 3 a rocket to it");
+        }
         let cursor = Input.cursors.world;
-        if (Input.KeyPressed(Scancode.Alpha1))
+        if (Input.KeyPressed(Scancode.Alpha1)) {
             isWindy = !isWindy;
+        }
         // (gusts: two slow waves over a steady breeze from the left)
         let wind = isWindy ? Vec2(70 + Sin(time * 1.3) * 40 + Sin(time * 3.7) * 20, Sin(time * 0.7) * 15) : Vec2.Zero;
         turretAntenna.wind = wind;
@@ -225,15 +227,17 @@ extend EffectsScene {
             crowdCount = crowdCount == 0 ? 2000 : crowdCount == 2000 ? 4000 : crowdCount == 4000 ? 8000 : 0;
             crowd.Clear();
         }
-        if (Input.KeyPressed(Scancode.Alpha5))
+        if (Input.KeyPressed(Scancode.Alpha5)) {
             isCrowdSorted = !isCrowdSorted;
+        }
         if (crowdCount > 0) {
             crowd.Emit(Vec3(160, 105, 0), crowdCount - crowd.count);
             let timer = PerformanceTimer();
             crowd.Update();
             crowdUpdateMs = crowdUpdateMs * 0.95 + timer.PeekTime() * 1000 * 0.05;
-            if (playground.settings.showsHints)
+            if (playground.settings.showsHints) {
                 Draw.LogLine("stress: {crowd.count} particles{isCrowdSorted ? " y-sorted" : " one depth"} (4 more, 5 sort; F12: their times)");
+            }
             Perf.Line("effects stress: update {crowdUpdateMs:F2} ms, draw {crowdDrawMs:F2} ms, end frame {Draw.stats.endFrameSeconds * 1000:F2} ms");
         }
         blast.Update();
@@ -253,10 +257,12 @@ extend EffectsScene {
         exhaust.Update();
         sparks.Update();
         embers.Update();
-        if (playground.settings.showsHints)
+        if (playground.settings.showsHints) {
             Draw.LogLine("particles (a campfire, Susi's exhaust while she drives, sparks with the right click): {fire.count} fire, {exhaust.count} exhaust, {sparks.count} sparks, {embers.count} embers");
-        if (playground.settings.showsHints)
+        }
+        if (playground.settings.showsHints) {
             Draw.LogLine("debris (click: around, right click: from the turret): flying {debris.CountOf(DebrisState.Flying)}, rolling {debris.CountOf(DebrisState.Rolling)}, resting {debris.CountOf(DebrisState.Resting)}, decals waiting {decals.pendingCount}");
+        }
         // The platform: drives right and back at a constant speed, starting and stopping at
         // once at each end (a jolt each time)
         let phase = (time % 4) / 4;
@@ -290,10 +296,11 @@ extend EffectsScene {
         trail.Draw((float y) => DepthAt(y));
         if (crowdCount > 0) {
             let timer = PerformanceTimer();
-            if (isCrowdSorted)
+            if (isCrowdSorted) {
                 crowd.Draw((float y) => DepthAt(y));
-            else
+            } else {
                 crowd.Draw(DepthAt(105));
+            }
             crowdDrawMs = crowdDrawMs * 0.95 + timer.PeekTime() * 1000 * 0.05;
         }
         if (isRocketFlying) {

@@ -60,8 +60,9 @@ extend Brazier {
 
     void Draw() {
         global.Draw.Rect(Rect(xform.pos - Vec2(3, 1), Vec2(6, 4)), 30, DrawParams(color: Color(0.25, 0.15, 0.1, 1)));
-        if (!isLit)
+        if (!isLit) {
             return;
+        }
         // (the glow: the light sprite, its size breathing with the flicker)
         let wobble = 1 + Sin(time * 9) * 0.06 * flicker + Sin(time * 23) * 0.03 * flicker;
         let glow = global.Draw.GetSprite("light_torch");
@@ -135,8 +136,9 @@ extend Turret {
                     }
                 });
             }
-            if (hasHit || bullet.life <= 0)
+            if (hasHit || bullet.life <= 0) {
                 bullets.RemoveAt(index);
+            }
         }
     }
 
@@ -154,8 +156,9 @@ extend Turret {
         Draw();
         global.Draw.CircleOutline(Circle(xform.pos, range), 1, 33, DrawParams(color: Color(0.9, 0.3, 0.3, 0.5)));
         // (in the editor Resolve finds the placed entity of that name)
-        if (let aim = target.Resolve())
+        if (let aim = target.Resolve()) {
             global.Draw.Line(xform.pos, aim.xform.pos, 1, 33, DrawParams(color: Color(1, 0.94, 0.55, 0.7)));
+        }
     }
 }
 
@@ -175,16 +178,19 @@ struct Spawner : Entity {
 extend Spawner {
     void DoFrame() {
         timer -= Input.deltaTime;
-        if (timer > 0)
+        if (timer > 0) {
             return;
+        }
         timer = interval;
         let count = 0;
         for (let ghost in Entities.All[Ghost]()) {
-            if (ghost.isAlive && ghost.spawner == id)
+            if (ghost.isAlive && ghost.spawner == id) {
                 count++;
+            }
         }
-        if (count >= maxCount)
+        if (count >= maxCount) {
             return;
+        }
         let ghost = Entities.Spawn[Ghost]();
         let angle = (float)(Random.Hash((ulong)(ghost.id.index * 7919 + Entities.count)) % 360);
         ghost.xform.pos = xform.pos + Vec2.FromAngle(angle) * radius;
@@ -226,8 +232,9 @@ struct Ghost : Entity {
 
 extend Ghost {
     void OnSignal(Signal* signal) {
-        if (signal.name == "wake")
+        if (signal.name == "wake") {
             awake = 3;
+        }
     }
 
     get bool isAwake() { return awake > 0; }
@@ -249,8 +256,9 @@ extend Ghost {
             Entities.Destroy(&self.Entity);
             return;
         }
-        if (!isAwake)
+        if (!isAwake) {
             return;                    // (asleep: still)
+        }
         awake -= dt;
         time += dt;
         anim.Update();
@@ -262,8 +270,9 @@ extend Ghost {
         }
         let toGoal = goal - xform.pos;
         xform.pos = xform.pos + toGoal.Normalized() * Min(speed * dt, toGoal.Length());
-        if (entityWorld != null)
+        if (entityWorld != null) {
             entityWorld.MoveTo(body, xform.pos);
+        }
     }
 
     void Draw() {
@@ -275,8 +284,9 @@ extend Ghost {
 
     // (its collider out of the world)
     void Destroyed() {
-        if (entityWorld != null)
+        if (entityWorld != null) {
             entityWorld.Remove(body);
+        }
         ghostsGone++;
     }
 }
@@ -301,11 +311,13 @@ extend Door {
         case "open":
             isOpen = true;
             opens++;
-            if (closeAfter > 0)
+            if (closeAfter > 0) {
                 Signals.Send(id, "close", from: id, value: opens, delay: closeAfter);
+            }
         case "close":
-            if (signal.from != id || (int)signal.value == opens)
+            if (signal.from != id || (int)signal.value == opens) {
                 isOpen = false;
+            }
         }
     }
 

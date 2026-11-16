@@ -151,8 +151,9 @@ extend LightingScene {
     // The tank's footprint (10 x 10 around 'pos') free of walls
     bool FitsAt(Vec2 pos) {
         for (let corner in [Vec2(-5, -5), Vec2(5, -5), Vec2(-5, 5), Vec2(5, 5)]) {
-            if (IsBlockedAt(pos + *corner))
+            if (IsBlockedAt(pos + *corner)) {
                 return false;
+            }
         }
         return true;
     }
@@ -165,22 +166,27 @@ extend LightingScene {
         Camera.allowZooming = false;
         let dt = Input.deltaTime;
         let cursor = Input.cursors.world;
-        if (Input.KeyPressed(Scancode.Alpha1))
+        if (Input.KeyPressed(Scancode.Alpha1)) {
             isLit = !isLit;
-        if (Input.KeyPressed(Scancode.Alpha4))
+        }
+        if (Input.KeyPressed(Scancode.Alpha4)) {
             shiftsWallRows = !shiftsWallRows;
-        if (Input.KeyPressed(Scancode.Alpha3))
+        }
+        if (Input.KeyPressed(Scancode.Alpha3)) {
             SetOverlays(!hasOverlays);
+        }
         Draw.isLightingEnabled = isLit;
         Draw.ambientLight = LIGHTING_AMBIENT;
 
         // Susi: drives, collides with the walls (one axis at a time: it slides along them)
         let move = Input.ActionValue2D("move");
         let step = move * 60 * dt;
-        if (FitsAt(tankPos + Vec2(step.x, 0)))
+        if (FitsAt(tankPos + Vec2(step.x, 0))) {
             tankPos.x += step.x;
-        if (FitsAt(tankPos + Vec2(0, step.y)))
+        }
+        if (FitsAt(tankPos + Vec2(0, step.y))) {
             tankPos.y += step.y;
+        }
         if (move.Length() > 0.1) {
             tankAngle = move.Angle();
             tracksAnim.Update();
@@ -213,19 +219,22 @@ extend LightingScene {
         }
         for (let i = flashes.len - 1; i >= 0; i--) {
             flashes[i].age += dt;
-            if (flashes[i].age > 0.35)
+            if (flashes[i].age > 0.35) {
                 flashes.RemoveAt(i);
+            }
         }
 
         // Walls on and off, braziers, the stress test
         if (Input.MousePressed(MouseButton.Right)) {
             let cell = walls.WorldToCell(cursor, LIGHTING_TILE, walls.origin);
             let inside = 0 < cell.x && cell.x < LIGHTING_COLUMNS - 1 && 0 < cell.y && cell.y < LIGHTING_ROWS - 1;
-            if (inside)
+            if (inside) {
                 walls.Set(cell, !walls.Get(cell.x, cell.y));
+            }
         }
-        if (Input.KeyPressed(Scancode.L))
+        if (Input.KeyPressed(Scancode.L)) {
             braziers.Add(LightingBrazier(cursor, LightFlicker((ulong)braziers.len + 7)));
+        }
         if (Input.KeyPressed(Scancode.K)) {
             if (wanderers.len > 0) {
                 wanderers.Clear();
@@ -239,10 +248,12 @@ extend LightingScene {
         }
         for (let w in wanderers) {
             w.pos += w.velocity * dt;
-            if (w.pos.x < 10 || 310 < w.pos.x)
+            if (w.pos.x < 10 || 310 < w.pos.x) {
                 w.velocity.x = -w.velocity.x;
-            if (w.pos.y < 10 || 170 < w.pos.y)
+            }
+            if (w.pos.y < 10 || 170 < w.pos.y) {
                 w.velocity.y = -w.velocity.y;
+            }
         }
 
         DrawLights(dt);
@@ -279,8 +290,9 @@ extend LightingScene {
         // footprint), the cap at the ambient by the light mask (DungeonTracks' dark tops)
         for (let y in 0..LIGHTING_ROWS) {
             for (let x in 0..LIGHTING_COLUMNS) {
-                if (!walls.Get(x, y))
+                if (!walls.Get(x, y)) {
                     continue;
+                }
                 let pos = Vec2(x, y) * LIGHTING_TILE;
                 let bottom = pos.y + LIGHTING_TILE;
                 let depth = DepthAt(bottom);
