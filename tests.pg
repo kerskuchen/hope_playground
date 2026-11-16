@@ -15,8 +15,8 @@ void RegisterTests() {
     Test.Add("Susi leans", TestLean, maxFrames: 900);
 }
 
-// The legs scene's lean: tilted and stretched (the default), then sheared (4): running right,
-// stopping, running down, running up (screenshots to compare); the tilt and stretch's signs
+// The legs scene's lean (tilted and stretched): running right, stopping, running down, running
+// up (screenshots); the tilt's and the stretch's signs
 void TestLean(TestRun* run) {
     let f = run.frame;
     if (f == 1) {
@@ -31,34 +31,28 @@ void TestLean(TestRun* run) {
     }
     let scene = playground.legs;
     let rig = &scene.rig;
-    for (let round in 0..2) {
-        let at = round * 300;
-        let way = round == 0 ? "tilt" : "shear";
-        if (f == at + 10) { run.Hold(Scancode.D); }
-        if (f == at + 40) {
-            run.Screenshot(temp "{way} running right");
-            if (round == 0) { run.Check(rig.tilt > 2, "running right tilts her right ({rig.tilt:F1}°)"); }
-            run.Release(Scancode.D);
-            run.Hold(Scancode.A);
-        }
-        if (f == at + 70) { run.Release(Scancode.A); }
-        if (f == at + 78) { run.Screenshot(temp "{way} stopping"); }
-        if (f == at + 110) { run.Hold(Scancode.S); }
-        if (f == at + 140) {
-            run.Screenshot(temp "{way} running down");
-            if (round == 0) { run.Check(rig.stretch > 1.03, "running down makes her taller ({rig.stretch:F3})"); }
-            run.Release(Scancode.S);
-        }
-        if (f == at + 180) { run.Hold(Scancode.W); }
-        if (f == at + 210) {
-            run.Screenshot(temp "{way} running up");
-            if (round == 0) { run.Check(rig.stretch < 0.97, "running up makes her shorter ({rig.stretch:F3})"); }
-            run.Release(Scancode.W);
-        }
-        if (f == at + 290 && round == 0) { run.Press(Scancode.Alpha4); }
+    if (f == 10) { run.Hold(Scancode.D); }
+    if (f == 40) {
+        run.Screenshot("running right");
+        run.Check(rig.tilt > 2, "running right tilts her right ({rig.tilt:F1}°)");
+        run.Release(Scancode.D);
+        run.Hold(Scancode.A);
     }
-    if (f == 600) {
-        run.Check(!scene.leansByTilt, "4 switches to the shear");
+    if (f == 70) { run.Release(Scancode.A); }
+    if (f == 78) { run.Screenshot("stopping"); }
+    if (f == 110) { run.Hold(Scancode.S); }
+    if (f == 140) {
+        run.Screenshot("running down");
+        run.Check(rig.stretch > 1.03, "running down makes her taller ({rig.stretch:F3})");
+        run.Release(Scancode.S);
+    }
+    if (f == 180) { run.Hold(Scancode.W); }
+    if (f == 210) {
+        run.Screenshot("running up");
+        run.Check(rig.stretch < 0.97, "running up makes her shorter ({rig.stretch:F3})");
+        run.Release(Scancode.W);
+    }
+    if (f == 240) {
         run.Pass();
     }
 }
