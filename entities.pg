@@ -14,6 +14,16 @@
 //               one, delayed (closeAfter)
 //     Lever     a click in the preview pulls it: its SignalLink (wired in the editor) is sent
 
+// The entity types (hope calls it before Create and after a code reload: Game.RegisterEntities)
+void RegisterEntityTypes() {
+    Entities.Register[Brazier]();
+    Entities.Register[Turret]();
+    Entities.Register[Spawner]();
+    Entities.Register[Ghost]();
+    Entities.Register[Door]();
+    Entities.Register[Lever]();
+}
+
 // The collision world the entities' colliders are in (the level scene's preview makes it)
 CollisionWorld* entityWorld = null;
 
