@@ -292,6 +292,7 @@ extend Playground {
             Memory.WipeLevel();
         }
         if (legs != null) {
+            legs.Leave();
             legs = null;
             Memory.WipeLevel();
         }

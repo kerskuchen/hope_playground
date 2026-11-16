@@ -11,6 +11,61 @@ void RegisterTests() {
     Test.Add("E rams, and the ram ends", TestRam);
     Test.Add("Susi walks on six legs", TestLegs, maxFrames: 900);
     Test.Add("Susi stumbles and falls and gets up and dies", TestRagdoll, maxFrames: 900);
+    Test.Add("Susi loses her legs", TestLooseLegs, maxFrames: 900);
+}
+
+// The legs scene's loose legs: one torn off (she walks on five), all of them (she falls), they
+// settle into the decal map, they grow back (she gets up); the looks, a leg off in each; every
+// frame: the loose legs keep their lengths, above the ground
+void TestLooseLegs(TestRun* run) {
+    let f = run.frame;
+    if (f == 1) {
+        run.Hold(Scancode.LShift);
+        run.Press(Scancode.F10);
+    }
+    if (f == 2) {
+        run.Release(Scancode.LShift);
+    }
+    if (f < 5) {
+        return;
+    }
+    let scene = playground.legs;
+    let rig = &scene.rig;
+    scene.loose.decayTime = 1;                     // (sooner into the decal map)
+    for (let index, leg in scene.loose.legs) {
+        let thigh = (leg.knee - leg.hip).Length();
+        let shin = (leg.foot - leg.knee).Length();
+        run.Check(Abs(thigh - leg.thigh) < 0.6 && Abs(shin - leg.shin) < 0.6, "loose leg {index}: segments {thigh:F2}, {shin:F2} at frame {f}");
+        run.Check(leg.hip.z >= 0 && leg.knee.z >= 0 && leg.foot.z >= 0, "loose leg {index} below the ground at frame {f}");
+    }
+    let her = scene.xform.pos * 2;
+    if (f == 10) { run.MoveMouse(her + Vec2(30, -30)); }
+    if (f == 11) { run.Press(Scancode.X); }
+    if (f == 13) {
+        run.Check(rig.attachedCount == 5 && scene.loose.count == 1, "X tears one leg off ({rig.attachedCount} on, {scene.loose.count} loose)");
+    }
+    if (f == 30) { run.Screenshot("torn off"); }
+    if (f == 40) { run.Hold(Scancode.D); }
+    if (f == 100) { run.Screenshot("five legs walking"); run.Release(Scancode.D); }
+    if (120 <= f && f < 150 && f % 5 == 0) { run.Press(Scancode.X); }
+    if (f == 152) { run.Check(rig.attachedCount == 0 && rig.isLimp, "no legs left: she falls ({*rig})"); }
+    if (f == 165) { run.Screenshot("no legs"); }
+    if (f == 330) {
+        run.Check(scene.loose.count == 0, "the loose legs went into the decal map ({scene.loose.count} left)");
+        run.Screenshot("decals");
+        run.Press(Scancode.R);
+    }
+    if (f == 400) { run.Check(rig.isStanding && rig.attachedCount == 6, "the legs grew back, she stands ({*rig})"); }
+    for (let look in 1..4) {
+        let at = 400 + look * 40;
+        if (f == at) { run.Press(Scancode.Alpha3); run.MoveMouse(her + Vec2(0, 30)); }
+        if (f == at + 2) { run.Press(Scancode.X); }
+        if (f == at + 20) { run.Screenshot(temp "look {look}"); }
+    }
+    if (f == 600) {
+        run.Check(scene.look == 3 && rig.attachedCount == 3, "three looks, a leg off in each ({rig.attachedCount} on)");
+        run.Pass();
+    }
 }
 
 // The legs scene's ragdoll: a blast while she stands (a foot stumbles), knocked out (lying), a
@@ -31,6 +86,9 @@ void TestRagdoll(TestRun* run) {
     let scene = playground.legs;
     let rig = &scene.rig;
     for (let index, leg in rig.legs[0..rig.legCount]) {
+        if (leg.isDetached) {
+            continue;                      // (a blast near her tears legs off: they are LooseLegs')
+        }
         run.Check(leg.foot.x == leg.foot.x && leg.knee.x == leg.knee.x, "leg {index}: NaN at frame {f}");
         run.Check(leg.foot.z >= 0 && leg.knee.z >= 0, "leg {index} below the ground at frame {f}: knee {leg.knee}, foot {leg.foot}");
         if (rig.isLimp) {
