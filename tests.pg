@@ -10,6 +10,64 @@ void RegisterTests() {
     Test.Add("the phases stay as they are in every scene", TestSteadyMemory, maxFrames: 10800);
     Test.Add("E rams, and the ram ends", TestRam);
     Test.Add("Susi walks on six legs", TestLegs, maxFrames: 900);
+    Test.Add("Susi stumbles and falls and gets up and dies", TestRagdoll, maxFrames: 900);
+}
+
+// The legs scene's ragdoll: a blast while she stands (a foot stumbles), knocked out (lying), a
+// blast while limp, getting up, dead (curled, asleep after a while), shoved dead, alive again;
+// every frame: the limp segments keep their lengths, nothing below the ground, no NaN
+void TestRagdoll(TestRun* run) {
+    let f = run.frame;
+    if (f == 1) {
+        run.Hold(Scancode.LShift);
+        run.Press(Scancode.F10);
+    }
+    if (f == 2) {
+        run.Release(Scancode.LShift);
+    }
+    if (f < 5) {
+        return;
+    }
+    let scene = playground.legs;
+    let rig = &scene.rig;
+    for (let index, leg in rig.legs[0..rig.legCount]) {
+        run.Check(leg.foot.x == leg.foot.x && leg.knee.x == leg.knee.x, "leg {index}: NaN at frame {f}");
+        run.Check(leg.foot.z >= 0 && leg.knee.z >= 0, "leg {index} below the ground at frame {f}: knee {leg.knee}, foot {leg.foot}");
+        if (rig.isLimp) {
+            let thigh = (leg.knee - leg.hip).Length();
+            let shin = (leg.foot - leg.knee).Length();
+            run.Check(Abs(thigh - rig.setup.thigh) < 0.5 && Abs(shin - rig.setup.shin) < 1.0, "leg {index}'s limp segments {thigh:F2}, {shin:F2} at frame {f}");
+        }
+    }
+    let her = scene.xform.pos * 2;                 // (the window: the canvas at 2x, the camera on it)
+    if (f == 20) { run.MoveMouse(her + Vec2(-40, 10)); }
+    if (f == 21) { run.Click(MouseButton.Left); }
+    if (24 <= f && f <= 40 && !scene.ragdollStumbled) {
+        for (let leg in rig.legs[0..rig.legCount]) {
+            scene.ragdollStumbled = scene.ragdollStumbled || leg.isStumbling;
+        }
+    }
+    if (f == 27) { run.Screenshot("stumble"); }
+    if (f == 60) { run.Check(scene.ragdollStumbled, "a blast near her makes a foot stumble"); }
+    if (f == 80) { run.Press(Scancode.U); }
+    if (f == 120) {
+        run.Check(rig.isLimp && rig.z < 0.5, "knocked out, she lies on the ground (z {rig.z:F2})");
+        run.Screenshot("knocked out");
+        run.MoveMouse(her + Vec2(30, -20));
+    }
+    if (f == 121) { run.Click(MouseButton.Left); }
+    if (f == 130) { run.Screenshot("blasted limp"); }
+    if (f == 236) { run.Screenshot("getting up"); }
+    if (f == 300) { run.Check(rig.isStanding, "she got up ({*rig})"); run.Press(Scancode.K); }
+    if (f == 420) { run.Screenshot("dead"); run.MoveMouse(her + Vec2(-16, 0)); }
+    if (f == 421) { run.Click(MouseButton.Right); }
+    if (f == 440) { run.Screenshot("dead shoved"); }
+    if (f == 590) { run.Check(rig.sleepTime > 0.4, "dead and still, she sleeps ({*rig})"); run.Press(Scancode.K); }
+    if (f == 605) { run.Screenshot("revived"); }
+    if (f == 670) {
+        run.Check(rig.isStanding, "alive again, she stands ({*rig})");
+        run.Pass();
+    }
 }
 
 // The legs scene: walking, turning, against a pillar, a shove, standing; every frame: no leg

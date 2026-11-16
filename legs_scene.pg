@@ -2,14 +2,18 @@
 // The legs scene (Shift+F10): Susi on six legs (hope's legs.pg). WASD (or the stick) walks her:
 // she turns towards where she goes while she walks, and in place first if it is behind her; Q and
 // E turn her in place; Shift walks slowly (faster runs: the groups step together); the right
-// mouse button shoves her away from the cursor. 1: the knees out (a spider) or back (a dog),
-// 2: two, three or four pairs, G: the rest positions, the steps' targets and the hips.
+// mouse button shoves her away from the cursor, the left one sets off a blast there (she stumbles;
+// limp, her legs fly). K: dead (the legs curl) or alive again (she gets up), U: knocked out for
+// 2.5 s. 1: the knees out (a spider) or back (a dog), 2: two, three or four pairs, G: the rest
+// positions, the steps' targets and the hips.
 //
 // The setup is made again every frame (LegsSetup): change a number, save, and she walks on with it.
 
 LegSetup LegsSetup(KneeBend bend, int pairs) {
     return LegSetup(pairs: pairs, bend: bend);
 }
+
+enum SusiLife { Alive, KnockedOut, Dead }
 
 struct LegsScene {
     AnimationPlayer bodyAnim;          // (Susi's first frame: no tracks running)
@@ -22,6 +26,11 @@ struct LegsScene {
     bool showsDebug;
     CollisionWorld* walls;             // the arena's border and two pillars
     [Box, 6] wallBoxes;
+    StateClock[SusiLife] life;
+    float spin;                        // degrees a second (limp: blasts turn her)
+    Shockwaves waves;
+    ParticleSystem blast;
+    bool ragdollStumbled;              // (the test's: a foot stumbled)
 }
 
 extend LegsScene {
@@ -39,7 +48,12 @@ extend LegsScene {
         for (let box in wallBoxes) {
             walls.Add(Collider(ColliderShape.Box(box: *box), 1, 0));
         }
-        rig = LegRig(LegsSetup(bend, pairs), BodyDim(), walls, 1);
+        rig = LegRig(LegsSetup(bend, pairs), BodyDim(), walls, 1, &waves);
+        let glow = Draw.GetSprite("light_torch");
+        blast = ParticleSystem(ParticleProps(sprite: glow, lifetime: Between(0.3, 0.6), spread: 180, elevation: Between(0, 50), startSpeed: Between(60, 130), endSpeed: 0,
+            speedCurve: Curve.EaseOut(3), startSize: Between(0.06, 0.1), endSize: 0.02, startOpacity: 1, endOpacity: 0, opacityCurve: Curve.EaseIn(),
+            startColor: ColorBetween(Color(1, 0.9, 0.5, 1), Color(1, 0.6, 0.2, 1)), endColor: Color(0.95, 0.35, 0.05, 1), startAdditivity: 1, endAdditivity: 1,
+            gravity: 60, waveResponse: 0, glow: 1), capacity: 200);
     }
 
     // Susi's footprint: her sprite's trimmed size (x: along her forward)
@@ -61,24 +75,60 @@ extend LegsScene {
             showsDebug = !showsDebug;
         }
         rig.setup = LegsSetup(bend, pairs);
+        waves.Update();
+
+        // Alive, knocked out (up again after 2.5 s), dead
+        life.Step();
+        if (Input.KeyPressed(Scancode.K)) {
+            if (life.state == SusiLife.Dead) {
+                life.Go(SusiLife.Alive);
+                rig.GetUp();
+            } else {
+                life.Go(SusiLife.Dead);
+                rig.GoLimp(true);
+            }
+        }
+        if (Input.KeyPressed(Scancode.U) && life.state == SusiLife.Alive) {
+            life.Go(SusiLife.KnockedOut);
+            rig.GoLimp(false);
+        }
+        if (life.state == SusiLife.KnockedOut && life.time > 2.5) {
+            life.Go(SusiLife.Alive);
+            rig.GetUp();
+        }
+        // A blast at the cursor (the left button): its fire, the wave (her legs feel it themselves)
+        if (Input.MousePressed(MouseButton.Left)) {
+            let center = Input.cursors.world;
+            blast.Emit(Vec3(center, 3), 40);
+            waves.Add(Shockwave(center: center, kick: 150));
+        }
 
         // Walking: towards the stick, turning that way at 240°/s; what is behind her she turns to
         // (nearly) in place first; Q/E turn in place
         let move = Input.ActionValue2D("move");
         let maxSpeed = Input.isShiftDown ? 25.0 : 75.0;
         let wanted = Vec2(0, 0);
-        if (move.Length() > 0.1) {
+        let canWalk = rig.isStanding;
+        if (move.Length() > 0.1 && canWalk) {
             let turn = NormalizeAngle(move.Angle() - xform.angle);
             xform.angle += Clamp(turn, -240 * dt, 240 * dt);
             let facing = Clamp(Cos(turn * DegToRad), 0.15, 1.0);
             wanted = move * maxSpeed * facing;
         }
-        if (Input.KeyDown(Scancode.Q)) {
+        if (Input.KeyDown(Scancode.Q) && canWalk) {
             xform.angle -= 120 * dt;
         }
-        if (Input.KeyDown(Scancode.E)) {
+        if (Input.KeyDown(Scancode.E) && canWalk) {
             xform.angle += 120 * dt;
         }
+        // (the blasts push her body; limp, they turn it too, and it slides on: less grip)
+        let blastPush = waves.Kick(xform.pos);
+        push += blastPush;
+        if (rig.isLimp) {
+            spin += Vec2.Cross(Vec2.FromAngle(xform.angle), blastPush) * 1.5;
+        }
+        xform.angle += spin * dt;
+        spin *= Max(0.0, 1 - 3 * dt);
         xform.angle = NormalizeAngle(xform.angle);
         let change = wanted - velocity;
         let maxChange = 220 * dt;
@@ -87,7 +137,10 @@ extend LegsScene {
         if (Input.MousePressed(MouseButton.Right)) {
             push += (xform.pos - Input.cursors.world).NormalizedOr(Vec2(1, 0)) * 160;
         }
-        push = push * Max(0.0, 1 - 4 * dt);
+        push = push * Max(0.0, 1 - (rig.isLimp ? 2.5 : 4.0) * dt);
+        if (push.Length() < 2) {
+            push = Vec2(0, 0);             // (it stops: the ground holds it)
+        }
         MoveBody((velocity + push) * dt);
 
         rig.Update(xform);
@@ -106,8 +159,10 @@ extend LegsScene {
         if (showsDebug) {
             rig.DrawDebug(Depth.Nearest - 1);
         }
+        blast.Update();
+        blast.Draw(Depth.Nearest - 2);
         if (playground.settings.showsHints) {
-            Draw.LogLine("legs scene (Shift+F10): WASD walks (Shift slowly), Q/E turn, right click shoves; 1 knees {bend}, 2 pairs {pairs}, G debug ({showsDebug})");
+            Draw.LogLine("legs scene (Shift+F10): WASD walks (Shift slowly), Q/E turn, right click shoves, left click blasts; K dead/alive, U knocked out; 1 knees {bend}, 2 pairs {pairs}, G debug");
             Draw.LogLine("{rig}");
         }
     }
