@@ -14,7 +14,7 @@ void RegisterTests() {
 }
 
 // The legs scene's ragdoll: a blast while she stands (a foot stumbles), knocked out (lying), a
-// blast while limp, getting up, dead (curled, asleep after a while), shoved dead, alive again;
+// blast while limp, getting up, dead (asleep after a while), shoved dead, alive again;
 // every frame: the limp segments keep their lengths, nothing below the ground, no NaN
 void TestRagdoll(TestRun* run) {
     let f = run.frame;

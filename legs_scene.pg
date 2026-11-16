@@ -3,7 +3,7 @@
 // she turns towards where she goes while she walks, and in place first if it is behind her; Q and
 // E turn her in place; Shift walks slowly (faster runs: the groups step together); the right
 // mouse button shoves her away from the cursor, the left one sets off a blast there (she stumbles;
-// limp, her legs fly). K: dead (the legs curl) or alive again (she gets up), U: knocked out for
+// limp, her legs fly). K: dead or alive again (she gets up), U: knocked out for
 // 2.5 s. 1: the knees out (a spider) or back (a dog), 2: two, three or four pairs, G: the rest
 // positions, the steps' targets and the hips.
 //
@@ -85,12 +85,12 @@ extend LegsScene {
                 rig.GetUp();
             } else {
                 life.Go(SusiLife.Dead);
-                rig.GoLimp(true);
+                rig.GoLimp();
             }
         }
         if (Input.KeyPressed(Scancode.U) && life.state == SusiLife.Alive) {
             life.Go(SusiLife.KnockedOut);
-            rig.GoLimp(false);
+            rig.GoLimp();
         }
         if (life.state == SusiLife.KnockedOut && life.time > 2.5) {
             life.Go(SusiLife.Alive);
