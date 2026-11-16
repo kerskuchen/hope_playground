@@ -219,9 +219,9 @@ extend LegsScene {
             let print = landing.wasStumble ? Color(0.02, 0.02, 0.03, 1) : Color(0.06, 0.06, 0.08, 0.85);
             decals.Add(pixel, Transform(landing.pos.PixelSnapped(), 0, Vec2(1, 1) / pixel.dim), DrawParams(color: print));
             footprints++;
-            if (footsteps) {
-                let volume = landing.wasStumble ? 0.4 : landing.isRunning ? 0.25 : 0.15;
-                Audio.Play("sfx_sounds_impact4", AudioTrack.Sound, volume: volume, playbackSpeed: rng.Range(0.9, 1.1));
+            if (footsteps && footprints % 3 == 0) {
+                let volume = landing.wasStumble ? 0.02 : landing.isRunning ? 0.01 : 0.005;
+                Audio.Play("sfx_sounds_impact4", AudioTrack.Sound, volume: volume, playbackSpeed: rng.Range(0.95, 1.05));
             }
         });
         loose.Update();
