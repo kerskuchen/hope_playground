@@ -224,7 +224,14 @@ void TestLegs(TestRun* run) {
     if (f == 420) { run.Screenshot("stood still"); run.Press(Scancode.Alpha1); }
     if (f == 440) { run.Hold(Scancode.S); }
     if (f == 480) { run.Screenshot("dog knees"); run.Release(Scancode.S); }
+    // every landing where its foot is (it may have lifted again in the same frame, running: still
+    // there; the footprints: ForEachLanding)
+    rig.ForEachLanding((FootLanding landing) => {
+        let leg = &rig.legs[landing.leg];
+        run.Check((leg.foot.xy - landing.pos).Length() < 0.01, "landing {landing.leg} where its foot is ({leg.foot.xy}, {landing.pos})");
+    });
     if (f == 560) {
+        run.Check(scene.footprints > 40, "the steps left footprints ({scene.footprints})");
         run.Check(rig.stillTime > 0.3, "she stands still at the end");
         run.Pass();
     }

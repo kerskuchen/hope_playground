@@ -7,7 +7,8 @@
 // 2.5 s. X tears off the leg nearest to the cursor (a blast tears off those whose knees are near
 // it); the loose legs tumble, settle and go into the decal map after a while; R: all legs back.
 // 1: the knees out (a spider) or back (a dog), 2: two, three or four pairs, 3: the look (lines,
-// recoloured, sprites, the scene's own function), G: the rest positions, the steps' targets and
+// recoloured, sprites, the scene's own function), 5: a tick for every footstep (a stand-in for
+// footstep sounds; every landing leaves a footprint in the decal map), G: the rest positions, the steps' targets and
 // the hips.
 //
 // The setup is made again every frame (LegsSetup): change a number, save, and she walks on with it.
@@ -66,6 +67,8 @@ struct LegsScene {
     ParticleSystem blast;
     Decalmap decals;
     LooseLegs loose;
+    bool ticks;                        // (5: a sound for every footstep)
+    int footprints;                    // (the tests': landings so far)
     bool ragdollStumbled;              // (the test's: a foot stumbled)
 }
 
@@ -111,6 +114,9 @@ extend LegsScene {
         }
         if (Input.KeyPressed(Scancode.Alpha3)) {
             look = (look + 1) % 4;
+        }
+        if (Input.KeyPressed(Scancode.Alpha5)) {
+            ticks = !ticks;
         }
         if (Input.KeyPressed(Scancode.G)) {
             showsDebug = !showsDebug;
@@ -205,6 +211,17 @@ extend LegsScene {
         MoveBody((velocity + push) * dt);
 
         rig.Update(xform);
+        // Footsteps: a footprint where each foot landed (darker for a stumble), a tick (5)
+        let pixel = Draw.GetSprite("untextured");
+        rig.ForEachLanding((FootLanding landing) => {
+            let print = landing.wasStumble ? Color(0.02, 0.02, 0.03, 1) : Color(0.06, 0.06, 0.08, 0.85);
+            decals.Add(pixel, Transform(landing.pos.PixelSnapped(), 0, Vec2(1, 1) / pixel.dim), DrawParams(color: print));
+            footprints++;
+            if (ticks) {
+                let tick = Audio.Play("debug_sine440", AudioTrack.Sound, volume: landing.isRunning ? 0.12 : 0.07, playbackSpeed: landing.side < 0 ? 3 : 3.4, fadeIn: 0.002);
+                Audio.Stop(tick, fadeOut: 0.02, at: AudioTime.At(Audio.dspTime + 0.02));
+            }
+        });
         loose.Update();
 
         // Drawing: the floor, the walls, her shadow, the far legs, her body (raised, leaning),
@@ -228,7 +245,7 @@ extend LegsScene {
         blast.Draw(Depth.Nearest - 2);
         if (playground.settings.showsHints) {
             Draw.LogLine("legs scene (Shift+F10): WASD walks (Shift slowly), Q/E turn, right click shoves, left click blasts; K dead/alive, U knocked out; X tears a leg off, R regrows");
-            Draw.LogLine("1 knees {bend}, 2 pairs {pairs}, 3 look {look}, G debug; {loose.count} loose legs, decals waiting {decals.pendingCount}");
+            Draw.LogLine("1 knees {bend}, 2 pairs {pairs}, 3 look {look}, 5 ticks {ticks}, G debug; {loose.count} loose legs, decals waiting {decals.pendingCount}");
             Draw.LogLine("{rig}");
         }
     }
