@@ -7,7 +7,8 @@
 // 2.5 s. X tears off the leg nearest to the cursor (a blast tears off those whose knees are near
 // it); the loose legs tumble, settle and go into the decal map after a while; R: all legs back.
 // 1: the knees out (a spider) or back (a dog), 2: two, three or four pairs, 3: the look (lines,
-// recoloured, sprites, the scene's own function), G: the rest positions, the steps' targets and
+// recoloured, sprites, the scene's own function), 4: the lean sheared or turned and scaled
+// (tilt, stretch), G: the rest positions, the steps' targets and
 // the hips.
 //
 // The setup is made again every frame (LegsSetup): change a number, save, and she walks on with it.
@@ -57,6 +58,7 @@ struct LegsScene {
     KneeBend bend;
     int pairs = 3;
     int look;
+    bool leansByTilt = true;           // (4: false: sheared, the first way, for comparing)
     bool showsDebug;
     CollisionWorld* walls;             // the arena's border and two pillars
     [Box, 6] wallBoxes;
@@ -111,6 +113,9 @@ extend LegsScene {
         }
         if (Input.KeyPressed(Scancode.Alpha3)) {
             look = (look + 1) % 4;
+        }
+        if (Input.KeyPressed(Scancode.Alpha4)) {
+            leansByTilt = !leansByTilt;
         }
         if (Input.KeyPressed(Scancode.G)) {
             showsDebug = !showsDebug;
@@ -218,7 +223,12 @@ extend LegsScene {
         let depth = DepthAt(xform.pos.y);
         rig.DrawShadow(depth - 0.05);
         rig.DrawLegs(depth, false);
-        Draw.Sprite3D(bodyAnim.CurSprite3D(), Transform(xform.pos + rig.bodyOffset, xform.angle), depth, shear: rig.shear);
+        let bodyXform = Transform(xform.pos + rig.bodyOffset, xform.angle);
+        if (leansByTilt) {
+            Draw.Sprite3D(bodyAnim.CurSprite3D(), bodyXform, depth, tilt: rig.tilt, stretch: rig.stretch);
+        } else {
+            Draw.Sprite3D(bodyAnim.CurSprite3D(), bodyXform, depth, shear: rig.shear);
+        }
         rig.DrawLegs(depth, true);
         if (showsDebug) {
             rig.DrawDebug(Depth.Nearest - 1);
@@ -227,7 +237,7 @@ extend LegsScene {
         blast.Draw(Depth.Nearest - 2);
         if (playground.settings.showsHints) {
             Draw.LogLine("legs scene (Shift+F10): WASD walks (Shift slowly), Q/E turn, right click shoves, left click blasts; K dead/alive, U knocked out; X tears a leg off, R regrows");
-            Draw.LogLine("1 knees {bend}, 2 pairs {pairs}, 3 look {look}, G debug; {loose.count} loose legs, decals waiting {decals.pendingCount}");
+            Draw.LogLine("1 knees {bend}, 2 pairs {pairs}, 3 look {look}, 4 lean {leansByTilt ? "tilt+stretch" : "shear"}, G debug; {loose.count} loose legs, decals waiting {decals.pendingCount}");
             Draw.LogLine("{rig}");
         }
     }
