@@ -44,7 +44,7 @@ extend Susi {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// The start scene (F1): Sorcy runs in circles, Susi drives, the camera tests (the audio tests:
+// The start scene (F3): Sorcy runs in circles, Susi drives, the camera tests (the audio tests:
 // the audio scene, F6)
 
 struct StartScene {
@@ -176,11 +176,10 @@ extend StartScene {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// Game: one scene at a time, F1 the level scene (preview and editor), F2 the physics debug scene,
-// F3 the start scene, F4 the navigation scene, F6 the audio scene, F7 the lighting scene, F8 the
-// UI scene, F10 the effects scene. A scene lives in its phase (hope/core.pg): the level scene (its editor's data) in the
-// editor phase, the others in the level phase. Switching wipes the phase of the scene that goes
-// and makes the next one in its phase; its frames allocate there too.
+// Game: one scene at a time, F9 the level scene, F2 the physics debug scene, F3 the start scene,
+// F4 the navigation scene, F6 the audio scene, F7 the lighting scene, F8 the UI scene, F10 the
+// effects scene (F1: hope's level editor, over any of them). A scene lives in the level phase
+// (hope/core.pg): switching wipes it and makes the next one there; its frames allocate there too.
 
 enum Scene { Level, Start, Physics, Navigation, Audio, Lighting, Ui, Effects }
 
@@ -246,14 +245,11 @@ extend Playground {
     }
 
     void SwitchTo(Scene next) {
-        // (unsaved changes of the level editor: save them, drop them, or stay)
-        if (level != null && !level.AskAboutChanges("leaving the level"))
-            return;
         // The scene that goes, with everything in its phase
         if (level != null) {
             level.Leave();
             level = null;
-            Memory.WipeEditor();
+            Memory.WipeLevel();
         }
         if (start != null) {
             start.Leave();
@@ -292,7 +288,7 @@ extend Playground {
         scene = next;
         Draw.isCanvasFree = next != Scene.Start && next != Scene.Lighting && next != Scene.Ui && next != Scene.Level && next != Scene.Effects;    // (the games' fixed canvas)
         if (next == Scene.Level) {
-            with editor;                    // (the level's data: the presentation is the level phase's)
+            with level;
             level = New[LevelScene]();
         } else if (next == Scene.Start) {
             with level;
@@ -331,8 +327,8 @@ extend Playground {
     }
 
     void DoFrame() {
-        if (Input.KeyPressed(Scancode.F1) && scene != Scene.Level)
-            SwitchTo(Scene.Level);                 // (in it F1 switches between its preview and the editor)
+        if (Input.KeyPressed(Scancode.F9) && scene != Scene.Level)
+            SwitchTo(Scene.Level);
         else if (Input.KeyPressed(Scancode.F3) && scene != Scene.Start)
             SwitchTo(Scene.Start);
         if (Input.KeyPressed(Scancode.F2) && scene != Scene.Physics)
@@ -348,25 +344,14 @@ extend Playground {
         if (Input.KeyPressed(Scancode.F10) && scene != Scene.Effects)
             SwitchTo(Scene.Effects);
         // (Escape: a text field's or a dialog's first)
-        let isEscapeTaken = Ui.isTyping || (level != null && level.hasDialog);
-        if (Input.KeyPressed(Scancode.Escape) && scene != Scene.Ui && !isEscapeTaken && (level == null || level.AskAboutChanges("quitting"))) {
-            if (level != null)
-                level.WriteSession();
-            Window.Quit();                         // (in the UI scene Escape goes back; the level editor's unsaved changes ask first)
-        }
-        Draw.LogLine("F1 level (again: editor), F2 physics, F3 start, F4 navigation, F6 audio, F7 lighting, F8 UI, F10 effects; F12 performance and memory");
-        if (scene == Scene.Level) {
-            with editor;
-            level.DoFrame();
-            // Another level: the scene made again with it (its changes were asked about)
-            if (level.requestedLevel.len > 0) {
-                SetLevelSceneName(level.requestedLevel.view);
-                levelSceneStart = level.requestedStart;
-                SwitchTo(Scene.Level);
-            }
-        } else {
+        if (Input.KeyPressed(Scancode.Escape) && scene != Scene.Ui && !Ui.isTyping)
+            Window.Quit();                         // (in the UI scene Escape goes back; the level editor's unsaved changes ask first: hope)
+        Draw.LogLine("F1 level editor, F9 level, F2 physics, F3 start, F4 navigation, F6 audio, F7 lighting, F8 UI, F10 effects; F12 performance and memory");
+        {
             with level;
-            if (scene == Scene.Physics)
+            if (scene == Scene.Level)
+                level.DoFrame();
+            else if (scene == Scene.Physics)
                 physics.DoFrame();
             else if (scene == Scene.Navigation)
                 navigation.DoFrame();
@@ -381,6 +366,11 @@ extend Playground {
             else
                 start.DoFrame();
         }
+        // Another level picked in the level scene: the scene made again with it
+        if (level != null && level.requestedLevel.len > 0) {
+            SetLevelSceneName(level.requestedLevel.view);
+            SwitchTo(Scene.Level);
+        }
         if (ui != null && ui.wantsToPlay)
             SwitchTo(Scene.Start);                 // (after the scene's frame: it is wiped)
     }
@@ -389,7 +379,7 @@ extend Playground {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // hope_playground (formerly DungeonTracks, ported from the C# version), for trying out hope's
-// features: F1 the level scene (a level as a game shows it; F1 again: the level editor), F3 the
+// features: F9 the level scene (a level as a game shows it; F1 in any scene: the level editor), F3 the
 // start scene (Sorcy runs in circles, Susi, a 3D sprite on tracks, drives with the "move" action),
 // F2 the physics debug scene, F4 the navigation scene, F6 the audio scene, F7 lighting, F8 the UI.
 //
@@ -400,10 +390,15 @@ Playground* playground = null;
 
 // Also on F5 (the runtime restarts the game in the internal mode; it wipes the level phase)
 void CreateGame() {
-    Memory.WipeEditor();                       // (the previous playground's editor scene)
     playground = New[Playground]();
+}
+
+// (the internal mode) the level editor closed: the level scene's level changed, it is made again
+void OnLevelEdited(string level) {
+    if (playground.scene == Scene.Level && level == levelSceneName)
+        playground.SwitchTo(Scene.Level);
 }
 void DoFrame() { playground.DoFrame(); }
 Game GameMain() {
-    return Game(info: AppInfo("hope playground", "hope_playground", "0.01", 320, 180), Create: CreateGame, DoFrame: DoFrame, RegisterEntities: RegisterEntityTypes);
+    return Game(info: AppInfo("hope playground", "hope_playground", "0.01", 320, 180), Create: CreateGame, DoFrame: DoFrame, RegisterEntities: RegisterEntityTypes, LevelEdited: OnLevelEdited);
 }

@@ -1,85 +1,55 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// The level scene (F1): a level of assets/levels/ in two modes, F1 switches:
+// The level scene (F9): a level of assets/levels/ as a game would show it: the fixed canvas, the
+// playground's own presentation made from the level's data (every layer in the editor's order);
+// the arrow keys move the view; a list of the levels (a click: another one). Trigger areas as a
+// game uses them: every area of the Areas layers a trigger of a CollisionWorld (hope's
+// collision.pg), a probe circle at the mouse; what it enters and leaves is logged, the areas it is
+// in are outlined; an area entered sends its signal, the ghosts near it are woken
+// (Signals.SendNear). The entities of its Entities layers (entities.pg: hope's
+// Entities.SpawnLevel), run and drawn in the scene's order, the signals delivered after their
+// frames.
 //
-//     preview   as a game would show it: the fixed canvas, the playground's own presentation made
-//               from the level's data (every layer in the editor's order); the arrow keys move the
-//               view; a list of the levels (a click: another one). Trigger areas as a game uses
-//               them: every area of the Areas layers a trigger of a CollisionWorld (hope's
-//               collision.pg), a probe circle at the mouse; what it enters and leaves is logged,
-//               the areas it is in are outlined; an area entered sends its signal, the ghosts near
-//               it are woken (Signals.SendNear). The entities of its Entities layers (entities.pg:
-//               hope's Entities.SpawnLevel), run and drawn in the scene's order, the signals
-//               delivered after their frames
-//     editing   hope's level editor (hope/level_editor.pg; F1 opens it in the internal mode only)
-//               on that level
-//
-// The editor exists as long as the scene (the editor phase: its data, its undo steps), open or
-// not; the preview is made from its data (it shows the unsaved changes too). Another level (the
-// list, the editor's Open and New): main.pg makes the scene again (SwitchTo: the editor phase
-// wiped) with it.
+// The level editor is hope's (F1 in every scene, the internal mode): the scene is made again when
+// the editor closes and its level changed (main.pg: LevelEdited); LevelData.Load gives it the
+// editor's data, unsaved changes too.
 
 // The level the scene shows (kept when the scene is made again for another level; persistent
-// memory) and how the scene starts with it
+// memory)
 string levelSceneName = "";
-LevelSceneStart levelSceneStart = LevelSceneStart.Session;
-
-enum LevelSceneStart {
-    Session,                           // as the editor's session was (open or not)
-    Preview,                           // picked in the preview's list
-    Editor,                            // opened, made or saved as in the editor
-}
 
 const uint LAYER_PROBE = 1;           // the preview's probe (the triggers' mask)
 
 void SetLevelSceneName(string name) {
+    if (name == levelSceneName)
+        return;
     with persist;
     levelSceneName = name.Copy();
 }
 
+// (the level phase, as everything of the scene)
 struct LevelScene {
-    LevelEditor* editor;               // (the editor phase, like the scene)
-    bool isEditing;
-    LevelDrawings* preview;            // what the preview draws (the level phase)
-    CollisionWorld* triggers;          // the areas as triggers, the probe (the level phase)
+    LevelData data;
+    LevelDrawings* preview;            // what is drawn of the layers
+    CollisionWorld* triggers;          // the areas as triggers, the probe
     ColliderId probe;
-    Vec2 previewPos = Vec2(160, 90);   // its camera
     String requestedLevel;             // (main.pg makes the scene again with it after this frame)
-    LevelSceneStart requestedStart;
 }
 
 extend LevelScene {
     init() {
-        // The level: the one opened (levelSceneName), else the one open last, else the first
+        // The level: the one shown before (levelSceneName), else the one edited last, else the first
         with temp {
             let names = LevelEditor.LevelNames();
             let last = LevelEditor.LastLevel();
             let chosen = levelSceneName.len > 0 ? levelSceneName : names.Find((string* candidate) => *candidate == last) != null ? last : names.len > 0 ? names[0] : "test";
             SetLevelSceneName(chosen);
         }
-        editor = New[LevelEditor](levelSceneName);
-        editor.gameKeys = "F1: the preview";
-        isEditing = levelSceneStart == LevelSceneStart.Session ? editor.wasOpen : levelSceneStart == LevelSceneStart.Editor;
-        levelSceneStart = LevelSceneStart.Session;
-        Show();
-    }
-
-    get bool hasDialog() { return editor.hasDialog; }
-    bool AskAboutChanges(string doing) { return editor.AskAboutChanges(doing); }
-    void WriteSession() { editor.WriteSession(); }
-
-    // The mode's canvas and camera: the editor opened, or the preview made from its data (the
-    // level phase wiped first)
-    void Show() {
-        Memory.WipeLevel();
-        if (isEditing) {
-            editor.Enter();
-            return;
-        }
-        preview = LevelDrawings.Make(&editor.data);
+        data = LevelData.Load(levelSceneName);
+        preview = LevelDrawings.Make(&data);
         MakeTriggers();
         // The entities (in the level phase, like the drawing: wiped with it)
         entityWorld = triggers;
-        for (let layer in editor.data.layers) {
+        for (let layer in data.layers) {
             if (layer.case == LevelLayer.Entities)
                 Entities.SpawnLevel(layer);
         }
@@ -88,7 +58,7 @@ extend LevelScene {
         Camera.isCentered = true;
         Camera.allowPanning = false;
         Camera.allowZooming = false;
-        Camera.pos = previewPos;
+        Camera.pos = Vec2(160, 90);
         Camera.zoom = 1;
         Draw.clearColor = Color.Black;
     }
@@ -96,8 +66,6 @@ extend LevelScene {
     // Every area of the Areas layers a trigger (its owner: layer * 1000 + its index), the probe a
     // circle at the mouse
     void MakeTriggers() {
-        with level;
-        let data = &editor.data;
         triggers = New[CollisionWorld](Box(Vec2(0, 0), Vec2(data.pixelSize)), 64);
         for (let layerIndex, layer in data.layers) {
             if (layer.case != LevelLayer.Areas)
@@ -106,71 +74,33 @@ extend LevelScene {
                 triggers.AddTrigger(area.shape, LAYER_PROBE, owner: layerIndex * 1000 + index);
             }
         }
-        probe = triggers.Add(Collider(ColliderShape.Circle(circle: Circle(previewPos, 6)), LAYER_PROBE, 0, 0));
+        probe = triggers.Add(Collider(ColliderShape.Circle(circle: Circle(Camera.pos, 6)), LAYER_PROBE, 0, 0));
     }
 
-    // The mode closed (its drawing freed; its memory stays in the level phase)
-    void Hide() {
-        if (isEditing) {
-            editor.Leave();
-        } else if (preview != null) {
-            previewPos = Camera.pos;
-            preview.Free();
-            preview = null;
-            triggers = null;           // (the level phase: wiped next)
-            entityWorld = null;
-        }
-    }
-
-    // The scene goes (main.pg)
+    // The scene goes (main.pg; its memory goes with the level phase)
     void Leave() {
-        Hide();
-        editor.WriteSession();
-        Memory.WipeLevel();
-        Draw.isCanvasFree = false;
-        Camera.allowPanning = false;
-        Camera.allowZooming = false;
-        Camera.zoom = 1;
+        preview.Free();
+        entityWorld = null;
     }
 
-    void DoFrame() {
-        editor.showsHints = playground.settings.showsHints;
-        editor.GuardUnsaved();
-        if (Input.KeyPressed(Scancode.F1) && !Ui.isTyping && INTERNAL) {
-            Hide();
-            isEditing = !isEditing;
-            Show();
-        }
-        if (!isEditing) {
-            PreviewFrame();
-            return;
-        }
-        editor.DoFrame();
-        if (editor.requestedLevel.len > 0)
-            Request(editor.requestedLevel.view, LevelSceneStart.Editor);
-        if (editor.levelName != levelSceneName)
-            SetLevelSceneName(editor.levelName);       // (saved as another)
-    }
-
-    void Request(string level, LevelSceneStart start) {
+    void Request(string level) {
         requestedLevel.Clear();
         requestedLevel.Append(level);
-        requestedStart = start;
     }
 
     //----------------------------------------------------------------------------------------------
     // Preview: what a game makes of the level (its own presentation: here every layer, ground first)
 
-    void PreviewFrame() {
+    void DoFrame() {
         if (playground.settings.showsHints)
-            Draw.LogLine("Level scene (F1: the editor): the level '{editor.levelName}' as a game shows it (the list: another one), arrow keys move the view, the mouse is a probe for the trigger areas");
+            Draw.LogLine("Level scene (F1: the editor): the level '{levelSceneName}' as a game shows it (the list: another one), arrow keys move the view, the mouse is a probe for the trigger areas");
         let move = Vec2(0, 0);
         if (Input.KeyDown(Scancode.Left)) move.x -= 1;
         if (Input.KeyDown(Scancode.Right)) move.x += 1;
         if (Input.KeyDown(Scancode.Up)) move.y -= 1;
         if (Input.KeyDown(Scancode.Down)) move.y += 1;
         let half = Camera.viewportDim * 0.5;
-        let bounds = editor.data.cameraRect;
+        let bounds = data.cameraRect;
         let pos = Camera.pos + move * 160 * Input.deltaTime;
         Camera.pos = Vec2(Clamp(pos.x, bounds.left + half.x, Max(bounds.left + half.x, bounds.right - half.x)),
             Clamp(pos.y, bounds.top + half.y, Max(bounds.top + half.y, bounds.bottom - half.y)));
@@ -203,7 +133,7 @@ extend LevelScene {
         triggers.MoveTo(probe, mouse);
         triggers.UpdateTriggers();
         for (let event in triggers.triggerEvents) {
-            let area = &editor.data.layers[event.triggerOwner / 1000].areas[event.triggerOwner % 1000];
+            let area = &data.layers[event.triggerOwner / 1000].areas[event.triggerOwner % 1000];
             Draw.LogSticky(150, event.isEnter ? Color.Green : Color.Orange, "{event.isEnter ? "Entered '" : "Left '"}{area.name}' ({area.kind})");
             if (event.isEnter)
                 area.SendSignal();
@@ -233,7 +163,7 @@ extend LevelScene {
             lever.Draw();
         }
         Draw.CircleOutline(Circle(mouse, 6), 1, Depth.Nearest, DrawParams(color: Color(1, 1, 1, 0.9)));
-        for (let layer in editor.data.layers) {
+        for (let layer in data.layers) {
             if (layer.case != LevelLayer.Areas)
                 continue;
             for (let area in layer.areas) {
@@ -252,9 +182,8 @@ extend LevelScene {
         let names = LevelEditor.LevelNames();
         with Ui.Scroll(Min(Max(1, names.len), 8) * (Ui.ButtonHeight() + Ui.style.spacing)) {
             for (let index, level in names) {
-                if (Ui.Button(*level, align: UiAlign.Left, isToggled: *level == editor.levelName) && *level != editor.levelName
-                        && editor.AskAboutChanges("previewing another level"))
-                    Request(*level, LevelSceneStart.Preview);
+                if (Ui.Button(*level, align: UiAlign.Left, isToggled: *level == levelSceneName) && *level != levelSceneName)
+                    Request(*level);
             }
         }
     }
