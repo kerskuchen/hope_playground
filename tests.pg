@@ -8,6 +8,27 @@ void RegisterTests() {
     Test.Add("the editor over every scene", TestEditorInScenes, maxFrames: 2400);
     Test.Add("F5 in every scene", TestRestartInScenes);
     Test.Add("the phases stay as they are in every scene", TestSteadyMemory, maxFrames: 9000);
+    Test.Add("E rams, and the ram ends", TestRam);
+}
+
+// (the physics scene's StateClock: Driving, Ramming for PHYSICS_RAM_TIME or to what stops it)
+void TestRam(TestRun* run) {
+    if (run.frame == 1) {
+        run.Press(Scancode.F2);
+    }
+    if (run.frame == 10) {
+        run.Check(playground.physics != null && playground.physics.move.state == PlayerMove.Driving, "the physics scene drives");
+        run.Press(Scancode.E);
+    }
+    if (run.frame == 11) {
+        let move = &playground.physics.move;
+        run.Check(move.state == PlayerMove.Ramming || move.previous == PlayerMove.Ramming, "E rams ({*move})");
+    }
+    if (run.frame == 40) {
+        let move = &playground.physics.move;
+        run.Check(move.state == PlayerMove.Driving && move.previous == PlayerMove.Ramming, "the ram ended ({*move})");
+        run.Pass();
+    }
 }
 
 // The scenes and their keys, in an order that goes from each one to each other kind

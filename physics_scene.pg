@@ -80,6 +80,8 @@ struct DebugExplosion {
     float age;
 }
 
+enum PlayerMove { Driving, Ramming }
+
 struct PhysicsScene {
     Grid[bool] solid;
     TileCollision tiles;
@@ -97,7 +99,7 @@ struct PhysicsScene {
     List[ColliderId] hitboxes;     // per vehicle
     List[ColliderId] vehicleBodies;  // per vehicle: its navigation circle
     ExternalVelocity playerExternal;
-    float ramTime;                 // > 0: ramming
+    StateClock[PlayerMove] move;   // driving, or ramming (E) for PHYSICS_RAM_TIME or to what stops it
     Vec2 ramDirection;
     List[ColliderId] crates;       // per crate (None: broken)
     // The player's last slide, the shots
@@ -284,16 +286,16 @@ extend PhysicsScene {
             },
             [player]                               // (not its own circle)
         );
-        ramTime -= dt;
         if (!stop.hasIntersection) {
             world.MoveTo(player, body.center + motion);
-            if (ramTime <= 0) {
+            if (move.time + dt >= PHYSICS_RAM_TIME) {             // (this frame's step the last)
                 playerExternal.linear = ramVelocity * 0.3;   // the dash ends: coasting out
+                move.Go(PlayerMove.Driving);
             }
             return;
         }
         world.MoveTo(player, stop.enter + stop.normalEnter * SLIDE_SKIN);
-        ramTime = 0;
+        move.Go(PlayerMove.Driving);
         let normal = stop.normalEnter;             // out of what it hit, towards the player
         let vehicle = stop.isTile ? null : VehicleOf(stop.owner);
         let otherVelocity = vehicle != null ? vehicle.external.linear : Vec2(0, 0);
@@ -358,13 +360,13 @@ extend PhysicsScene {
             direction.y += 1;
         }
         // E rams towards the mouse; while ramming there is no steering
-        if (Input.KeyPressed(Scancode.E) && ramTime <= 0) {
-            ramTime = PHYSICS_RAM_TIME;
+        if (Input.KeyPressed(Scancode.E) && move.state == PlayerMove.Driving) {
+            move.Go(PlayerMove.Ramming);
             ramDirection = (cursor - body.center).NormalizedOr(Vec2(1, 0));
         }
         playerPath.Clear();
         touched.Clear();
-        if (ramTime > 0) {
+        if (move.Step() == PlayerMove.Ramming) {
             RamStep(dt);
         } else {
             let motion = (direction.NormalizedOr(Vec2(0, 0)) * PHYSICS_MOVE_SPEED * (cell / 24) + playerExternal.linear) * dt;
@@ -521,7 +523,7 @@ extend PhysicsScene {
 
         // The player, its slide steps and its last hit's normal
         let body = world.Get(player).shape.circle;
-        Draw.CircleOutline(body, 1.5 * pixel, 5, ramTime > 0 ? Color(1, 0.3, 0.3, 1) : Color(0.3, 1, 0.4, 1));
+        Draw.CircleOutline(body, 1.5 * pixel, 5, move.state == PlayerMove.Ramming ? Color(1, 0.3, 0.3, 1) : Color(0.3, 1, 0.4, 1));
         // The external velocities (where they drift; debug arrows: at the window's resolution)
         if (!playerExternal.isResting) {
             Draw.DebugVector(body.center, playerExternal.linear * 0.1, Color(0.3, 1, 1, 1));
