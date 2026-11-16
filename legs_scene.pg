@@ -261,7 +261,7 @@ extend LegsScene {
     void MoveBody(Vec2 motion) {
         let radius = rig.bodyDim.y * 0.5 + 1;
         for (let attempt in 0..2) {
-            if (motion.Length() < 0.0001) {
+            if (motion.isEffectivelyZero) {
                 return;
             }
             let hit = walls.CircleCast(Circle(xform.pos, radius), motion, 1);
