@@ -1,0 +1,117 @@
+// The playground's tests (hope's testing.pg), run headless by hope/tools/test_game.pgs:
+//
+//     ../hope/tools/test_game.pgs .                   (all of them)
+//     ../hope/tools/test_game.pgs . --target=windows  (the Windows build under Wine)
+
+void RegisterTests() {
+    Test.Add("every scene starts", TestScenes);
+    Test.Add("the editor over every scene", TestEditorInScenes, maxFrames: 2400);
+    Test.Add("F5 in every scene", TestRestartInScenes);
+    Test.Add("the phases stay as they are in every scene", TestSteadyMemory, maxFrames: 9000);
+}
+
+// The scenes and their keys, in an order that goes from each one to each other kind
+[Scene, 8] testScenes = [Scene.Level, Scene.Physics, Scene.Start, Scene.Navigation, Scene.Audio, Scene.Lighting, Scene.Ui, Scene.Effects];
+[Scancode, 8] testSceneKeys = [Scancode.F9, Scancode.F2, Scancode.F3, Scancode.F4, Scancode.F6, Scancode.F7, Scancode.F8, Scancode.F10];
+
+// (every 'period' frames the next scene: its key pressed at the period's start; the scene at 'at')
+int SceneAt(TestRun* run, int period) { return (run.frame / period) % testScenes.len; }
+
+void TestScenes(TestRun* run) {
+    let period = 30;
+    let index = run.frame / period;
+    if (index >= testScenes.len) {
+        run.Pass();
+        return;
+    }
+    if (run.frame % period == 1) {
+        run.Press(testSceneKeys[index]);
+    }
+    if (run.frame % period == period - 1) {
+        run.Check(playground.scene == testScenes[index], "{testSceneKeys[index]} shows the scene {testScenes[index]} ({playground.scene})");
+    }
+}
+
+void TestEditorInScenes(TestRun* run) {
+    if (!INTERNAL) {
+        run.Pass();
+        return;
+    }
+    let period = 60;
+    let index = run.frame / period;
+    if (index >= testScenes.len * 2) {
+        run.Pass();
+        return;
+    }
+    let scene = index % testScenes.len;
+    let step = run.frame % period;
+    if (step == 1) {
+        run.Press(testSceneKeys[scene]);
+    }
+    if (step == 20) {
+        run.Press(Scancode.F1);
+    }
+    if (step == 30) {
+        run.Check(Editor.isOpen, "F1 opens the editor over {testScenes[scene]}");
+        run.Press(Scancode.F1);
+    }
+    if (step == 40) {
+        run.Check(!Editor.isOpen, "F1 closes it again");
+        run.Check(playground.scene == testScenes[scene], "the scene is still {testScenes[scene]}");
+    }
+}
+
+void TestRestartInScenes(TestRun* run) {
+    if (!INTERNAL) {
+        run.Pass();
+        return;
+    }
+    let period = 40;
+    let index = run.frame / period;
+    if (index >= testScenes.len) {
+        run.Pass();
+        return;
+    }
+    let step = run.frame % period;
+    if (step == 1) {
+        run.Press(testSceneKeys[index]);
+    }
+    if (step == 15) {
+        run.Press(Scancode.F5);
+    }
+    if (step == 30) {
+        run.Check(playground != null, "the game started again in {testScenes[index]}");
+    }
+}
+
+// Each scene for 18 s: after 12 s of warming up (the level scene's spawner fills up to its ghosts'
+// cap meanwhile), its phases do not keep growing: measured in two windows of 3 s, growth in both
+// is a leak (the ones found 2026-11-14 and 11-16 grew a few KiB every frame); in one only is the
+// scene doing something once
+[long, 3] testLevelUsed;
+[long, 3] testPersistentUsed;
+
+void TestSteadyMemory(TestRun* run) {
+    let period = 1080;
+    let index = run.frame / period;
+    if (index >= testScenes.len) {
+        run.Pass();
+        return;
+    }
+    let step = run.frame % period;
+    if (step == 1) {
+        run.Press(testSceneKeys[index]);
+    }
+    for (let point in 0..3) {
+        if (step == 720 + point * 179) {
+            testLevelUsed[point] = (long)Memory.level.used;
+            testPersistentUsed[point] = (long)Memory.persistent.used;
+        }
+    }
+    if (step == 720 + 2 * 179) {
+        let level = Min(testLevelUsed[1] - testLevelUsed[0], testLevelUsed[2] - testLevelUsed[1]);
+        let persistent = Min(testPersistentUsed[1] - testPersistentUsed[0], testPersistentUsed[2] - testPersistentUsed[1]);
+        run.Check(level <= 0, "the level phase kept growing in {testScenes[index]}: {(testLevelUsed[2] - testLevelUsed[0]) / 1024} KiB in 6 s");
+        run.Check(persistent <= 0, "the persistent phase kept growing in {testScenes[index]}: {(testPersistentUsed[2] - testPersistentUsed[0]) / 1024} KiB in 6 s");
+    }
+}
