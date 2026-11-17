@@ -1,58 +1,58 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// The level scene (F9): a level of assets/levels/ as a game would show it: the fixed canvas, the
-// playground's own presentation made from the level's data (every layer in the editor's order);
-// the arrow keys move the view; a list of the levels (a click: another one). Trigger areas as a
+// The scene demo (F9): a scene of assets/scenes/ as a game would show it: the fixed canvas, the
+// playground's own presentation made from the scene's data (every layer in the editor's order);
+// the arrow keys move the view; a list of the scenes (a click: another one). Trigger areas as a
 // game uses them: every area of the Areas layers a trigger of a CollisionWorld (hope's
 // collision.pg), a probe circle at the mouse; what it enters and leaves is logged, the areas it is
 // in are outlined; an area entered sends its signal, the ghosts near it are woken
 // (Signals.SendNear). The entities of its Entities layers (entities.pg: hope's
-// Entities.SpawnLevel), run and drawn in the scene's order, the signals delivered after their
+// Entities.SpawnScene), run and drawn in the demo's order, the signals delivered after their
 // frames.
 //
-// The level editor is hope's (F1 in every scene, the internal mode): the scene is made again when
-// the editor closes and its level changed (main.pg: LevelEdited); LevelData.Load gives it the
+// The scene editor is hope's (F1 in every demo, the internal mode): the demo is made again when
+// the editor closes and its scene changed (main.pg: SceneEdited); SceneData.Load gives it the
 // editor's data, unsaved changes too.
 
-// The level the scene shows (kept when the scene is made again for another level; persistent
+// The scene the demo shows (kept when the demo is made again for another scene; persistent
 // memory)
-string levelSceneName = "";
+string sceneDemoName = "";
 
 const uint LAYER_PROBE = 1;           // the preview's probe (the triggers' mask)
 
-void SetLevelSceneName(string name) {
-    if (name == levelSceneName) {
+void SetSceneDemoName(string name) {
+    if (name == sceneDemoName) {
         return;
     }
     with persist;
-    levelSceneName = name.Copy();
+    sceneDemoName = name.Copy();
 }
 
-// (the level phase, as everything of the scene)
-struct LevelScene {
-    LevelData data;
-    LevelDrawings* preview;            // what is drawn of the layers
+// (the level phase, as everything of the demo)
+struct SceneDemo {
+    SceneData data;
+    SceneDrawings* preview;            // what is drawn of the layers
     CollisionWorld* triggers;          // the areas as triggers, the probe
     ColliderId probe;
-    String requestedLevel;             // (main.pg makes the scene again with it after this frame)
+    String requestedScene;             // (main.pg makes the demo again with it after this frame)
 }
 
-extend LevelScene {
+extend SceneDemo {
     init() {
-        // The level: the one shown before (levelSceneName), else the one edited last, else the first
+        // The scene: the one shown before (sceneDemoName), else the one edited last, else the first
         with temp {
-            let names = LevelEditor.LevelNames();
-            let last = LevelEditor.LastLevel();
-            let chosen = levelSceneName.len > 0 ? levelSceneName : names.Find((string* candidate) => *candidate == last) != null ? last : names.len > 0 ? names[0] : "test";
-            SetLevelSceneName(chosen);
+            let names = SceneEditor.SceneNames();
+            let last = SceneEditor.LastScene();
+            let chosen = sceneDemoName.len > 0 ? sceneDemoName : names.Find((string* candidate) => *candidate == last) != null ? last : names.len > 0 ? names[0] : "test";
+            SetSceneDemoName(chosen);
         }
-        data = LevelData.Load(levelSceneName);
-        preview = LevelDrawings.Make(&data);
+        data = SceneData.Load(sceneDemoName);
+        preview = SceneDrawings.Make(&data);
         MakeTriggers();
         // The entities (in the level phase, like the drawing: wiped with it)
         entityWorld = triggers;
         for (let layer in data.layers) {
-            if (layer.case == LevelLayer.Entities) {
-                Entities.SpawnLevel(layer);
+            if (layer.case == SceneLayer.Entities) {
+                Entities.SpawnScene(layer);
             }
         }
         Draw.isCanvasFree = false;
@@ -70,7 +70,7 @@ extend LevelScene {
     void MakeTriggers() {
         triggers = New[CollisionWorld](Box(Vec2(0, 0), Vec2(data.pixelSize)), 64);
         for (let layerIndex, layer in data.layers) {
-            if (layer.case != LevelLayer.Areas) {
+            if (layer.case != SceneLayer.Areas) {
                 continue;
             }
             for (let index, area in layer.areas) {
@@ -80,23 +80,23 @@ extend LevelScene {
         probe = triggers.Add(Collider(ColliderShape.Circle(circle: Circle(Camera.pos, 6)), LAYER_PROBE, 0, 0));
     }
 
-    // The scene goes (main.pg; its memory goes with the level phase)
+    // The demo goes (main.pg; its memory goes with the level phase)
     void Leave() {
         preview.ReleaseSprites();
         entityWorld = null;
     }
 
-    void Request(string level) {
-        requestedLevel.Clear();
-        requestedLevel.Append(level);
+    void Request(string scene) {
+        requestedScene.Clear();
+        requestedScene.Append(scene);
     }
 
     //----------------------------------------------------------------------------------------------
-    // Preview: what a game makes of the level (its own presentation: here every layer, ground first)
+    // Preview: what a game makes of the scene (its own presentation: here every layer, ground first)
 
     void DoFrame() {
         if (playground.settings.showsHints) {
-            Draw.LogLine("Level scene (F1: the editor): the level '{levelSceneName}' as a game shows it (the list: another one), arrow keys move the view, the mouse is a probe for the trigger areas");
+            Draw.LogLine("Scene demo (F1: the editor): the scene '{sceneDemoName}' as a game shows it (the list: another one), arrow keys move the view, the mouse is a probe for the trigger areas");
         }
         let move = Vec2(0, 0);
         if (Input.KeyDown(Scancode.Left)) {
@@ -178,28 +178,28 @@ extend LevelScene {
         }
         Draw.CircleOutline(Circle(mouse, 6), 1, Depth.Nearest, DrawParams(color: Color(1, 1, 1, 0.9)));
         for (let layer in data.layers) {
-            if (layer.case != LevelLayer.Areas) {
+            if (layer.case != SceneLayer.Areas) {
                 continue;
             }
             for (let area in layer.areas) {
                 if (!Overlap.BoxCircle(area.box, Circle(mouse, 6))) {
                     continue;
                 }
-                Draw.RectOutline(LevelEditor.RectOf(area.rect), 1, Depth.Nearest, DrawParams(color: LevelEditor.AreaColor(area.kind)));
+                Draw.RectOutline(SceneEditor.RectOf(area.rect), 1, Depth.Nearest, DrawParams(color: SceneEditor.AreaColor(area.kind)));
             }
         }
-        // The levels there are: a click previews another one (a panel of the window's pixels, as
+        // The scenes there are: a click previews another one (a panel of the window's pixels, as
         // the editor's: the fixed canvas would make it big; the arrow keys are the view's)
         Ui.BlockKeys();
         with Ui.InScreen();
         with Ui.Font(Ui.style.fontName, 2);
         with Ui.Panel(UiAnchor.RightTop, 220, 0, Vec2i(-8, 150));       // (below the log's lines)
-        Ui.Label("Levels", UiAlign.Left, Ui.style.textFocused);
-        let names = LevelEditor.LevelNames();
+        Ui.Label("Scenes", UiAlign.Left, Ui.style.textFocused);
+        let names = SceneEditor.SceneNames();
         with Ui.Scroll(Min(Max(1, names.len), 8) * (Ui.ButtonHeight() + Ui.style.spacing)) {
-            for (let index, level in names) {
-                if (Ui.Button(*level, align: UiAlign.Left, isToggled: *level == levelSceneName) && *level != levelSceneName) {
-                    Request(*level);
+            for (let index, scene in names) {
+                if (Ui.Button(*scene, align: UiAlign.Left, isToggled: *scene == sceneDemoName) && *scene != sceneDemoName) {
+                    Request(*scene);
                 }
             }
         }

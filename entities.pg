@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// The playground's entities (hope's entities.pg): placed in a level's Entities layer with the
-// level editor, run by the level scene's preview (level_scene.pg), each with its DrawPreview for
+// The playground's entities (hope's entities.pg): placed in a scene's Entities layer with the
+// scene editor, run by the scene demo's preview (scene_demo.pg), each with its DrawPreview for
 // the editor.
 //
 //     Brazier   a fire: its light's radius, color and flicker
@@ -24,7 +24,7 @@ void RegisterEntityTypes() {
     Entities.Register[Lever]();
 }
 
-// The collision world the entities' colliders are in (the level scene's preview makes it)
+// The collision world the entities' colliders are in (the scene demo's preview makes it)
 CollisionWorld* entityWorld = null;
 
 // A sprite centered on 'pos' (its pivot taken into account), scaled

@@ -4,10 +4,10 @@
 //     ../hope/tools/test_game.pgs . --target=windows  (the Windows build under Wine)
 
 void RegisterTests() {
-    Test.Add("every scene starts", TestScenes);
-    Test.Add("the editor over every scene", TestEditorInScenes, maxFrames: 2400);
-    Test.Add("F5 in every scene", TestRestartInScenes);
-    Test.Add("the phases stay as they are in every scene", TestSteadyMemory, maxFrames: 10800);
+    Test.Add("every demo starts", TestDemos);
+    Test.Add("the editor over every demo", TestEditorInDemos, maxFrames: 2400);
+    Test.Add("F5 in every demo", TestRestartInDemos);
+    Test.Add("the phases stay as they are in every demo", TestSteadyMemory, maxFrames: 10800);
     Test.Add("E rams, and the ram ends", TestRam);
     Test.Add("Susi walks on six legs", TestLegs, maxFrames: 900);
     Test.Add("Susi stumbles and falls and gets up and dies", TestRagdoll, maxFrames: 900);
@@ -15,7 +15,7 @@ void RegisterTests() {
     Test.Add("Susi leans", TestLean, maxFrames: 900);
 }
 
-// The legs scene's lean (tilted and stretched): running right, stopping, running down, running
+// The legs demo's lean (tilted and stretched): running right, stopping, running down, running
 // up (screenshots); the tilt's and the stretch's signs
 void TestLean(TestRun* run) {
     let f = run.frame;
@@ -29,8 +29,8 @@ void TestLean(TestRun* run) {
     if (f < 5) {
         return;
     }
-    let scene = playground.legs;
-    let rig = &scene.rig;
+    let demo = playground.legs;
+    let rig = &demo.rig;
     if (f == 10) { run.Hold(Scancode.D); }
     if (f == 40) {
         run.Screenshot("running right");
@@ -57,7 +57,7 @@ void TestLean(TestRun* run) {
     }
 }
 
-// The legs scene's loose legs: one torn off (she walks on five), all of them (she falls), they
+// The legs demo's loose legs: one torn off (she walks on five), all of them (she falls), they
 // settle into the decal map, they grow back (she gets up); the looks, a leg off in each; every
 // frame: the loose legs keep their lengths, above the ground
 void TestLooseLegs(TestRun* run) {
@@ -72,20 +72,20 @@ void TestLooseLegs(TestRun* run) {
     if (f < 5) {
         return;
     }
-    let scene = playground.legs;
-    let rig = &scene.rig;
-    scene.loose.decayTime = 1;                     // (sooner into the decal map)
-    for (let index, leg in scene.loose.legs) {
+    let demo = playground.legs;
+    let rig = &demo.rig;
+    demo.loose.decayTime = 1;                     // (sooner into the decal map)
+    for (let index, leg in demo.loose.legs) {
         let thigh = (leg.knee - leg.hip).Length();
         let shin = (leg.foot - leg.knee).Length();
         run.Check(Abs(thigh - leg.thigh) < 0.6 && Abs(shin - leg.shin) < 0.6, "loose leg {index}: segments {thigh:F2}, {shin:F2} at frame {f}");
         run.Check(leg.hip.z >= 0 && leg.knee.z >= 0 && leg.foot.z >= 0, "loose leg {index} below the ground at frame {f}");
     }
-    let her = scene.xform.pos * 2;
+    let her = demo.xform.pos * 2;
     if (f == 10) { run.MoveMouse(her + Vec2(30, -30)); }
     if (f == 11) { run.Press(Scancode.X); }
     if (f == 13) {
-        run.Check(rig.attachedCount == 5 && scene.loose.count == 1, "X tears one leg off ({rig.attachedCount} on, {scene.loose.count} loose)");
+        run.Check(rig.attachedCount == 5 && demo.loose.count == 1, "X tears one leg off ({rig.attachedCount} on, {demo.loose.count} loose)");
     }
     if (f == 30) { run.Screenshot("torn off"); }
     if (f == 40) { run.Hold(Scancode.D); }
@@ -94,7 +94,7 @@ void TestLooseLegs(TestRun* run) {
     if (f == 152) { run.Check(rig.attachedCount == 0 && rig.isLimp, "no legs left: she falls ({*rig})"); }
     if (f == 165) { run.Screenshot("no legs"); }
     if (f == 330) {
-        run.Check(scene.loose.count == 0, "the loose legs went into the decal map ({scene.loose.count} left)");
+        run.Check(demo.loose.count == 0, "the loose legs went into the decal map ({demo.loose.count} left)");
         run.Screenshot("decals");
         run.Press(Scancode.R);
     }
@@ -106,12 +106,12 @@ void TestLooseLegs(TestRun* run) {
         if (f == at + 20) { run.Screenshot(temp "look {look}"); }
     }
     if (f == 600) {
-        run.Check(scene.look == 3 && rig.attachedCount == 3, "three looks, a leg off in each ({rig.attachedCount} on)");
+        run.Check(demo.look == 3 && rig.attachedCount == 3, "three looks, a leg off in each ({rig.attachedCount} on)");
         run.Pass();
     }
 }
 
-// The legs scene's ragdoll: a blast while she stands (a foot stumbles), knocked out (lying), a
+// The legs demo's ragdoll: a blast while she stands (a foot stumbles), knocked out (lying), a
 // blast while limp, getting up, dead (asleep after a while), shoved dead, alive again;
 // every frame: the limp segments keep their lengths, nothing below the ground, no NaN
 void TestRagdoll(TestRun* run) {
@@ -126,8 +126,8 @@ void TestRagdoll(TestRun* run) {
     if (f < 5) {
         return;
     }
-    let scene = playground.legs;
-    let rig = &scene.rig;
+    let demo = playground.legs;
+    let rig = &demo.rig;
     for (let index, leg in rig.legs[0..rig.legCount]) {
         if (leg.isDetached) {
             continue;                      // (a blast near her tears legs off: they are LooseLegs')
@@ -140,16 +140,16 @@ void TestRagdoll(TestRun* run) {
             run.Check(Abs(thigh - rig.setup.thigh) < 0.5 && Abs(shin - rig.setup.shin) < 1.0, "leg {index}'s limp segments {thigh:F2}, {shin:F2} at frame {f}");
         }
     }
-    let her = scene.xform.pos * 2;                 // (the window: the canvas at 2x, the camera on it)
+    let her = demo.xform.pos * 2;                 // (the window: the canvas at 2x, the camera on it)
     if (f == 20) { run.MoveMouse(her + Vec2(-40, 10)); }
     if (f == 21) { run.Click(MouseButton.Left); }
-    if (24 <= f && f <= 40 && !scene.ragdollStumbled) {
+    if (24 <= f && f <= 40 && !demo.ragdollStumbled) {
         for (let leg in rig.legs[0..rig.legCount]) {
-            scene.ragdollStumbled = scene.ragdollStumbled || leg.isStumbling;
+            demo.ragdollStumbled = demo.ragdollStumbled || leg.isStumbling;
         }
     }
     if (f == 27) { run.Screenshot("stumble"); }
-    if (f == 60) { run.Check(scene.ragdollStumbled, "a blast near her makes a foot stumble"); }
+    if (f == 60) { run.Check(demo.ragdollStumbled, "a blast near her makes a foot stumble"); }
     if (f == 80) { run.Press(Scancode.U); }
     if (f == 120) {
         run.Check(rig.isLimp && rig.z < 0.5, "knocked out, she lies on the ground (z {rig.z:F2})");
@@ -171,7 +171,7 @@ void TestRagdoll(TestRun* run) {
     }
 }
 
-// The legs scene: walking, turning, against a pillar, a shove, standing; every frame: no leg
+// The legs demo: walking, turning, against a pillar, a shove, standing; every frame: no leg
 // longer than its segments for long, planted feet where they were and not in a wall
 [Vec3, 8] legsLastFeet;
 [int, 8] legsStretched;          // (frames in a row: held back by a wall, it steps soon)
@@ -188,12 +188,12 @@ void TestLegs(TestRun* run) {
     if (f < 5) {
         return;
     }
-    let scene = playground.legs;
-    run.Check(scene != null, "Shift+F10 shows the legs scene");
-    if (scene == null) {
+    let demo = playground.legs;
+    run.Check(demo != null, "Shift+F10 shows the legs demo");
+    if (demo == null) {
         return;
     }
-    let rig = &scene.rig;
+    let rig = &demo.rig;
     for (let index, leg in rig.legs[0..rig.legCount]) {
         let length = (leg.foot - leg.hip).Length();
         legsStretched[index] = length > rig.setup.thigh + rig.setup.shin + 0.5 ? legsStretched[index] + 1 : 0;
@@ -202,12 +202,12 @@ void TestLegs(TestRun* run) {
         if (f > 6 && leg.clock.state == FootState.Planted && !leg.hasLanded && !isStretched) {
             run.Check((leg.foot - legsLastFeet[index]).Length() < 0.01, "planted foot {index} slid at frame {f}");
         }
-        for (let box in scene.wallBoxes) {
+        for (let box in demo.wallBoxes) {
             if (leg.clock.state != FootState.Planted) {
                 break;                     // (in the air it may pass over a wall's end)
             }
             let p = leg.foot.xy;
-            run.Check(!(box.min.x < p.x && p.x < box.max.x && box.min.y < p.y && p.y < box.max.y), "foot {index} ({leg.clock}) in a wall at frame {f}: {p}, from {leg.stepFrom} to {leg.stepTo}, body {scene.xform.pos}");
+            run.Check(!(box.min.x < p.x && p.x < box.max.x && box.min.y < p.y && p.y < box.max.y), "foot {index} ({leg.clock}) in a wall at frame {f}: {p}, from {leg.stepFrom} to {leg.stepTo}, body {demo.xform.pos}");
         }
         legsLastFeet[index] = leg.foot;
     }
@@ -231,19 +231,19 @@ void TestLegs(TestRun* run) {
         run.Check((leg.foot.xy - landing.pos).Length() < 0.01, "landing {landing.leg} where its foot is ({leg.foot.xy}, {landing.pos})");
     });
     if (f == 560) {
-        run.Check(scene.footprints > 40, "the steps left footprints ({scene.footprints})");
+        run.Check(demo.footprints > 40, "the steps left footprints ({demo.footprints})");
         run.Check(rig.stillTime > 0.3, "she stands still at the end");
         run.Pass();
     }
 }
 
-// (the physics scene's StateClock: Driving, Ramming for PHYSICS_RAM_TIME or to what stops it)
+// (the physics demo's StateClock: Driving, Ramming for PHYSICS_RAM_TIME or to what stops it)
 void TestRam(TestRun* run) {
     if (run.frame == 1) {
         run.Press(Scancode.F2);
     }
     if (run.frame == 10) {
-        run.Check(playground.physics != null && playground.physics.move.state == PlayerMove.Driving, "the physics scene drives");
+        run.Check(playground.physics != null && playground.physics.move.state == PlayerMove.Driving, "the physics demo drives");
         run.Press(Scancode.E);
     }
     if (run.frame == 11) {
@@ -257,105 +257,105 @@ void TestRam(TestRun* run) {
     }
 }
 
-// The scenes and their keys, in an order that goes from each one to each other kind
-[Scene, 9] testScenes = [Scene.Level, Scene.Physics, Scene.Start, Scene.Navigation, Scene.Audio, Scene.Lighting, Scene.Ui, Scene.Effects, Scene.Legs];
-[Scancode, 9] testSceneKeys = [Scancode.F9, Scancode.F2, Scancode.F3, Scancode.F4, Scancode.F6, Scancode.F7, Scancode.F8, Scancode.F10, Scancode.F10];    // (the legs: with Shift, PressScene)
+// The demos and their keys, in an order that goes from each one to each other kind
+[Demo, 9] testDemos = [Demo.Scene, Demo.Physics, Demo.Start, Demo.Navigation, Demo.Audio, Demo.Lighting, Demo.Ui, Demo.Effects, Demo.Legs];
+[Scancode, 9] testDemoKeys = [Scancode.F9, Scancode.F2, Scancode.F3, Scancode.F4, Scancode.F6, Scancode.F7, Scancode.F8, Scancode.F10, Scancode.F10];    // (the legs: with Shift, PressDemo)
 
-// The key of scene 'index' (the legs scene's with Shift)
-void PressScene(TestRun* run, int index) {
-    run.Press(testSceneKeys[index]);
-    if (testScenes[index] == Scene.Legs) {
+// The key of demo 'index' (the legs demo's with Shift)
+void PressDemo(TestRun* run, int index) {
+    run.Press(testDemoKeys[index]);
+    if (testDemos[index] == Demo.Legs) {
         run.Press(Scancode.LShift);
     }
 }
 
-// (every 'period' frames the next scene: its key pressed at the period's start; the scene at 'at')
-int SceneAt(TestRun* run, int period) { return (run.frame / period) % testScenes.len; }
+// (every 'period' frames the next demo: its key pressed at the period's start; the demo at 'at')
+int DemoAt(TestRun* run, int period) { return (run.frame / period) % testDemos.len; }
 
-void TestScenes(TestRun* run) {
+void TestDemos(TestRun* run) {
     let period = 30;
     let index = run.frame / period;
-    if (index >= testScenes.len) {
+    if (index >= testDemos.len) {
         run.Pass();
         return;
     }
     if (run.frame % period == 1) {
-        PressScene(run, index);
+        PressDemo(run, index);
     }
     if (run.frame % period == period - 1) {
-        run.Check(playground.scene == testScenes[index], "{testSceneKeys[index]} shows the scene {testScenes[index]} ({playground.scene})");
+        run.Check(playground.demo == testDemos[index], "{testDemoKeys[index]} shows the demo {testDemos[index]} ({playground.demo})");
     }
 }
 
-void TestEditorInScenes(TestRun* run) {
+void TestEditorInDemos(TestRun* run) {
     if (!INTERNAL) {
         run.Pass();
         return;
     }
     let period = 60;
     let index = run.frame / period;
-    if (index >= testScenes.len * 2) {
+    if (index >= testDemos.len * 2) {
         run.Pass();
         return;
     }
-    let scene = index % testScenes.len;
+    let demo = index % testDemos.len;
     let step = run.frame % period;
     if (step == 1) {
-        PressScene(run, scene);
+        PressDemo(run, demo);
     }
     if (step == 20) {
         run.Press(Scancode.F1);
     }
     if (step == 30) {
-        run.Check(Editor.isOpen, "F1 opens the editor over {testScenes[scene]}");
+        run.Check(Editor.isOpen, "F1 opens the editor over {testDemos[demo]}");
         run.Press(Scancode.F1);
     }
     if (step == 40) {
         run.Check(!Editor.isOpen, "F1 closes it again");
-        run.Check(playground.scene == testScenes[scene], "the scene is still {testScenes[scene]}");
+        run.Check(playground.demo == testDemos[demo], "the demo is still {testDemos[demo]}");
     }
 }
 
-void TestRestartInScenes(TestRun* run) {
+void TestRestartInDemos(TestRun* run) {
     if (!INTERNAL) {
         run.Pass();
         return;
     }
     let period = 40;
     let index = run.frame / period;
-    if (index >= testScenes.len) {
+    if (index >= testDemos.len) {
         run.Pass();
         return;
     }
     let step = run.frame % period;
     if (step == 1) {
-        PressScene(run, index);
+        PressDemo(run, index);
     }
     if (step == 15) {
         run.Press(Scancode.F5);
     }
     if (step == 30) {
-        run.Check(playground != null, "the game started again in {testScenes[index]}");
+        run.Check(playground != null, "the game started again in {testDemos[index]}");
     }
 }
 
-// Each scene for 18 s: after 12 s of warming up (the level scene's spawner fills up to its ghosts'
+// Each demo for 18 s: after 12 s of warming up (the scene demo's spawner fills up to its ghosts'
 // cap meanwhile), its phases do not keep growing: measured in two windows of 3 s, growth in both
 // is a leak (the ones found 2026-11-14 and 11-16 grew a few KiB every frame); in one only is the
-// scene doing something once
+// demo doing something once
 [long, 3] testLevelUsed;
 [long, 3] testPersistentUsed;
 
 void TestSteadyMemory(TestRun* run) {
     let period = 1080;
     let index = run.frame / period;
-    if (index >= testScenes.len) {
+    if (index >= testDemos.len) {
         run.Pass();
         return;
     }
     let step = run.frame % period;
     if (step == 1) {
-        PressScene(run, index);
+        PressDemo(run, index);
     }
     for (let point in 0..3) {
         if (step == 720 + point * 179) {
@@ -364,9 +364,9 @@ void TestSteadyMemory(TestRun* run) {
         }
     }
     if (step == 720 + 2 * 179) {
-        let level = Min(testLevelUsed[1] - testLevelUsed[0], testLevelUsed[2] - testLevelUsed[1]);
+        let growth = Min(testLevelUsed[1] - testLevelUsed[0], testLevelUsed[2] - testLevelUsed[1]);
         let persistent = Min(testPersistentUsed[1] - testPersistentUsed[0], testPersistentUsed[2] - testPersistentUsed[1]);
-        run.Check(level <= 0, "the level phase kept growing in {testScenes[index]}: {(testLevelUsed[2] - testLevelUsed[0]) / 1024} KiB in 6 s");
-        run.Check(persistent <= 0, "the persistent phase kept growing in {testScenes[index]}: {(testPersistentUsed[2] - testPersistentUsed[0]) / 1024} KiB in 6 s");
+        run.Check(growth <= 0, "the level phase kept growing in {testDemos[index]}: {(testLevelUsed[2] - testLevelUsed[0]) / 1024} KiB in 6 s");
+        run.Check(persistent <= 0, "the persistent phase kept growing in {testDemos[index]}: {(testPersistentUsed[2] - testPersistentUsed[0]) / 1024} KiB in 6 s");
     }
 }

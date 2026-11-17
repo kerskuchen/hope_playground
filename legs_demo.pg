@@ -1,5 +1,5 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// The legs scene (Shift+F10): Susi on six legs (hope's legs.pg). WASD (or the stick) walks her:
+// The legs demo (Shift+F10): Susi on six legs (hope's legs.pg). WASD (or the stick) walks her:
 // she turns towards where she goes while she walks, and in place first if it is behind her; Q and
 // E turn her in place; Shift walks slowly (faster runs: the groups step together); the right
 // mouse button shoves her away from the cursor, the left one sets off a blast there (she stumbles;
@@ -7,7 +7,7 @@
 // 2.5 s. X tears off the leg nearest to the cursor (a blast tears off those whose knees are near
 // it); the loose legs tumble, settle and go into the decal map after a while; R: all legs back.
 // 1: the knees out (a spider) or back (a dog), 2: two, three or four pairs, 3: the look (lines,
-// recoloured, sprites, the scene's own function), 5: footstep sounds on or off (every landing
+// recoloured, sprites, the demo's own function), 5: footstep sounds on or off (every landing
 // also leaves a footprint in the decal map), G: the rest positions, the steps' targets and
 // the hips.
 //
@@ -18,7 +18,7 @@ LegSetup LegsSetup(KneeBend bend, int pairs, int look) {
 }
 
 // The looks (3): the default lines, recoloured (rust), sprites (the untextured pixel stretched:
-// a stand-in for art), the scene's own function (bone white, red claws)
+// a stand-in for art), the demo's own function (bone white, red claws)
 LegLook LegsLook(int index) {
     if (index == 1) {
         return LegLook(thighColor: Color(0.55, 0.3, 0.18, 1), shinColor: Color(0.4, 0.2, 0.12, 1), jointColor: Color(0.8, 0.55, 0.3, 1), footColor: Color(0.2, 0.1, 0.05, 1));
@@ -49,7 +49,7 @@ void DrawClawLeg(LegPose* pose, float depth, Decalmap* decals) {
 
 enum SusiLife { Alive, KnockedOut, Dead }
 
-struct LegsScene {
+struct LegsDemo {
     AnimationPlayer bodyAnim;          // (Susi's first frame: no tracks running)
     Transform xform = Transform(Vec2(160, 110), 0);
     Vec2 velocity;                     // her own (walking)
@@ -73,7 +73,7 @@ struct LegsScene {
     bool ragdollStumbled;              // (the test's: a foot stumbled)
 }
 
-extend LegsScene {
+extend LegsDemo {
     init() {
         bodyAnim = AnimationPlayer(Draw.GetAnim("susi.run"));
         Camera.pos = Vec2(160, 90);
@@ -246,13 +246,13 @@ extend LegsScene {
         blast.Update();
         blast.Draw(Depth.Nearest - 2);
         if (playground.settings.showsHints) {
-            Draw.LogLine("legs scene (Shift+F10): WASD walks (Shift slowly), Q/E turn, right click shoves, left click blasts; K dead/alive, U knocked out; X tears a leg off, R regrows");
+            Draw.LogLine("legs demo (Shift+F10): WASD walks (Shift slowly), Q/E turn, right click shoves, left click blasts; K dead/alive, U knocked out; X tears a leg off, R regrows");
             Draw.LogLine("1 knees {bend}, 2 pairs {pairs}, 3 look {look}, 5 footsteps {footsteps}, G debug; {loose.count} loose legs, decals waiting {decals.pendingCount}");
             Draw.LogLine("{rig}");
         }
     }
 
-    // The scene goes: the decal map's atlas regions back
+    // The demo goes: the decal map's atlas regions back
     void Leave() {
         decals.ReleaseSprites();
     }

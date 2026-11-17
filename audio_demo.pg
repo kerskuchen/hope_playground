@@ -1,4 +1,4 @@
-// The audio scene (F6, in the level phase): music in layers on the beat grid and the spatial
+// The audio demo (F6, in the level phase): music in layers on the beat grid and the spatial
 // audio test. The listener is the window's center; positions are window pixels relative to it.
 //
 //     M                 the music (MusicLayers: level1-step1 .. 3 at 100 BPM, from the next
@@ -15,7 +15,7 @@
 //     L                 the sine's low-pass filter
 //     G                 slow motion (the global playback speed 0.5)
 
-struct AudioScene {
+struct AudioDemo {
     MusicLayers music;
     bool hasMusic;
     int bpm;
@@ -30,7 +30,7 @@ struct AudioScene {
     bool isSineFiltered;           // L
 }
 
-extend AudioScene {
+extend AudioDemo {
     init() {
         bpm = Audio.RecordingBpm("level1-step1");
         metronome = AudioPulse(AudioBeat.Beat, bpm);
@@ -42,7 +42,7 @@ extend AudioScene {
         hasMusic = true;
     }
 
-    // Before the scene goes: its streams stop
+    // Before the demo goes: its streams stop
     void Leave() {
         if (hasMusic) {
             music.Stop(fadeOut: 0.3);
@@ -81,12 +81,12 @@ extend AudioScene {
                 StartMusic();
             }
         }
-        for (let level in 0..3) {
-            if (hasMusic && Input.KeyPressed((Scancode)((int)Scancode.Alpha1 + level))) {
-                music.SetIntensity(level);
+        for (let scene in 0..3) {
+            if (hasMusic && Input.KeyPressed((Scancode)((int)Scancode.Alpha1 + scene))) {
+                music.SetIntensity(scene);
             }
-            if (hasMusic && Input.KeyPressed((Scancode)((int)Scancode.Alpha4 + level))) {
-                music.SetTargetIntensity(level);
+            if (hasMusic && Input.KeyPressed((Scancode)((int)Scancode.Alpha4 + scene))) {
+                music.SetTargetIntensity(scene);
             }
         }
         if (hasMusic) {
@@ -154,7 +154,7 @@ extend AudioScene {
             Audio.globalPlaybackSpeed = Audio.globalPlaybackSpeed < 1 ? 1 : 0.5;
         }
         Audio.SetPosition(sine, sinePosition, sineVelocity);
-        Draw.LogLine("audio scene (F6): T sine, F falloff ({sineFalloff}), K minimum loudness ({isSineFloored}), R reverb ({reverbRoom == 0 ? "dry" : (reverbRoom == 1 ? "small room" : "big hall, wetter far away")}), L low-pass ({isSineFiltered}), G slow motion ({Audio.globalPlaybackSpeed}), Space coin");
+        Draw.LogLine("audio demo (F6): T sine, F falloff ({sineFalloff}), K minimum loudness ({isSineFloored}), R reverb ({reverbRoom == 0 ? "dry" : (reverbRoom == 1 ? "small room" : "big hall, wetter far away")}), L low-pass ({isSineFiltered}), G slow motion ({Audio.globalPlaybackSpeed}), Space coin");
         if (let info = Audio.GetStream(sine)) {
             Draw.LogLine("sine at {mouse.Flooredi()} moving {sineVelocity.Flooredi()} px/s: volume {(int)(info.volume * 100)} %, pan ",
                 "{(int)(info.pan * 100)} %, reverb {(int)(info.reverbSend * 100)} %, playback speed {(int)(info.playbackSpeed * 1000) / 1000.0} ({(int)(440 * info.playbackSpeed * Audio.globalPlaybackSpeed)} Hz), low-pass {(int)(info.lowpass * 100)} %");
@@ -167,8 +167,8 @@ extend AudioScene {
         let center = (Vec2)Input.windowDim * 0.5;
         let screen = (Color color) => DrawParams(color: color, space: DrawSpace.Screen);
         let beatNow = (int)(Audio.IndexAt(AudioBeat.Beat, Audio.dspTime, bpm) % 4);
-        let level = hasMusic ? music.intensity : -1;
-        let lit = level == 0 ? Color(0.4, 1, 0.5, 1) : level == 1 ? Color(1, 0.85, 0.3, 1) : level == 2 ? Color(1, 0.35, 0.3, 1) : Color(0.7, 0.7, 0.7, 1);
+        let scene = hasMusic ? music.intensity : -1;
+        let lit = scene == 0 ? Color(0.4, 1, 0.5, 1) : scene == 1 ? Color(1, 0.85, 0.3, 1) : scene == 2 ? Color(1, 0.35, 0.3, 1) : Color(0.7, 0.7, 0.7, 1);
         for (let i in 0..4) {
             let box = Rect(Vec2(center.x - 90 + i * 46, Input.windowDim.y - 70), Vec2(36, 36));
             Draw.Rect(box, 2, screen(i == beatNow ? lit : Color(0.25, 0.25, 0.25, 1)));

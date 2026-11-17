@@ -1,5 +1,5 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// The UI scene (F8): a game's menus with hope's UI (hope/ui.pg) on the fixed canvas: a title
+// The UI demo (F8): a game's menus with hope's UI (hope/ui.pg) on the fixed canvas: a title
 // screen, options (volumes, fullscreen), the credits (gamePack.credits, scrolling). The mouse, the
 // keys (arrows/WASD, Enter/Space, Escape) and a gamepad work; the screens are a stack, only the
 // top one is drawn, Escape (or Back) goes back to where the focus was. The options are the
@@ -9,21 +9,21 @@
 
 enum MenuScreen { Title, Options, Controls, Credits }
 
-struct UiScene {
+struct UiDemo {
     UiScreens[MenuScreen] screens;
-    bool wantsToPlay;              // 'Play': the playground switches to the start scene after the frame
+    bool wantsToPlay;              // 'Play': the playground switches to the start demo after the frame
     int plays;
 }
 
-extend UiScene {
+extend UiDemo {
     init() {
         screens.Reset(MenuScreen.Title);
-        Camera.rotation = 0;                   // (the start scene turns it)
+        Camera.rotation = 0;                   // (the start demo turns it)
     }
 
     void DoFrame() {
         if (playground.settings.showsHints) {
-            Draw.LogLine("UI scene (F8): mouse, arrows/WASD + Enter/Space + Escape, or a gamepad (d-pad/stick, A, B)");
+            Draw.LogLine("UI demo (F8): mouse, arrows/WASD + Enter/Space + Escape, or a gamepad (d-pad/stick, A, B)");
         }
         switch (screens.top) {
         case MenuScreen.Title: TitleScreen();

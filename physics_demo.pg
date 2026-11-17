@@ -1,4 +1,4 @@
-// The physics debug scene (F2, in the level phase): hope's CollisionWorld to play with. A free canvas
+// The physics debug demo (F2, in the level phase): hope's CollisionWorld to play with. A free canvas
 // (the screen's resolution, world units are pixels), so the lines show the shapes as they are;
 // the cells are as big as the map can be on the screen.
 //
@@ -7,7 +7,7 @@
 // heavy) are pushed and turned by what hits them (external velocities, hope/physics.pg), crates
 // (orange) break when the circle runs into them, when a shot hits them and in an explosion's
 // blast. A blast also
-// breaks the wall tiles in it (not the border); F1 then F2 builds the scene again.
+// breaks the wall tiles in it (not the border); F1 then F2 builds the demo again.
 //
 //     WASD              move the circle (it slides along the walls and the obstacles)
 //     mouse             aim: the ray to the first hit, its normal
@@ -43,7 +43,7 @@ const float PHYSICS_SLIDE_RESTITUTION = 0.3;       // something drifting into a 
 const float PHYSICS_EXPLOSION_SHAKE = 5;
 const float PHYSICS_RAM_SHAKE = 8;                 // a full-speed ram into a wall
 
-// The scene's layers
+// The demo's layers
 const uint LAYER_WALLS = 1;
 const uint LAYER_OBSTACLE = 2;
 const uint LAYER_HITBOX = 4;
@@ -57,16 +57,16 @@ const int OWNER_OBSTACLE = 100;                    // + index
 const int OWNER_HITBOX = 200;                      // + index
 const int OWNER_CRATE = 1000;                      // + index
 
-// A projectile of the scene, with what is drawn of it
+// A projectile of the demo, with what is drawn of it
 struct DebugShot : Projectile {
     List[Vec2] trail;              // where it was (and bounced), for drawing
     int bounces;
 }
 
-// A vehicle of the scene: its hitbox (an oriented box) and its navigation circle; it only moves
+// A vehicle of the demo: its hitbox (an oriented box) and its navigation circle; it only moves
 // by what hits it (it has no steering of its own)
 struct DebugVehicle {
-    Vec2 center;                   // in cells (the level is kept in cells: Layout)
+    Vec2 center;                   // in cells (the scene is kept in cells: Layout)
     Vec2 halfDim;                  // in cells
     float angle;
     float mass;
@@ -82,17 +82,17 @@ struct DebugExplosion {
 
 enum PlayerMove { Driving, Ramming }
 
-struct PhysicsScene {
+struct PhysicsDemo {
     Grid[bool] solid;
     TileCollision tiles;
     float cell;                    // the cell size: the map fits the screen (Layout)
-    // The level in cells (the world gets them in pixels)
+    // The scene in cells (the world gets them in pixels)
     List[Circle] circleCells;
     List[Box] boxCells;
     List[DebugVehicle] vehicles;
     List[Vec2] crateCells;         // crate centers
     List[bool] crateBroken;
-    // The world and the colliders the scene changes
+    // The world and the colliders the demo changes
     CollisionWorld world;
     bool hasWorld;
     ColliderId player;
@@ -112,7 +112,7 @@ struct PhysicsScene {
     float pixel = 1;               // the lines' width
 }
 
-extend PhysicsScene {
+extend PhysicsDemo {
     init() {
         // A border, some walls and blocks
         solid = Grid[bool](PHYSICS_COLUMNS, PHYSICS_ROWS);
@@ -398,7 +398,7 @@ extend PhysicsScene {
         aimHit.radius = shotRadius;
 
         // Shooting: every hit costs speed; grazing and still fast it bounces, else it explodes
-        // (also when it starts inside something: the scene's choice). Crates it hits break, so
+        // (also when it starts inside something: the demo's choice). Crates it hits break, so
         // does every crate in the blast.
         if (Input.KeyPressed(Scancode.Space)) {
             let shot = DebugShot(position: muzzle, velocity: aim * PHYSICS_SHOT_SPEED * (cell / 24), radius: shotRadius);
@@ -442,7 +442,7 @@ extend PhysicsScene {
 
         Render(cursor, aimRay, &aimHit);
         let broken = crateBroken.Count((bool* isBroken) => *isBroken);
-        Draw.LogLine("physics scene (F2): WASD move, mouse aim, space shoot, Q wide shots ({wideShots}), E ram, left/right mouse add/remove tiles, 1/2 circle size");
+        Draw.LogLine("physics demo (F2): WASD move, mouse aim, space shoot, Q wide shots ({wideShots}), E ram, left/right mouse add/remove tiles, 1/2 circle size");
         for (let i, v in vehicles) {
             Draw.LogLine("vehicle {i} (mass {v.mass}): speed {(int)v.external.linear.Length()} px/s, turning {(int)v.external.angular} deg/s");
         }

@@ -8,20 +8,20 @@ committed on its own.
 
 The scenes (each file's header lists its keys):
 
-- F1 the level scene (`level_scene.pg`): a level of `assets/levels/` as a game shows it (the
-  fixed canvas, the arrow keys move the view; the list at the right top: another level); F1
-  again: the level editor on that level (`level_editor.pg`, its header lists the keys): tiles,
+- F1 the scene scene (`scene_scene.pg`): a scene of `assets/scenes/` as a game shows it (the
+  fixed canvas, the arrow keys move the view; the list at the right top: another scene); F1
+  again: the scene editor on that scene (`scene_editor.pg`, its header lists the keys): tiles,
   autotiles and decals; brush sizes, lines, rectangles, the eyedropper; stamps (a picked region,
   10 slots per tileset in `assets/stamps/<tileset>.stamp.json`); random tiles from a shuffle bag
   and random decals within ranges (previewed: what comes next); trigger areas (an Areas layer:
   named rectangles with a kind; the preview makes them triggers of a CollisionWorld, the mouse a
   probe, entering and leaving logged); entities (`entities.pg`: a brazier, a turret, a spawner
-  and its ghosts, placed in the level's Entities layer, edited by their @Editable fields, shown
+  and its ghosts, placed in the scene's Entities layer, edited by their @Editable fields, shown
   in the editor by their DrawPreview, run by the preview: the turret's bullets find the ghosts'
   Health through the collision world); layers added (kind, name, tileset, tile size), renamed,
   moved up and down, locked, deleted; camera bounds, extending the
-  level; undo and redo; Open, New (an empty level with the same layers), Save as. Between runs
-  `build/editor/` keeps the tools (`editor.json`), each level's view and its undo steps (within a
+  scene; undo and redo; Open, New (an empty scene with the same layers), Save as. Between runs
+  `build/editor/` keeps the tools (`editor.json`), each scene's view and its undo steps (within a
   run only)
 - F3 the start scene (`main.pg`): Sorcy runs in circles, Susi (a 3D sprite on tracks) drives with
   WASD, the arrow keys or a gamepad; camera shakes, following, translucent sorting

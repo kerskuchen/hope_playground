@@ -44,10 +44,10 @@ extend Susi {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// The start scene (F3): Sorcy runs in circles, Susi drives, the camera tests (the audio tests:
-// the audio scene, F6)
+// The start demo (F3): Sorcy runs in circles, Susi drives, the camera tests (the audio tests:
+// the audio demo, F6)
 
-struct StartScene {
+struct StartDemo {
     float time;
     Susi susi;
     AnimationPlayer sorcyAnim;
@@ -58,14 +58,14 @@ struct StartScene {
     bool isRumbling;
 }
 
-extend StartScene {
+extend StartDemo {
     init() {
         susi = Susi();
         sorcyAnim = AnimationPlayer(Draw.GetAnim("sorcy.run"));
         ghostyAnim = AnimationPlayer(Draw.GetAnim("ghosty.default"));
     }
 
-    // Before the scene goes: its camera effects stop
+    // Before the demo goes: its camera effects stop
     void Leave() {
         Camera.StopShakes();
         Camera.StopFollowing();
@@ -187,14 +187,14 @@ extend StartScene {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// Game: one scene at a time, F9 the level scene, F2 the physics debug scene, F3 the start scene,
-// F4 the navigation scene, F6 the audio scene, F7 the lighting scene, F8 the UI scene, F10 the
-// effects scene (F1: hope's level editor, over any of them). A scene lives in the level phase
+// Game: one demo at a time, F9 the scene demo, F2 the physics debug demo, F3 the start demo,
+// F4 the navigation demo, F6 the audio demo, F7 the lighting demo, F8 the UI demo, F10 the
+// effects demo (F1: hope's scene editor, over any of them). A demo lives in the level phase
 // (hope/core.pg): switching wipes it and makes the next one there; its frames allocate there too.
 
-enum Scene { Level, Start, Physics, Navigation, Audio, Lighting, Ui, Effects, Legs }
+enum Demo { Scene, Start, Physics, Navigation, Audio, Lighting, Ui, Effects, Legs }
 
-// The player's settings (the UI scene's options), kept with hope's Storage (the value 'settings')
+// The player's settings (the UI demo's options), kept with hope's Storage (the value 'settings')
 @Serializable
 struct Settings {
     @Serialize float music = 1;
@@ -210,18 +210,18 @@ extend Settings {
 }
 
 struct Playground {
-    Scene scene;
-    LevelScene* level;             // the current scene's state (the others are null)
-    StartScene* start;
-    PhysicsScene* physics;
-    NavScene* navigation;
-    AudioScene* audio;
-    LightingScene* lighting;
-    UiScene* ui;
-    EffectsScene* effects;
-    LegsScene* legs;
+    Demo demo;
+    SceneDemo* scene;             // the current demo's state (the others are null)
+    StartDemo* start;
+    PhysicsDemo* physics;
+    NavDemo* navigation;
+    AudioDemo* audio;
+    LightingDemo* lighting;
+    UiDemo* ui;
+    EffectsDemo* effects;
+    LegsDemo* legs;
     Settings settings;
-    bool areSettingsChanged;       // not saved yet (SaveSettings: leaving the options, the UI scene)
+    bool areSettingsChanged;       // not saved yet (SaveSettings: leaving the options, the UI demo)
 }
 
 extend Playground {
@@ -253,14 +253,14 @@ extend Playground {
         Input.AddActionBinding("attack_3", InputActionBinding(GamepadAxis.LeftShoulderTrigger, 0.5));
         Input.AddActionBinding("attack_3", InputActionBinding(GamepadAxis.RightShoulderTrigger, 0.5));
 
-        SwitchTo(Scene.Level);
+        SwitchTo(Demo.Scene);
     }
 
-    void SwitchTo(Scene next) {
-        // The scene that goes, with everything in its phase
-        if (level != null) {
-            level.Leave();
-            level = null;
+    void SwitchTo(Demo next) {
+        // The demo that goes, with everything in its phase
+        if (scene != null) {
+            scene.Leave();
+            scene = null;
             Memory.WipeLevel();
         }
         if (start != null) {
@@ -301,42 +301,42 @@ extend Playground {
             ui = null;
             Memory.WipeLevel();
         }
-        scene = next;
-        Draw.isCanvasFree = next != Scene.Start && next != Scene.Lighting && next != Scene.Ui && next != Scene.Level && next != Scene.Effects && next != Scene.Legs;    // (the games' fixed canvas)
-        if (next == Scene.Level) {
+        demo = next;
+        Draw.isCanvasFree = next != Demo.Start && next != Demo.Lighting && next != Demo.Ui && next != Demo.Scene && next != Demo.Effects && next != Demo.Legs;    // (the games' fixed canvas)
+        if (next == Demo.Scene) {
             with level;
-            level = New[LevelScene]();
-        } else if (next == Scene.Start) {
+            scene = New[SceneDemo]();
+        } else if (next == Demo.Start) {
             with level;
-            start = New[StartScene]();
+            start = New[StartDemo]();
             Draw.clearColor = Color.Black;
-        } else if (next == Scene.Physics) {
+        } else if (next == Demo.Physics) {
             with level;
-            physics = New[PhysicsScene]();
+            physics = New[PhysicsDemo]();
             Draw.clearColor = Color.Grey(0.12);
-        } else if (next == Scene.Navigation) {
+        } else if (next == Demo.Navigation) {
             with level;
-            navigation = New[NavScene]();
+            navigation = New[NavDemo]();
             Draw.clearColor = Color.Grey(0.08);
-        } else if (next == Scene.Audio) {
+        } else if (next == Demo.Audio) {
             with level;
-            audio = New[AudioScene]();
+            audio = New[AudioDemo]();
             Draw.clearColor = Color.Grey(0.1);
-        } else if (next == Scene.Lighting) {
+        } else if (next == Demo.Lighting) {
             with level;
-            lighting = New[LightingScene]();
+            lighting = New[LightingDemo]();
             Draw.clearColor = Color.Black;
-        } else if (next == Scene.Effects) {
+        } else if (next == Demo.Effects) {
             with level;
-            effects = New[EffectsScene]();
+            effects = New[EffectsDemo]();
             Draw.clearColor = Color(0.13, 0.13, 0.16, 1);
-        } else if (next == Scene.Legs) {
+        } else if (next == Demo.Legs) {
             with level;
-            legs = New[LegsScene]();
+            legs = New[LegsDemo]();
             Draw.clearColor = Color(0.13, 0.13, 0.16, 1);
         } else {
             with level;
-            ui = New[UiScene]();
+            ui = New[UiDemo]();
             Draw.clearColor = Color(0.09, 0.07, 0.13, 1);
         }
     }
@@ -348,66 +348,66 @@ extend Playground {
     }
 
     void DoFrame() {
-        if (Input.KeyPressed(Scancode.F9) && scene != Scene.Level) {
-            SwitchTo(Scene.Level);
-        } else if (Input.KeyPressed(Scancode.F3) && scene != Scene.Start) {
-            SwitchTo(Scene.Start);
+        if (Input.KeyPressed(Scancode.F9) && demo != Demo.Scene) {
+            SwitchTo(Demo.Scene);
+        } else if (Input.KeyPressed(Scancode.F3) && demo != Demo.Start) {
+            SwitchTo(Demo.Start);
         }
-        if (Input.KeyPressed(Scancode.F2) && scene != Scene.Physics) {
-            SwitchTo(Scene.Physics);
+        if (Input.KeyPressed(Scancode.F2) && demo != Demo.Physics) {
+            SwitchTo(Demo.Physics);
         }
-        if (Input.KeyPressed(Scancode.F4) && scene != Scene.Navigation) {
-            SwitchTo(Scene.Navigation);
+        if (Input.KeyPressed(Scancode.F4) && demo != Demo.Navigation) {
+            SwitchTo(Demo.Navigation);
         }
-        if (Input.KeyPressed(Scancode.F6) && scene != Scene.Audio) {
-            SwitchTo(Scene.Audio);
+        if (Input.KeyPressed(Scancode.F6) && demo != Demo.Audio) {
+            SwitchTo(Demo.Audio);
         }
-        if (Input.KeyPressed(Scancode.F7) && scene != Scene.Lighting) {
-            SwitchTo(Scene.Lighting);
+        if (Input.KeyPressed(Scancode.F7) && demo != Demo.Lighting) {
+            SwitchTo(Demo.Lighting);
         }
-        if (Input.KeyPressed(Scancode.F8) && scene != Scene.Ui) {
-            SwitchTo(Scene.Ui);
+        if (Input.KeyPressed(Scancode.F8) && demo != Demo.Ui) {
+            SwitchTo(Demo.Ui);
         }
-        if (Input.KeyPressed(Scancode.F10) && !Input.isShiftDown && scene != Scene.Effects) {
-            SwitchTo(Scene.Effects);
+        if (Input.KeyPressed(Scancode.F10) && !Input.isShiftDown && demo != Demo.Effects) {
+            SwitchTo(Demo.Effects);
         }
-        if (Input.KeyPressed(Scancode.F10) && Input.isShiftDown && scene != Scene.Legs) {
-            SwitchTo(Scene.Legs);
+        if (Input.KeyPressed(Scancode.F10) && Input.isShiftDown && demo != Demo.Legs) {
+            SwitchTo(Demo.Legs);
         }
         // (Escape: a text field's or a dialog's first)
-        if (Input.KeyPressed(Scancode.Escape) && scene != Scene.Ui && !Ui.isTyping) {
-            Window.Quit();                         // (in the UI scene Escape goes back; the level editor's unsaved changes ask first: hope)
+        if (Input.KeyPressed(Scancode.Escape) && demo != Demo.Ui && !Ui.isTyping) {
+            Window.Quit();                         // (in the UI demo Escape goes back; the scene editor's unsaved changes ask first: hope)
         }
-        Draw.LogLine("F1 level editor, F9 level, F2 physics, F3 start, F4 navigation, F6 audio, F7 lighting, F8 UI, F10 effects, Shift+F10 legs; F12 performance and memory");
+        Draw.LogLine("F1 scene editor, F9 scene, F2 physics, F3 start, F4 navigation, F6 audio, F7 lighting, F8 UI, F10 effects, Shift+F10 legs; F12 performance and memory");
         {
             with level;
-            if (scene == Scene.Level) {
-                level.DoFrame();
-            } else if (scene == Scene.Physics) {
+            if (demo == Demo.Scene) {
+                scene.DoFrame();
+            } else if (demo == Demo.Physics) {
                 physics.DoFrame();
-            } else if (scene == Scene.Navigation) {
+            } else if (demo == Demo.Navigation) {
                 navigation.DoFrame();
-            } else if (scene == Scene.Audio) {
+            } else if (demo == Demo.Audio) {
                 audio.DoFrame();
-            } else if (scene == Scene.Lighting) {
+            } else if (demo == Demo.Lighting) {
                 lighting.DoFrame();
-            } else if (scene == Scene.Ui) {
+            } else if (demo == Demo.Ui) {
                 ui.DoFrame();
-            } else if (scene == Scene.Effects) {
+            } else if (demo == Demo.Effects) {
                 effects.DoFrame();
-            } else if (scene == Scene.Legs) {
+            } else if (demo == Demo.Legs) {
                 legs.DoFrame();
             } else {
                 start.DoFrame();
             }
         }
-        // Another level picked in the level scene: the scene made again with it
-        if (level != null && level.requestedLevel.len > 0) {
-            SetLevelSceneName(level.requestedLevel.view);
-            SwitchTo(Scene.Level);
+        // Another scene picked in the scene demo: the demo made again with it
+        if (scene != null && scene.requestedScene.len > 0) {
+            SetSceneDemoName(scene.requestedScene.view);
+            SwitchTo(Demo.Scene);
         }
         if (ui != null && ui.wantsToPlay) {
-            SwitchTo(Scene.Start);                 // (after the scene's frame: it is wiped)
+            SwitchTo(Demo.Start);                 // (after the demo's frame: it is wiped)
         }
     }
 }
@@ -415,9 +415,9 @@ extend Playground {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // hope_playground (formerly DungeonTracks, ported from the C# version), for trying out hope's
-// features: F9 the level scene (a level as a game shows it; F1 in any scene: the level editor), F3 the
-// start scene (Sorcy runs in circles, Susi, a 3D sprite on tracks, drives with the "move" action),
-// F2 the physics debug scene, F4 the navigation scene, F6 the audio scene, F7 lighting, F8 the UI.
+// features: F9 the scene demo (a scene as a game shows it; F1 in any demo: the scene editor), F3 the
+// start demo (Sorcy runs in circles, Susi, a 3D sprite on tracks, drives with the "move" action),
+// F2 the physics debug demo, F4 the navigation demo, F6 the audio demo, F7 lighting, F8 the UI.
 //
 // The game is a module (hope/game): a platform layer hosts it (the targets of hope.pgproj).
 
@@ -429,13 +429,13 @@ void CreateGame() {
     playground = New[Playground]();
 }
 
-// (the internal mode) the level editor closed: the level scene's level changed, it is made again
-void OnLevelEdited(string level) {
-    if (playground.scene == Scene.Level && level == levelSceneName) {
-        playground.SwitchTo(Scene.Level);
+// (the internal mode) the scene editor closed: the scene demo's scene changed, it is made again
+void OnSceneEdited(string scene) {
+    if (playground.demo == Demo.Scene && scene == sceneDemoName) {
+        playground.SwitchTo(Demo.Scene);
     }
 }
 void DoFrame() { playground.DoFrame(); }
 Game GameMain() {
-    return Game(info: AppInfo("hope playground", "hope_playground", "0.01", 320, 180), Create: CreateGame, DoFrame: DoFrame, RegisterEntities: RegisterEntityTypes, LevelEdited: OnLevelEdited, Tests: RegisterTests);
+    return Game(info: AppInfo("hope playground", "hope_playground", "0.01", 320, 180), Create: CreateGame, DoFrame: DoFrame, RegisterEntities: RegisterEntityTypes, SceneEdited: OnSceneEdited, Tests: RegisterTests);
 }

@@ -1,4 +1,4 @@
-// The lighting scene (F7, in the level phase, the fixed 320 x 180 canvas): hope's lights and
+// The lighting demo (F7, in the level phase, the fixed 320 x 180 canvas): hope's lights and
 // shadows (lighting.pg) in DungeonTracks' mood. The floor (16 px tiles) and the walls (an 8 px
 // occluder grid, wall_soil: tall 3/4 sprites placed by their pivot, the front lit from the ground in
 // front of the wall, the cap shaded by the sprite's light mask) under a lavender ambient; Susi carries a flickering torch, projectiles carry
@@ -78,7 +78,7 @@ struct Wanderer {
     Color color;
 }
 
-struct LightingScene {
+struct LightingDemo {
     OccluderMap walls;
     TilemapLayer floor;
     Sprite* wallSprite;                  // wall_soil (its pivot at the tile, its cap shaded by its light mask)
@@ -103,7 +103,7 @@ struct LightingScene {
     double lightTime;                    // the last frame's lights (computing their polygons)
 }
 
-extend LightingScene {
+extend LightingDemo {
     init() {
         random = Random(4);
         walls = OccluderMap(LIGHTING_COLUMNS, LIGHTING_ROWS, LIGHTING_TILE);
@@ -132,7 +132,7 @@ extend LightingScene {
         floor.Refresh();                 // (its chunks record again with it)
     }
 
-    // Before the scene goes: lighting off for the others
+    // Before the demo goes: lighting off for the others
     void Leave() {
         Draw.isLightingEnabled = false;
         Camera.StopFollowing();
@@ -258,7 +258,7 @@ extend LightingScene {
 
         DrawLights(dt);
         DrawWorld(turretAngle);
-        Draw.LogLine("lighting scene (F7): WASD drive, left mouse shoot, right mouse wall on/off, L brazier, K 60 lights ({wanderers.len > 0}), 1 lighting ({isLit}), 3 overlays ({hasOverlays}), 4 wall rows shifted ({shiftsWallRows})");
+        Draw.LogLine("lighting demo (F7): WASD drive, left mouse shoot, right mouse wall on/off, L brazier, K 60 lights ({wanderers.len > 0}), 1 lighting ({isLit}), 3 overlays ({hasOverlays}), 4 wall rows shifted ({shiftsWallRows})");
         Perf.Line("lighting: {1 + projectiles.len + flashes.len + braziers.len + wanderers.len} lights, polygons and drawing {(float)(lightTime * 1000):F3} ms");
     }
 
