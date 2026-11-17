@@ -19,8 +19,8 @@
 //     4                 each row of walls shifted along the wall overlay (DrawParams.overlayOffset:
 //                       a sprite's own part of the overlay)
 //
-// The walls are a Wallmap (wallmap.pg: drawn from wall_soil_sheet's parts, their shape from their
-// neighbours, their height from their damage). A shot damages the wall it hits (the tenth hit
+// The walls are a Wallmap (hope's wallmap.pg: drawn from wall_soil_sheet's parts, their shape from
+// their neighbours, their height from their damage; its occluders are the shadows'). A shot damages the wall it hits (the tenth hit
 // destroys it; the outer walls stay at the last level).
 //
 //     E / Q             the wall at the mouse damaged / repaired by a level
@@ -87,8 +87,8 @@ struct Wanderer {
 }
 
 struct LightingDemo {
-    OccluderMap walls;
-    Wallmap wallmap;                     // what is drawn of the walls (their damage)
+    Wallmap* wallmap;                    // the walls (their damage: the map's levels)
+    OccluderMap* walls;                  // (the wallmap's occluders)
     bool drawsWallmap = true;            // 5: the Wallmap, or wall_soil sprites
     Tilemap floor;
     Sprite* wallSprite;                  // wall_soil (its pivot at the tile, its cap shaded by its light mask)
@@ -116,16 +116,13 @@ struct LightingDemo {
 extend LightingDemo {
     init() {
         random = Random(4);
-        walls = OccluderMap(LIGHTING_COLUMNS, LIGHTING_ROWS, LIGHTING_TILE);
+        wallmap = Wallmap.Make([WallType(Draw.GetSprite("wall_soil_sheet"))], LIGHTING_COLUMNS, LIGHTING_ROWS, (int)LIGHTING_TILE, depthBase: 10, depthPerY: 0.2);
+        walls = &wallmap.occluders;
         for (let y in 0..LIGHTING_ROWS) {
             for (let x in 0..LIGHTING_COLUMNS) {
-                walls.Set(x, y, LIGHTING_MAP[y][x] == '#');
-            }
-        }
-        wallmap = Wallmap(Draw.GetSprite("wall_soil_sheet"), LIGHTING_COLUMNS, LIGHTING_ROWS, (int)LIGHTING_TILE, depthBase: 10, depthPerY: 0.2);
-        for (let y in 0..LIGHTING_ROWS) {
-            for (let x in 0..LIGHTING_COLUMNS) {
-                wallmap.Set(x, y, LIGHTING_MAP[y][x] == '#' ? 0 : WALL_NONE);
+                if (LIGHTING_MAP[y][x] == '#') {
+                    wallmap.SetWall(Vec2i(x, y), 0, 0);
+                }
             }
         }
         groundOverlay = Draw.RegisterOverlay("overlay_ground", OverlayMode.SoftLight, 1);
@@ -165,16 +162,15 @@ extend LightingDemo {
             return;
         }
         let isOuter = cell.x == 0 || cell.y == 0 || cell.x == LIGHTING_COLUMNS - 1 || cell.y == LIGHTING_ROWS - 1;
-        let damage = Max(0, wallmap.Get(cell.x, cell.y) + amount);
-        if (damage >= WALL_DAMAGE_LEVELS) {
+        let damage = Max(0, wallmap.CellAt(cell.x, cell.y).level + amount);
+        if (damage >= WALL_LEVELS) {
             if (!isOuter) {
-                walls.Set(cell, false);
-                wallmap.Set(cell, WALL_NONE);
+                wallmap.Remove(cell);
                 return;
             }
-            damage = WALL_DAMAGE_LEVELS - 1;
+            damage = WALL_LEVELS - 1;
         }
-        wallmap.Set(cell, (byte)damage);
+        wallmap.SetLevel(cell, damage);
     }
 
     // The depth of something whose ground is at 'groundY' (the further down, the nearer)
@@ -220,7 +216,7 @@ extend LightingDemo {
                 for (let x in 0..LIGHTING_COLUMNS) {
                     if (wallmap.IsWall(x, y)) {
                         let isOuter = x == 0 || y == 0 || x == LIGHTING_COLUMNS - 1 || y == LIGHTING_ROWS - 1;
-                        wallmap.Set(x, y, repairs || isOuter && random.Range(0, 2) == 0 ? 0 : (byte)random.Range(0, WALL_DAMAGE_LEVELS));
+                        wallmap.SetLevel(Vec2i(x, y), repairs || isOuter && random.Range(0, 2) == 0 ? 0 : random.Range(0, WALL_LEVELS));
                     }
                 }
             }
@@ -289,8 +285,11 @@ extend LightingDemo {
             let cell = walls.WorldToCell(cursor, LIGHTING_TILE, walls.origin);
             let inside = 0 < cell.x && cell.x < LIGHTING_COLUMNS - 1 && 0 < cell.y && cell.y < LIGHTING_ROWS - 1;
             if (inside) {
-                walls.Set(cell, !walls.Get(cell.x, cell.y));
-                wallmap.Set(cell, walls.Get(cell.x, cell.y) ? 0 : WALL_NONE);
+                if (wallmap.IsWall(cell.x, cell.y)) {
+                    wallmap.Remove(cell);
+                } else {
+                    wallmap.SetWall(cell, 0, 0);
+                }
             }
         }
         if (Input.KeyPressed(Scancode.L)) {
@@ -317,6 +316,9 @@ extend LightingDemo {
             }
         }
 
+        // (no entities for walls here: what the map exposes is let go)
+        while (wallmap.TakeExposed().isValid) {
+        }
         DrawLights(dt);
         DrawWorld(turretAngle);
         Draw.LogLine("lighting demo (F7): WASD drive, left mouse shoot, right mouse wall on/off, L brazier, K 60 lights ({wanderers.len > 0}), 1 lighting ({isLit}), 3 overlays ({hasOverlays}), 4 wall rows shifted ({shiftsWallRows}), E/Q damage/repair at the mouse, 5 Wallmap ({drawsWallmap}), 6 random damage (Shift: repaired)");

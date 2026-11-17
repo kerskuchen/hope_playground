@@ -27,18 +27,18 @@ void TestWalls(TestRun* run) {
     if (f == 5) {
         let demo = playground.lighting;
         run.Check(demo != null && demo.drawsWallmap, "the lighting demo draws the Wallmap");
-        let map = &demo.wallmap;
+        let map = demo.wallmap;
         // (row 10: walls at x 0 .. 6 and 12 .. 22; the second run damaged 0 .. 9 left to right)
         for (let x in 12..23) {
-            map.Set(x, 10, (byte)Min(x - 12, WALL_DAMAGE_LEVELS - 1));
+            map.SetLevel(Vec2i(x, 10), Min(x - 12, WALL_LEVELS - 1));
         }
         for (let y in 3..5) {
             for (let x in 31..33) {
-                map.Set(x, y, 8);
+                map.SetLevel(Vec2i(x, y), 8);
             }
         }
-        map.Set(31, 11, 9);
-        map.Set(32, 11, 7);
+        map.SetLevel(Vec2i(31, 11), 9);
+        map.SetLevel(Vec2i(32, 11), 7);
         // (Susi below the damaged row, the mouse on her: the camera there at once)
         demo.tankPos = Vec2(140, 108);
         demo.hasCamera = false;
@@ -59,9 +59,9 @@ void TestWalls(TestRun* run) {
         let intact = map.ColumnHeights(18, 10);
         run.Check(intact.at[7] == map.fullHeight, "an undamaged wall next to a damaged one stays full ({intact.at[7]})");
         let before = map.ColumnHeights(20, 10);
-        map.Set(21, 10, WALL_NONE);
+        map.Remove(Vec2i(21, 10));
         let after = map.ColumnHeights(20, 10);
-        map.Set(21, 10, 9);
+        map.SetWall(Vec2i(21, 10), 0, 9);
         let isSame = true;
         for (let c in 0..8) {
             isSame = isSame && before.at[c] == after.at[c];
@@ -91,7 +91,7 @@ void TestWalls(TestRun* run) {
         }
         run.Check(!demo.wallmap.IsWall(cell.x, cell.y) && !demo.walls.Get(cell.x, cell.y), "ten hits destroy a wall and its occluder");
         demo.DamageWall(Vec2i(0, 10), 20);
-        run.Check(demo.wallmap.Get(0, 10) == WALL_DAMAGE_LEVELS - 1, "an outer wall stays at the last level");
+        run.Check(demo.wallmap.CellAt(0, 10).level == WALL_LEVELS - 1, "an outer wall stays at the last level");
         run.Pass();
     }
 }
