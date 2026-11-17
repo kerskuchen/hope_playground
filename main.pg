@@ -261,45 +261,45 @@ extend Playground {
         if (scene != null) {
             scene.Leave();
             scene = null;
-            Memory.WipeLevel();
+            Runtime.WipeLevel();
         }
         if (start != null) {
             start.Leave();
             start = null;
-            Memory.WipeLevel();
+            Runtime.WipeLevel();
         }
         if (physics != null) {
             physics = null;
-            Memory.WipeLevel();
+            Runtime.WipeLevel();
         }
         if (navigation != null) {
             navigation = null;
-            Memory.WipeLevel();
+            Runtime.WipeLevel();
         }
         if (audio != null) {
             audio.Leave();
             audio = null;
-            Memory.WipeLevel();
+            Runtime.WipeLevel();
         }
         if (lighting != null) {
             lighting.Leave();
             lighting = null;
-            Memory.WipeLevel();
+            Runtime.WipeLevel();
         }
         if (effects != null) {
             effects.Leave();
             effects = null;
-            Memory.WipeLevel();
+            Runtime.WipeLevel();
         }
         if (legs != null) {
             legs.Leave();
             legs = null;
-            Memory.WipeLevel();
+            Runtime.WipeLevel();
         }
         if (ui != null) {
             SaveSettings();
             ui = null;
-            Memory.WipeLevel();
+            Runtime.WipeLevel();
         }
         demo = next;
         Draw.isCanvasFree = next != Demo.Start && next != Demo.Lighting && next != Demo.Ui && next != Demo.Scene && next != Demo.Effects && next != Demo.Legs;    // (the games' fixed canvas)
