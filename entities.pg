@@ -24,9 +24,6 @@ void RegisterEntityTypes() {
     Entities.Register[Lever]();
 }
 
-// The collision world the entities' colliders are in (the scene demo's preview makes it)
-CollisionWorld* entityWorld = null;
-
 // A sprite centered on 'pos' (its pivot taken into account), scaled
 void DrawCentered(Sprite* sprite, Vec2 pos, float scale, float depth, DrawParams drawParams = DrawParams()) {
     Draw.Sprite(sprite, Transform(pos - (sprite.dim * 0.5 - sprite.pivot) * scale, 0, Vec2(scale, scale)), depth, drawParams);
@@ -128,8 +125,8 @@ extend Turret {
             bullet.pos = bullet.pos + bullet.velocity * dt;
             bullet.life -= dt;
             let hasHit = false;
-            if (entityWorld != null) {
-                entityWorld.ForEachOverlap(ColliderShape.Circle(circle: Circle(bullet.pos, 2)), LAYER_GHOST, (WorldOverlap* found) => {
+            if (Collisions.world != null) {
+                Collisions.world.ForEachOverlap(ColliderShape.Circle(circle: Circle(bullet.pos, 2)), LAYER_GHOST, (WorldOverlap* found) => {
                     if (!hasHit && let entity = Entities.Get(found.entity) && entity.isAlive && let health = entity.Get[Health]()) {
                         health.Damage(1);
                         hasHit = true;
@@ -243,10 +240,10 @@ extend Ghost {
         goal = xform.pos;
         anim = AnimationPlayer(global.Draw.GetAnim("ghosty.default"));
         anim.curTime = (float)(id.index % 7) * 0.1;      // (not all in step)
-        if (entityWorld != null) {
+        if (Collisions.world != null) {
             let collider = Collider(ColliderShape.Circle(circle: Circle(xform.pos, 5)), LAYER_GHOST, 0);
             collider.entity = id;
-            body = entityWorld.Add(collider);
+            body = Collisions.world.Add(collider);
         }
     }
 
@@ -270,8 +267,8 @@ extend Ghost {
         }
         let toGoal = goal - xform.pos;
         xform.pos = xform.pos + toGoal.Normalized() * Min(speed * dt, toGoal.Length());
-        if (entityWorld != null) {
-            entityWorld.MoveTo(body, xform.pos);
+        if (Collisions.world != null) {
+            Collisions.world.MoveTo(body, xform.pos);
         }
     }
 
@@ -284,8 +281,8 @@ extend Ghost {
 
     // (its collider out of the world)
     void Destroyed() {
-        if (entityWorld != null) {
-            entityWorld.Remove(body);
+        if (Collisions.world != null) {
+            Collisions.world.Remove(body);
         }
         ghostsGone++;
     }

@@ -49,7 +49,7 @@ extend SceneDemo {
         preview = SceneDrawings.Make(&data);
         MakeTriggers();
         // The entities (in the level phase, like the drawing: wiped with it)
-        entityWorld = triggers;
+        Collisions.world = triggers;            // (the scene's collision world: hope's)
         for (let layer in data.layers) {
             if (layer.case == SceneLayer.Entities) {
                 Entities.SpawnScene(layer);
@@ -83,7 +83,6 @@ extend SceneDemo {
     // The demo goes (main.pg; its memory goes with the level phase)
     void Leave() {
         preview.ReleaseSprites();
-        entityWorld = null;
     }
 
     void Request(string scene) {
