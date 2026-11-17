@@ -20,17 +20,17 @@
 //                       a sprite's own part of the overlay)
 
 const float LIGHTING_TILE = 8;                     // the occluder grid (the walls)
-Vec2 LIGHTING_FLOOR_ORIGIN = Vec2(-128, -96);      // the floor: 36 x 24 tiles of 16 px from there (beyond the walls)
-Vec2 LIGHTING_FLOOR_END = Vec2(448, 288);
+const Vec2 LIGHTING_FLOOR_ORIGIN = Vec2(-128, -96);      // the floor: 36 x 24 tiles of 16 px from there (beyond the walls)
+const Vec2 LIGHTING_FLOOR_END = Vec2(448, 288);
 const int LIGHTING_COLUMNS = 40;
 const int LIGHTING_ROWS = 23;
 // DungeonTracks' ambient and torch, measured in the Let's Play (44 .. 47 s): the unlit floor over
 // the lit one, and the light that brings the floor back to its own colors
-Color LIGHTING_AMBIENT = Color(0.455, 0.484, 0.579, 1);
-Color LIGHTING_TORCH = Color(0.55, 0.5, 0.42, 1);
+const Color LIGHTING_AMBIENT = Color(0.455, 0.484, 0.579, 1);
+const Color LIGHTING_TORCH = Color(0.55, 0.5, 0.42, 1);
 
 // '#' a wall, '.' floor (40 x 23 tiles of 8 px: the canvas, the bottom row below it)
-[string, 23] LIGHTING_MAP = [
+const [string, 23] LIGHTING_MAP = [
     "########################################",
     "#.....................#................#",
     "#.....................#................#",

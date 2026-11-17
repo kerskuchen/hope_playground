@@ -21,7 +21,7 @@ const float NAV_TILE = 16;
 const float NAV_SPEED = 70;               // px/s
 
 // '.' floor, '#' wall, '~' water, 'l' low wall, 'b' breakable wall
-[string, 28] NAV_MAP = [
+const [string, 28] NAV_MAP = [
     "################################################",
     "#..............#...............#...............#",
     "#..............#...............#...............#",

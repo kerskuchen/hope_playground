@@ -258,8 +258,8 @@ void TestRam(TestRun* run) {
 }
 
 // The demos and their keys, in an order that goes from each one to each other kind
-[Demo, 9] testDemos = [Demo.Scene, Demo.Physics, Demo.Start, Demo.Navigation, Demo.Audio, Demo.Lighting, Demo.Ui, Demo.Effects, Demo.Legs];
-[Scancode, 9] testDemoKeys = [Scancode.F9, Scancode.F2, Scancode.F3, Scancode.F4, Scancode.F6, Scancode.F7, Scancode.F8, Scancode.F10, Scancode.F10];    // (the legs: with Shift, PressDemo)
+const [Demo, 9] testDemos = [Demo.Scene, Demo.Physics, Demo.Start, Demo.Navigation, Demo.Audio, Demo.Lighting, Demo.Ui, Demo.Effects, Demo.Legs];
+const [Scancode, 9] testDemoKeys = [Scancode.F9, Scancode.F2, Scancode.F3, Scancode.F4, Scancode.F6, Scancode.F7, Scancode.F8, Scancode.F10, Scancode.F10];    // (the legs: with Shift, PressDemo)
 
 // The key of demo 'index' (the legs demo's with Shift)
 void PressDemo(TestRun* run, int index) {
