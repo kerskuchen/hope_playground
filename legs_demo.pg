@@ -18,7 +18,7 @@ LegSetup LegsSetup(KneeBend bend, int pairs, int look) {
 }
 
 // The looks (3): the default lines, recoloured (rust), sprites (the untextured pixel stretched:
-// a stand-in for art), the demo's own function (bone white, red claws)
+// a stand-in for art), bone white with red claws
 LegLook LegsLook(int index) {
     if (index == 1) {
         return LegLook(thighColor: Color(0.55, 0.3, 0.18, 1), shinColor: Color(0.4, 0.2, 0.12, 1), jointColor: Color(0.8, 0.55, 0.3, 1), footColor: Color(0.2, 0.1, 0.05, 1));
@@ -28,23 +28,10 @@ LegLook LegsLook(int index) {
         return LegLook(thighSprite: pixel, shinSprite: pixel, spriteTint: Color(0.5, 0.75, 0.6, 1));
     }
     if (index == 3) {
-        return LegLook(DrawLeg: DrawClawLeg);
+        let bone = Color(0.85, 0.82, 0.75, 1);
+        return LegLook(thighColor: bone, shinColor: bone, jointColor: bone, footColor: Color(0.8, 0.15, 0.15, 1), clawLength: 2);
     }
     return LegLook();
-}
-
-// (the look 3: a leg drawn by the game: the shin's last two pixels and a claw red)
-void DrawClawLeg(LegPose* pose, float depth, Decalmap* decals) {
-    let hip = pose.hip.screen;
-    let knee = pose.knee.screen;
-    let foot = pose.foot.screen;
-    let bone = Color(0.85, 0.82, 0.75, 1);
-    let red = Color(0.8, 0.15, 0.15, 1);
-    let tip = foot + (knee - foot).NormalizedOr(Vec2(0, -1)) * 2;
-    LegLine(hip, knee, depth, bone, decals);
-    LegLine(knee, tip, depth, bone, decals);
-    LegLine(tip, foot, depth + 0.0001, red, decals);
-    LegPixel(foot + Vec2(pose.side, 0), depth + 0.0001, red, decals);
 }
 
 enum SusiLife { Alive, KnockedOut, Dead }
