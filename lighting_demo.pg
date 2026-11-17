@@ -18,14 +18,6 @@
 //                       Draw.RegisterOverlay (tools/make_overlays.lua makes the two)
 //     4                 each row of walls shifted along the wall overlay (DrawParams.overlayOffset:
 //                       a sprite's own part of the overlay)
-//
-// The walls are a Wallmap (hope's wallmap.pg: drawn from wall_soil_sheet's parts, their shape from
-// their neighbours, their height from their damage; its occluders are the shadows'). A shot damages the wall it hits (the tenth hit
-// destroys it; the outer walls stay at the last level).
-//
-//     E / Q             the wall at the mouse damaged / repaired by a level
-//     5                 the walls as the Wallmap / as wall_soil sprites (the old way, to compare)
-//     6                 random damage on the inner walls (again: other walls; with Shift: all repaired)
 
 const float LIGHTING_TILE = 8;                     // the occluder grid (the walls)
 Vec2 LIGHTING_FLOOR_ORIGIN = Vec2(-128, -96);      // the floor: 36 x 24 tiles of 16 px from there (beyond the walls)
@@ -87,9 +79,7 @@ struct Wanderer {
 }
 
 struct LightingDemo {
-    Wallmap* wallmap;                    // the walls (their damage: the map's levels)
-    OccluderMap* walls;                  // (the wallmap's occluders)
-    bool drawsWallmap = true;            // 5: the Wallmap, or wall_soil sprites
+    OccluderMap* walls;                  // (Lights.occluders: the demo's, in the level phase)
     Tilemap floor;
     Sprite* wallSprite;                  // wall_soil (its pivot at the tile, its cap shaded by its light mask)
     Sprite* light;
@@ -116,13 +106,11 @@ struct LightingDemo {
 extend LightingDemo {
     init() {
         random = Random(4);
-        wallmap = Wallmap.Make([WallType(Draw.GetSprite("wall_soil_sheet"))], LIGHTING_COLUMNS, LIGHTING_ROWS, (int)LIGHTING_TILE, depthBase: 10, depthPerY: 0.2);
-        walls = &wallmap.occluders;
+        Lights.occluders = New[OccluderMap](LIGHTING_COLUMNS, LIGHTING_ROWS, LIGHTING_TILE);
+        walls = Lights.occluders;
         for (let y in 0..LIGHTING_ROWS) {
             for (let x in 0..LIGHTING_COLUMNS) {
-                if (LIGHTING_MAP[y][x] == '#') {
-                    wallmap.SetWall(Vec2i(x, y), 0, 0);
-                }
+                walls.Set(x, y, LIGHTING_MAP[y][x] == '#');
             }
         }
         groundOverlay = Draw.RegisterOverlay("overlay_ground", OverlayMode.SoftLight, 1);
@@ -143,8 +131,6 @@ extend LightingDemo {
         hasOverlays = on;
         floor.drawParams.overlay = on ? groundOverlay : 0;
         floor.Refresh();                 // (its chunks record again with it)
-        wallmap.drawParams.overlay = on ? wallOverlay : 0;
-        wallmap.Refresh();
     }
 
     // Before the demo goes: lighting off for the others
@@ -153,24 +139,6 @@ extend LightingDemo {
         Camera.StopFollowing();
         Camera.isCentered = false;
         Camera.pos = Vec2(0, 0);
-    }
-
-    // The wall at 'cell' damaged by 'amount' levels (negative: repaired); past the last level it is
-    // gone (the outer walls stay at the last one)
-    void DamageWall(Vec2i cell, int amount) {
-        if (!wallmap.IsWall(cell.x, cell.y)) {
-            return;
-        }
-        let isOuter = cell.x == 0 || cell.y == 0 || cell.x == LIGHTING_COLUMNS - 1 || cell.y == LIGHTING_ROWS - 1;
-        let damage = Max(0, wallmap.CellAt(cell.x, cell.y).level + amount);
-        if (damage >= WALL_LEVELS) {
-            if (!isOuter) {
-                wallmap.Remove(cell);
-                return;
-            }
-            damage = WALL_LEVELS - 1;
-        }
-        wallmap.SetLevel(cell, damage);
     }
 
     // The depth of something whose ground is at 'groundY' (the further down, the nearer)
@@ -204,28 +172,6 @@ extend LightingDemo {
         }
         if (Input.KeyPressed(Scancode.Alpha4)) {
             shiftsWallRows = !shiftsWallRows;
-            wallmap.overlayShiftPerRow = shiftsWallRows ? Vec2(53, 0) : Vec2.Zero;
-            wallmap.Refresh();
-        }
-        if (Input.KeyPressed(Scancode.Alpha5)) {
-            drawsWallmap = !drawsWallmap;
-        }
-        if (Input.KeyPressed(Scancode.Alpha6)) {
-            let repairs = Input.KeyDown(Scancode.LShift) || Input.KeyDown(Scancode.RShift);
-            for (let y in 0..LIGHTING_ROWS) {
-                for (let x in 0..LIGHTING_COLUMNS) {
-                    if (wallmap.IsWall(x, y)) {
-                        let isOuter = x == 0 || y == 0 || x == LIGHTING_COLUMNS - 1 || y == LIGHTING_ROWS - 1;
-                        wallmap.SetLevel(Vec2i(x, y), repairs || isOuter && random.Range(0, 2) == 0 ? 0 : random.Range(0, WALL_LEVELS));
-                    }
-                }
-            }
-        }
-        if (Input.KeyPressed(Scancode.E)) {
-            DamageWall(walls.WorldToCell(cursor, LIGHTING_TILE, walls.origin), 1);
-        }
-        if (Input.KeyPressed(Scancode.Q)) {
-            DamageWall(walls.WorldToCell(cursor, LIGHTING_TILE, walls.origin), -1);
         }
         if (Input.KeyPressed(Scancode.Alpha3)) {
             SetOverlays(!hasOverlays);
@@ -268,7 +214,6 @@ extend LightingDemo {
         for (let i = projectiles.len - 1; i >= 0; i--) {
             projectiles[i].pos += projectiles[i].velocity * dt;
             if (IsBlockedAt(projectiles[i].pos)) {
-                DamageWall(walls.WorldToCell(projectiles[i].pos, LIGHTING_TILE, walls.origin), 1);
                 flashes.Add(Flash(projectiles[i].pos - projectiles[i].velocity.NormalizedOr(Vec2(1, 0)) * 2, 0));
                 projectiles.RemoveAt(i);
             }
@@ -285,11 +230,7 @@ extend LightingDemo {
             let cell = walls.WorldToCell(cursor, LIGHTING_TILE, walls.origin);
             let inside = 0 < cell.x && cell.x < LIGHTING_COLUMNS - 1 && 0 < cell.y && cell.y < LIGHTING_ROWS - 1;
             if (inside) {
-                if (wallmap.IsWall(cell.x, cell.y)) {
-                    wallmap.Remove(cell);
-                } else {
-                    wallmap.SetWall(cell, 0, 0);
-                }
+                walls.Set(cell, !walls.Get(cell.x, cell.y));
             }
         }
         if (Input.KeyPressed(Scancode.L)) {
@@ -316,12 +257,9 @@ extend LightingDemo {
             }
         }
 
-        // (no entities for walls here: what the map exposes is let go)
-        while (wallmap.TakeExposed().isValid) {
-        }
         DrawLights(dt);
         DrawWorld(turretAngle);
-        Draw.LogLine("lighting demo (F7): WASD drive, left mouse shoot, right mouse wall on/off, L brazier, K 60 lights ({wanderers.len > 0}), 1 lighting ({isLit}), 3 overlays ({hasOverlays}), 4 wall rows shifted ({shiftsWallRows}), E/Q damage/repair at the mouse, 5 Wallmap ({drawsWallmap}), 6 random damage (Shift: repaired)");
+        Draw.LogLine("lighting demo (F7): WASD drive, left mouse shoot, right mouse wall on/off, L brazier, K 60 lights ({wanderers.len > 0}), 1 lighting ({isLit}), 3 overlays ({hasOverlays}), 4 wall rows shifted ({shiftsWallRows})");
         Perf.Line("lighting: {1 + projectiles.len + flashes.len + braziers.len + wanderers.len} lights, polygons and drawing {(float)(lightTime * 1000):F3} ms");
     }
 
@@ -349,14 +287,11 @@ extend LightingDemo {
 
     void DrawWorld(float turretAngle) {
         floor.Draw(Camera.viewportRect);
-        if (drawsWallmap) {
-            wallmap.Draw(Camera.viewportRect);
-        }
         // The walls: lit at the ground in front of the wall (the row of pixels below its
         // footprint), the cap at the ambient by the light mask (DungeonTracks' dark tops)
         for (let y in 0..LIGHTING_ROWS) {
             for (let x in 0..LIGHTING_COLUMNS) {
-                if (drawsWallmap || !walls.Get(x, y)) {
+                if (!walls.Get(x, y)) {
                     continue;
                 }
                 let pos = Vec2(x, y) * LIGHTING_TILE;
