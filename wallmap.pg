@@ -1,0 +1,360 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Wallmap: 3/4-view walls on a grid of tiles (a footprint each), drawn column by column from one
+// sheet of parts, their shape from their neighbours and their height from their damage. Nothing is
+// drawn per variant: the sheet has a handful of blocks, a wall picks a block per column and half.
+// (The playground's try-out; it moves into hope once it has settled.)
+//
+//     let walls = Wallmap(Draw.GetSprite("wall_soil_sheet"), 40, 23, depthBase: 10, depthPerY: 0.2);
+//     walls.Set(4, 5, 0);                      // a wall, undamaged (0 .. 9; WALL_NONE: none)
+//     walls.Set(4, 5, 8);                      // damaged: lower, its rim uneven
+//     walls.Draw(Camera.viewportRect);         // every frame: the visible chunks
+//
+// The sheet (tile size T, the face F tall; wall_soil_sheet: T 8, F 24, 40 x 32):
+//
+//     x:  0        T        2T       3T       4T
+//        +--------+--------+--------+--------+--------+
+//        |isolated| full   | inner  | open   | open   |   the cap, T x T: what the top of a wall
+//        |        |        |corners | N + S  | W + E  |   looks like with these sides open
+//        +--------+--------+--------+--------+--------+
+//        | face   | face   |                               the face, T x F: with its side
+//        | open   | closed |          (free)               outlines, without them
+//        |        |        |
+//        +--------+--------+
+//
+// The cap is put together from quarters (the way RPG Maker's autotiles are): each quarter of it
+// takes the same quarter of one block, by which of its two sides are open (open: no wall there, or
+// a lower one) and, both closed, whether the diagonal is:
+//
+//     both open: isolated   only N/S: open N + S   only W/E: open W + E   none: inner (diagonal
+//     open) or full
+//
+// The face: a column at an open side its outline (face open's edge column) as far down as that
+// side is open (a lower neighbour: by how much lower), the rest face closed. A face lower than F
+// keeps its top 2 rows and bottom 2 rows (the ground's contact) and loses rows in between.
+//
+// Heights: a wall is T + F tall when undamaged ('heights': a fraction of that per damage level).
+// The height is kept at the tiles' corners, shared by neighbours: a corner is as high as the
+// lowest wall at it, a damaged one jittered up or down by up to 'jitter' pixels (the same corner
+// always the same way: a hash); a wall's columns go from its left corner's height to its right
+// one's, so neighbours meet. Walls at 70% and below also get a rough rim (segments of 2 .. 3
+// columns a pixel up or down; the outer columns stay, so the seams still meet). Where a column is
+// higher than the one next to it, its side shows: the outline.
+//
+// Drawn back to front by depth (depthBase + the footprint's bottom * depthPerY), so a wall in
+// front covers the face of the one behind; what a wall in front covers entirely is not drawn.
+// Adjacent columns that come out alike are one quad. The walls are recorded into chunks (ChunkGrid,
+// like a Tilemap's): Set records the chunks around the tile again. A chunk's quads are counted
+// before it records, its buffer made big enough for them (and a quarter more: damage that adds a
+// few quads records into the same one).
+
+const byte WALL_NONE = 255;
+const int WALL_DAMAGE_LEVELS = 10;
+
+// The sheet's cap blocks (their x: index * T)
+enum WallCap { Isolated, Full, Inner, OpenNorthSouth, OpenWestEast }
+
+struct Wallmap : Grid[byte] {
+    Sprite* sheet;
+    int tileSize;                      // the footprint (and the cap's height)
+    int faceHeight;                    // the sheet's face blocks (its height - tileSize)
+    Vec2 origin;                       // the world position of tile (0, 0)'s left top
+    float depthBase;                   // a wall's depth: depthBase + its footprint's bottom * depthPerY
+    float depthPerY;
+    DrawParams drawParams;             // (an overlay; each wall's light at the ground in front of it)
+    Vec2 overlayShiftPerRow;           // each row of walls looks the overlay up this much further along
+    [float, 10] heights = [1, 1, 1, 1, 1, 1, 1, 0.9, 0.7, 0.5];    // of the full height, by damage
+    int jitter = 2;                    // pixels a damaged wall's corners go up or down (at most)
+    ulong seed = 1;
+    ChunkGrid[DrawBuffer] chunks;
+    int atlasVersion;
+    bool isCounting;                   // (RecordChunk: the quads counted first, the buffer sized to them)
+    int quadsCounted;
+}
+
+// A column of a wall as it is drawn (adjacent ones that are alike: one quad)
+struct WallColumn {
+    int height;                        // its top above the ground (pixels)
+    int source;                        // its column in the sheet's blocks (0 .. T - 1)
+    WallCap top;                       // the cap's upper and lower half
+    WallCap bottom;
+    int edgeRows;                      // the face's rows from the top with the outline
+    int visibleRows;                   // its rows from the top a wall in front leaves visible
+}
+
+// A wall's column heights (0: no wall)
+struct WallHeights {
+    [int, 32] at;
+}
+
+extend Wallmap {
+    init(Sprite* sheet, int w, int h, int tileSize = 8, Vec2 origin = Vec2(0, 0), float depthBase = 0, float depthPerY = 0, int chunkSize = 16) {
+        Assert(tileSize <= 32, "Wallmap: tiles of at most 32 pixels");
+        Grid = Grid[byte](w, h, WALL_NONE);
+        self.sheet = sheet;
+        self.tileSize = tileSize;
+        faceHeight = (int)sheet.dim.y - tileSize;
+        self.origin = origin;
+        self.depthBase = depthBase;
+        self.depthPerY = depthPerY;
+        chunks = ChunkGrid[DrawBuffer](w, h, chunkSize);
+    }
+
+    get int fullHeight() { return tileSize + faceHeight; }
+
+    bool IsWall(int x, int y) { return TryGet(x, y, WALL_NONE) != WALL_NONE; }
+
+    // Sets a tile (its damage, WALL_NONE: no wall); the chunks of it and its neighbours record again
+    void Set(int x, int y, byte damage) {
+        if (!ContainsCoord(x, y)) {
+            return;
+        }
+        Grid.Set(x, y, damage);
+        chunks.MarkDirty(Recti(x - 1, y - 1, 3, 3));
+    }
+    void Set(Vec2i cell, byte damage) { Set(cell.x, cell.y, damage); }
+
+    // Everything recorded again (after the Grid's own helpers, a new overlay, ...)
+    void Refresh() { chunks.MarkAllDirty(); }
+
+    // A wall's height at its damage (without the jitter)
+    int NominalHeight(byte damage) { return (int)Round(fullHeight * heights[Min((int)damage, WALL_DAMAGE_LEVELS - 1)]); }
+
+    // The height at the left top corner of tile (vx, y) along the row: the lowest wall of the two
+    // touching it, jittered when damaged
+    int CornerHeight(int vx, int y) {
+        let lowest = fullHeight;
+        let isAny = false;
+        for (let x in vx - 1..vx + 1) {
+            if (IsWall(x, y)) {
+                lowest = Min(lowest, NominalHeight(Get(x, y)));
+                isAny = true;
+            }
+        }
+        if (!isAny || lowest >= fullHeight) {
+            return lowest;
+        }
+        let spread = 2 * jitter + 1;
+        let offset = (int)(Random.Hash(seed, vx, y, 1) % (ulong)spread) - jitter;
+        return Clamp(lowest + offset, tileSize + 2, fullHeight);
+    }
+
+    // The heights of the wall's columns (none: all 0)
+    WallHeights ColumnHeights(int x, int y) {
+        WallHeights result;
+        if (!IsWall(x, y)) {
+            return result;
+        }
+        let left = CornerHeight(x, y);
+        let right = CornerHeight(x + 1, y);
+        let isRough = NominalHeight(Get(x, y)) <= (int)Round(fullHeight * 0.7);
+        let phase = (int)(Random.Hash(seed, x, y, 2) % 3);
+        for (let c in 0..tileSize) {
+            let t = (c + 0.5) / tileSize;
+            let height = (int)Round(Lerp((float)left, (float)right, t));
+            if (isRough && 0 < c && c < tileSize - 1) {
+                let segment = (c + phase) / 3;              // (2 .. 3 columns: the first one shorter)
+                height += (int)(Random.Hash(seed, x, y, 3, segment) % 3) - 1;
+            }
+            result.at[c] = Clamp(height, tileSize + 2, fullHeight);
+        }
+        return result;
+    }
+
+    // Draws the chunks the view touches (and those below it: their walls reach up into it)
+    void Draw(Rect worldRegion) {
+        CheckAtlas();
+        let region = Rect(worldRegion.pos, worldRegion.dim + Vec2(0, fullHeight));
+        let tiles = WorldRectToCells(region, (float)tileSize, origin);
+        let map = self;
+        chunks.DoFrame(tiles,
+            (Vec2i chunk, Recti chunkTiles) => DrawBuffer(0, 0),
+            (DrawBuffer* buffer, Vec2i chunk, Recti chunkTiles) => map.RecordChunk(buffer, chunkTiles),
+            (DrawBuffer* buffer, Vec2i chunk, Recti chunkTiles) => global.Draw.Buffer(buffer)
+        );
+    }
+
+    // Every chunk recorded now (a scene's load)
+    void PrepareAll() {
+        CheckAtlas();
+        let map = self;
+        chunks.PrepareAll((Vec2i chunk, Recti chunkTiles) => DrawBuffer(0, 0), (DrawBuffer* buffer, Vec2i chunk, Recti chunkTiles) => map.RecordChunk(buffer, chunkTiles));
+    }
+
+    void CheckAtlas() {
+        if (atlasVersion != global.Draw.atlasVersion) {
+            atlasVersion = global.Draw.atlasVersion;
+            chunks.MarkAllDirty();
+        }
+    }
+
+    void RecordChunk(DrawBuffer* buffer, Recti tiles) {
+        // (counted: a buffer too small for them made anew, a quarter bigger; the old one's memory
+        // stays in its phase)
+        isCounting = true;
+        quadsCounted = 0;
+        DrawWalls(tiles);
+        isCounting = false;
+        if (buffer.opaque.vertices.items.len < quadsCounted * 4) {
+            let quads = quadsCounted + quadsCounted / 4 + 4;
+            *buffer = DrawBuffer(quads * 4, quads * 6);
+        }
+        global.Draw.PushBuffer(buffer);
+        DrawWalls(tiles);
+        global.Draw.PopBuffer();
+    }
+
+    void DrawWalls(Recti tiles) {
+        for (let y in tiles.y..tiles.y + tiles.h) {
+            for (let x in tiles.x..tiles.x + tiles.w) {
+                if (IsWall(x, y)) {
+                    DrawWall(x, y);
+                }
+            }
+        }
+    }
+
+    // How far the side of a column with 'height' shows next to one of 'next' (0: not at all; no
+    // wall there: all of it)
+    int Exposed(int height, int next) { return next == 0 ? fullHeight : Max(0, height - next); }
+
+    // The block of a cap's half: its vertical side (north or south) and horizontal side (west or
+    // east) open, and when both are closed, whether the diagonal is
+    static WallCap CapBlock(bool isVerticalOpen, bool isHorizontalOpen, bool isDiagonalOpen) {
+        if (isVerticalOpen) {
+            return isHorizontalOpen ? WallCap.Isolated : WallCap.OpenNorthSouth;
+        }
+        if (isHorizontalOpen) {
+            return WallCap.OpenWestEast;
+        }
+        return isDiagonalOpen ? WallCap.Inner : WallCap.Full;
+    }
+
+    void DrawWall(int x, int y) {
+        let t = tileSize;
+        let me = ColumnHeights(x, y);
+        let west = ColumnHeights(x - 1, y);
+        let east = ColumnHeights(x + 1, y);
+        let north = ColumnHeights(x, y - 1);
+        let south = ColumnHeights(x, y + 1);
+        let hasWest = IsWall(x - 1, y);
+        let hasEast = IsWall(x + 1, y);
+        let hasNorth = IsWall(x, y - 1);
+        let hasSouth = IsWall(x, y + 1);
+        let ground = origin.y + (y + 1) * t;                      // the footprint's bottom
+        let left = origin.x + x * t;
+        let depth = depthBase + ground * depthPerY;
+        let params = drawParams;
+        params.lightAnchor = LightAnchor.Base(ground + 0.5);
+        params.overlayOffset = drawParams.overlayOffset + overlayShiftPerRow * y;
+
+        // Each column: its blocks, its outline, what of it a wall in front leaves
+        [WallColumn, 32] columns;
+        for (let c in 0..t) {
+            let height = me.at[c];
+            let westSide = Exposed(height, c > 0 ? me.at[c - 1] : hasWest ? west.at[t - 1] : 0);
+            let eastSide = Exposed(height, c < t - 1 ? me.at[c + 1] : hasEast ? east.at[0] : 0);
+            // (its source column: an edge's where a side shows, else its own)
+            let source = westSide > 0 ? 0 : eastSide > 0 ? t - 1 : c;
+            let isWestHalf = source < t / 2;
+            let horizontal = isWestHalf ? westSide : eastSide;
+            let isNorthOpen = !hasNorth || north.at[c] < height;
+            let isSouthOpen = !hasSouth || south.at[c] < height;
+            // (inner corners: only at the tile's own corner columns, both sides walls, the diagonal none)
+            let isBorder = c == 0 || c == t - 1;
+            let sideX = isWestHalf ? x - 1 : x + 1;
+            let isTopDiagonal = isBorder && !IsWall(sideX, y - 1);
+            let isBottomDiagonal = isBorder && !IsWall(sideX, y + 1);
+            // (a wall in front: from its top down it covers this one; its top is t further down
+            // the screen than this one's ground, less its height)
+            let visibleRows = hasSouth ? Min(height, height + t - south.at[c]) : height;
+            columns[c] = WallColumn(height, source, CapBlock(isNorthOpen, horizontal > 0, isTopDiagonal), CapBlock(isSouthOpen, horizontal > 0, isBottomDiagonal),
+                Min(horizontal, height - t), visibleRows);
+        }
+
+        // Runs of alike columns, each drawn as one
+        let start = 0;
+        while (start < t) {
+            let first = columns[start];
+            let end = start + 1;
+            while (end < t) {
+                let next = columns[end];
+                if (next.height != first.height || next.top != first.top || next.bottom != first.bottom || next.edgeRows != first.edgeRows
+                    || next.visibleRows != first.visibleRows || next.source != first.source + (end - start)) {
+                    break;
+                }
+                end++;
+            }
+            DrawRun(&first, end - start, Vec2(left + start, ground), depth, params);
+            start = end;
+        }
+    }
+
+    // 'width' columns from 'first' at 'pos' (their left bottom on the ground)
+    void DrawRun(WallColumn* first, int width, Vec2 pos, float depth, DrawParams params) {
+        let t = tileSize;
+        let height = first.height;
+        let face = height - t;
+        let top = pos.y - height;                                // the cap's top
+        // (rows counted from the wall's top: the cap 0 .. t, the face t .. height)
+        let visible = first.visibleRows;
+        let half = t / 2;
+        DrawPart(Rect((int)first.top * t + first.source, 0, width, half), Vec2(pos.x, top), visible, 0, depth, params);
+        DrawPart(Rect((int)first.bottom * t + first.source, half, width, t - half), Vec2(pos.x, top + half), visible, half, depth, params);
+        // The face: the outline's rows from face open, the rest from face closed; its top rows
+        // as they are, its last 2 rows the sheet's last 2
+        let edgeRows = Clamp(first.edgeRows, 0, face);
+        let bottomRows = Min(2, face);
+        for (let row = 0; row < face; ) {
+            let isEdge = row < edgeRows;
+            let isBottom = row >= face - bottomRows;
+            let stop = face;
+            if (isEdge && edgeRows < stop) {
+                stop = edgeRows;
+            }
+            if (!isBottom && face - bottomRows < stop) {
+                stop = face - bottomRows;
+            }
+            let sourceRow = isBottom ? row + (faceHeight - face) : row;
+            let blockX = isEdge ? 0 : t;
+            DrawPart(Rect(blockX + first.source, t + sourceRow, width, stop - row), Vec2(pos.x, top + t + row), visible, t + row, depth, params);
+            row = stop;
+        }
+    }
+
+    // A part of the sheet ('source', in its pixels) at 'pos', the rows from 'visible' (counted
+    // from the wall's top; 'firstRow' is the part's first) on not drawn
+    void DrawPart(Rect source, Vec2 pos, int visible, int firstRow, float depth, DrawParams params) {
+        let rows = Min(source.h, (float)(visible - firstRow));
+        if (rows <= 0) {
+            return;
+        }
+        if (isCounting) {
+            quadsCounted++;
+            return;
+        }
+        let part = Rect(source.pos, Vec2(source.w, rows));
+        let quad = RegionQuad(sheet, part, pos);
+        if (quad.isVisible) {
+            global.Draw.SpriteQuad(sheet, quad.quad, depth, params);
+        }
+    }
+
+    // The part 'region' of the (untrimmed) sprite drawn with its left top at 'pos': what of it the
+    // sprite has (all of it unless trimmed), with its UVs
+    static SliceQuad RegionQuad(Sprite* sprite, Rect region, Vec2 pos) {
+        let trimmed = sprite.trimmedRect;
+        let visible = Rect.Intersect(region, trimmed);
+        if (visible.w <= 0 || visible.h <= 0) {
+            return SliceQuad();
+        }
+        let uvs = sprite.uvs;
+        let u = (float x) => uvs.left + (x - trimmed.x) / trimmed.w * (uvs.right - uvs.left);
+        let v = (float y) => uvs.top + (y - trimmed.y) / trimmed.h * (uvs.bottom - uvs.top);
+        UVs part;
+        part.left = u(visible.left);
+        part.right = u(visible.right);
+        part.top = v(visible.top);
+        part.bottom = v(visible.bottom);
+        return SliceQuad(true, Quad(Rect(pos + (visible.pos - region.pos), visible.dim), part));
+    }
+}
