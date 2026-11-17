@@ -17,8 +17,8 @@ void RegisterTests() {
 }
 
 // The lighting demo's walls (wallmap.pg): a row with every damage level from left to right, a
-// block worn down, the screenshots lit and unlit; neighbours meet at their shared corners; a wall
-// hit ten times is gone (its occluder too)
+// block worn down, the screenshots lit and unlit; each wall its own height (the same level meets,
+// a neighbour gone changes nothing); a wall hit ten times is gone (its occluder too)
 void TestWalls(TestRun* run) {
     let f = run.frame;
     if (f == 1) {
@@ -51,11 +51,22 @@ void TestWalls(TestRun* run) {
         run.Check(isFlat, "an undamaged wall is flat and full ({map.fullHeight} px)");
         let lowest = map.ColumnHeights(22, 10);
         run.Check(lowest.at[4] <= 18 && lowest.at[4] >= 13, "the last level about half as high ({lowest.at[4]} px)");
-        for (let x in 12..22) {
-            let a = map.ColumnHeights(x, 10);
-            let b = map.ColumnHeights(x + 1, 10);
-            run.Check(Abs(a.at[7] - b.at[0]) <= 1, "walls {x} and {x + 1} meet ({a.at[7]}, {b.at[0]})");
+        // (each its own height: the same level meets, a full one next to a damaged one stays
+        // full, a neighbour gone changes nothing)
+        let same = map.ColumnHeights(21, 10);
+        let sameNext = map.ColumnHeights(22, 10);
+        run.Check(Abs(same.at[7] - sameNext.at[0]) <= 1, "walls of the same level meet ({same.at[7]}, {sameNext.at[0]})");
+        let intact = map.ColumnHeights(18, 10);
+        run.Check(intact.at[7] == map.fullHeight, "an undamaged wall next to a damaged one stays full ({intact.at[7]})");
+        let before = map.ColumnHeights(20, 10);
+        map.Set(21, 10, WALL_NONE);
+        let after = map.ColumnHeights(20, 10);
+        map.Set(21, 10, 9);
+        let isSame = true;
+        for (let c in 0..8) {
+            isSame = isSame && before.at[c] == after.at[c];
         }
+        run.Check(isSame, "a neighbour removed leaves a wall's height as it is");
     }
     if (f == 20) {
         run.Screenshot("lit");

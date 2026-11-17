@@ -32,11 +32,11 @@
 // side is open (a lower neighbour: by how much lower), the rest face closed. A face lower than F
 // keeps its top 2 rows and bottom 2 rows (the ground's contact) and loses rows in between.
 //
-// Heights: a wall is T + F tall when undamaged ('heights': a fraction of that per damage level).
-// The height is kept at the tiles' corners, shared by neighbours: a corner is as high as the
-// lowest wall at it, a damaged one jittered up or down by up to 'jitter' pixels (the same corner
-// always the same way: a hash); a wall's columns go from its left corner's height to its right
-// one's, so neighbours meet. Walls at 70% and below also get a rough rim (segments of 2 .. 3
+// Heights: a wall is T + F tall when undamaged ('heights': a fraction of that per damage level),
+// its own damage alone (a neighbour's damage or removal changes nothing about it). A damaged
+// wall's corners go up or down by up to 'jitter' pixels (a hash of the corner: two walls of the
+// same height meet there, walls of different heights show a step); its columns go from its left
+// corner's height to its right one's. Walls at 70% and below also get a rough rim (segments of 2 .. 3
 // columns a pixel up or down; the outer columns stay, so the seams still meet). Where a column is
 // higher than the one next to it, its side shows: the outline.
 //
@@ -119,23 +119,15 @@ extend Wallmap {
     // A wall's height at its damage (without the jitter)
     int NominalHeight(byte damage) { return (int)Round(fullHeight * heights[Min((int)damage, WALL_DAMAGE_LEVELS - 1)]); }
 
-    // The height at the left top corner of tile (vx, y) along the row: the lowest wall of the two
-    // touching it, jittered when damaged
-    int CornerHeight(int vx, int y) {
-        let lowest = fullHeight;
-        let isAny = false;
-        for (let x in vx - 1..vx + 1) {
-            if (IsWall(x, y)) {
-                lowest = Min(lowest, NominalHeight(Get(x, y)));
-                isAny = true;
-            }
-        }
-        if (!isAny || lowest >= fullHeight) {
-            return lowest;
+    // A wall of 'nominal' height at the left top corner of tile (vx, y): jittered when damaged, by
+    // the corner (two walls of the same height meet there)
+    int CornerHeight(int vx, int y, int nominal) {
+        if (nominal >= fullHeight) {
+            return nominal;
         }
         let spread = 2 * jitter + 1;
         let offset = (int)(Random.Hash(seed, vx, y, 1) % (ulong)spread) - jitter;
-        return Clamp(lowest + offset, tileSize + 2, fullHeight);
+        return Clamp(nominal + offset, tileSize + 2, fullHeight);
     }
 
     // The heights of the wall's columns (none: all 0)
@@ -144,9 +136,10 @@ extend Wallmap {
         if (!IsWall(x, y)) {
             return result;
         }
-        let left = CornerHeight(x, y);
-        let right = CornerHeight(x + 1, y);
-        let isRough = NominalHeight(Get(x, y)) <= (int)Round(fullHeight * 0.7);
+        let nominal = NominalHeight(Get(x, y));
+        let left = CornerHeight(x, y, nominal);
+        let right = CornerHeight(x + 1, y, nominal);
+        let isRough = nominal <= (int)Round(fullHeight * 0.7);
         let phase = (int)(Random.Hash(seed, x, y, 2) % 3);
         for (let c in 0..tileSize) {
             let t = (c + 0.5) / tileSize;
