@@ -30,7 +30,6 @@ void DrawCentered(Sprite* sprite, Vec2 pos, float scale, float depth, DrawParams
 }
 
 const uint LAYER_GHOST = 2;
-int ghostsGone = 0;                    // (the preview's line)
 
 struct Health {
     int hp = 3;
@@ -284,7 +283,7 @@ extend Ghost {
         if (Collisions.world != null) {
             Collisions.world.Remove(body);
         }
-        ghostsGone++;
+        playground.ghostsGone++;
     }
 }
 

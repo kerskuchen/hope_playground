@@ -13,18 +13,15 @@
 // the editor closes and its scene changed (main.pg: SceneEdited); Scene.Load gives it the
 // editor's data, unsaved changes too.
 
-// The scene the demo shows (kept when the demo is made again for another scene; persistent
-// memory)
-string sceneDemoName = "";
 
 const uint LAYER_PROBE = 1;           // the preview's probe (the triggers' mask)
 
 void SetSceneDemoName(string name) {
-    if (name == sceneDemoName) {
+    if (name == playground.sceneDemoName) {
         return;
     }
     with persist;
-    sceneDemoName = name.Copy();
+    playground.sceneDemoName = name.Copy();
 }
 
 // (the level phase, as everything of the demo)
@@ -41,10 +38,10 @@ extend SceneDemo {
         with temp {
             let names = SceneEditor.SceneNames();
             let last = SceneEditor.LastScene();
-            let chosen = sceneDemoName.len > 0 ? sceneDemoName : names.Find((string* candidate) => *candidate == last) != null ? last : names.len > 0 ? names[0] : "test";
+            let chosen = playground.sceneDemoName.len > 0 ? playground.sceneDemoName : names.Find((string* candidate) => *candidate == last) != null ? last : names.len > 0 ? names[0] : "test";
             SetSceneDemoName(chosen);
         }
-        data = Scene.Load(sceneDemoName);
+        data = Scene.Load(playground.sceneDemoName);
         data.Prepare();
         MakeTriggers();
         // The entities (in the level phase, like the drawing: wiped with it)
@@ -94,7 +91,7 @@ extend SceneDemo {
 
     void DoFrame() {
         if (playground.settings.showsHints) {
-            Draw.LogLine("Scene demo (F1: the editor): the scene '{sceneDemoName}' as a game shows it (the list: another one), arrow keys move the view, the mouse is a probe for the trigger areas");
+            Draw.LogLine("Scene demo (F1: the editor): the scene '{playground.sceneDemoName}' as a game shows it (the list: another one), arrow keys move the view, the mouse is a probe for the trigger areas");
         }
         let move = Vec2(0, 0);
         if (Input.KeyDown(Scancode.Left)) {
@@ -152,7 +149,7 @@ extend SceneDemo {
         Signals.Deliver();
         Entities.Flush();
         if (playground.settings.showsHints) {
-            Draw.LogLine("entities: {Entities.count} (ghosts {Entities.All[Ghost]().len}, gone {ghostsGone}), signals waiting {Signals.pending}");
+            Draw.LogLine("entities: {Entities.count} (ghosts {Entities.All[Ghost]().len}, gone {playground.ghostsGone}), signals waiting {Signals.pending}");
         }
         for (let brazier in Entities.All[Brazier]()) {
             brazier.Draw();
@@ -194,7 +191,7 @@ extend SceneDemo {
         let names = SceneEditor.SceneNames();
         with Ui.Scroll(Min(Max(1, names.len), 8) * (Ui.ButtonHeight() + Ui.style.spacing)) {
             for (let index, scene in names) {
-                if (Ui.Button(*scene, align: UiAlign.Left, isToggled: *scene == sceneDemoName) && *scene != sceneDemoName) {
+                if (Ui.Button(*scene, align: UiAlign.Left, isToggled: *scene == playground.sceneDemoName) && *scene != playground.sceneDemoName) {
                     Request(*scene);
                 }
             }

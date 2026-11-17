@@ -172,9 +172,8 @@ void TestRagdoll(TestRun* run) {
 }
 
 // The legs demo: walking, turning, against a pillar, a shove, standing; every frame: no leg
-// longer than its segments for long, planted feet where they were and not in a wall
-[Vec3, 8] legsLastFeet;
-[int, 8] legsStretched;          // (frames in a row: held back by a wall, it steps soon)
+// longer than its segments for long, planted feet where they were and not in a wall (the last
+// feet: Playground.legsLastFeet)
 
 void TestLegs(TestRun* run) {
     let f = run.frame;
@@ -196,11 +195,11 @@ void TestLegs(TestRun* run) {
     let rig = &demo.rig;
     for (let index, leg in rig.legs[0..rig.legCount]) {
         let length = (leg.foot - leg.hip).Length();
-        legsStretched[index] = length > rig.setup.thigh + rig.setup.shin + 0.5 ? legsStretched[index] + 1 : 0;
-        run.Check(legsStretched[index] <= 4, "leg {index} stretched to {length:F1} for {legsStretched[index]} frames (frame {f})");
+        playground.legsStretched[index] = length > rig.setup.thigh + rig.setup.shin + 0.5 ? playground.legsStretched[index] + 1 : 0;
+        run.Check(playground.legsStretched[index] <= 4, "leg {index} stretched to {length:F1} for {playground.legsStretched[index]} frames (frame {f})");
         let isStretched = length >= rig.setup.thigh + rig.setup.shin - 0.1;
         if (f > 6 && leg.clock.state == FootState.Planted && !leg.hasLanded && !isStretched) {
-            run.Check((leg.foot - legsLastFeet[index]).Length() < 0.01, "planted foot {index} slid at frame {f}");
+            run.Check((leg.foot - playground.legsLastFeet[index]).Length() < 0.01, "planted foot {index} slid at frame {f}");
         }
         for (let box in demo.wallBoxes) {
             if (leg.clock.state != FootState.Planted) {
@@ -209,7 +208,7 @@ void TestLegs(TestRun* run) {
             let p = leg.foot.xy;
             run.Check(!(box.min.x < p.x && p.x < box.max.x && box.min.y < p.y && p.y < box.max.y), "foot {index} ({leg.clock}) in a wall at frame {f}: {p}, from {leg.stepFrom} to {leg.stepTo}, body {demo.xform.pos}");
         }
-        legsLastFeet[index] = leg.foot;
+        playground.legsLastFeet[index] = leg.foot;
     }
     // to the right (walking: Shift), then running, up into the wall, left into the pillar, a shove
     if (f == 10) { run.Hold(Scancode.LShift); run.Hold(Scancode.D); }
@@ -343,8 +342,7 @@ void TestRestartInDemos(TestRun* run) {
 // cap meanwhile), its phases do not keep growing: measured in two windows of 3 s, growth in both
 // is a leak (the ones found 2026-11-14 and 11-16 grew a few KiB every frame); in one only is the
 // demo doing something once
-[long, 3] testLevelUsed;
-[long, 3] testPersistentUsed;
+// (measured: Playground.testLevelUsed, testPersistentUsed)
 
 void TestSteadyMemory(TestRun* run) {
     let period = 1080;
@@ -359,14 +357,14 @@ void TestSteadyMemory(TestRun* run) {
     }
     for (let point in 0..3) {
         if (step == 720 + point * 179) {
-            testLevelUsed[point] = (long)Memory.level.used;
-            testPersistentUsed[point] = (long)Memory.persistent.used;
+            playground.testLevelUsed[point] = (long)Memory.level.used;
+            playground.testPersistentUsed[point] = (long)Memory.persistent.used;
         }
     }
     if (step == 720 + 2 * 179) {
-        let growth = Min(testLevelUsed[1] - testLevelUsed[0], testLevelUsed[2] - testLevelUsed[1]);
-        let persistent = Min(testPersistentUsed[1] - testPersistentUsed[0], testPersistentUsed[2] - testPersistentUsed[1]);
-        run.Check(growth <= 0, "the level phase kept growing in {testDemos[index]}: {(testLevelUsed[2] - testLevelUsed[0]) / 1024} KiB in 6 s");
-        run.Check(persistent <= 0, "the persistent phase kept growing in {testDemos[index]}: {(testPersistentUsed[2] - testPersistentUsed[0]) / 1024} KiB in 6 s");
+        let growth = Min(playground.testLevelUsed[1] - playground.testLevelUsed[0], playground.testLevelUsed[2] - playground.testLevelUsed[1]);
+        let persistent = Min(playground.testPersistentUsed[1] - playground.testPersistentUsed[0], playground.testPersistentUsed[2] - playground.testPersistentUsed[1]);
+        run.Check(growth <= 0, "the level phase kept growing in {testDemos[index]}: {(playground.testLevelUsed[2] - playground.testLevelUsed[0]) / 1024} KiB in 6 s");
+        run.Check(persistent <= 0, "the persistent phase kept growing in {testDemos[index]}: {(playground.testPersistentUsed[2] - playground.testPersistentUsed[0]) / 1024} KiB in 6 s");
     }
 }

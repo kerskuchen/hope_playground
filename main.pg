@@ -209,7 +209,8 @@ extend Settings {
     }
 }
 
-struct Playground {
+// The game's state: everything it keeps (Runtime.State, hope's state.pg: a code reload keeps it)
+@State struct Playground {
     Demo demo;
     SceneDemo* scene;             // the current demo's state (the others are null)
     StartDemo* start;
@@ -222,6 +223,13 @@ struct Playground {
     LegsDemo* legs;
     Settings settings;
     bool areSettingsChanged;       // not saved yet (SaveSettings: leaving the options, the UI demo)
+    string sceneDemoName;          // the scene the scene demo shows (kept when the demo is made again; persistent memory)
+    int ghostsGone;                // (the entities demo's preview line)
+    // The tests' (tests.pg)
+    [Vec3, 8] legsLastFeet;        // the legs demo's feet in the last frame
+    [int, 8] legsStretched;        // frames in a row a leg was too long (held back by a wall, it steps soon)
+    [long, 3] testLevelUsed;       // the phases measured in the leak test
+    [long, 3] testPersistentUsed;
 }
 
 extend Playground {
@@ -252,8 +260,6 @@ extend Playground {
         Input.AddActionBinding("attack_3", InputActionBinding(MouseButton.Middle));
         Input.AddActionBinding("attack_3", InputActionBinding(GamepadAxis.LeftShoulderTrigger, 0.5));
         Input.AddActionBinding("attack_3", InputActionBinding(GamepadAxis.RightShoulderTrigger, 0.5));
-
-        SwitchTo(Demo.Scene);
     }
 
     void SwitchTo(Demo next) {
@@ -422,20 +428,20 @@ extend Playground {
 // The game is a module (hope/game): a platform layer hosts it (the targets of hope.pgproj).
 
 
-Playground* playground = null;
+get Playground* playground() { return Runtime.State[Playground](); }
 
-// Also on F5 (the runtime restarts the game in the internal mode; it wipes the level phase)
+// (the first demo once the state is there: the demos reach it through 'playground')
 void CreateGame() {
-    playground = New[Playground]();
+    playground.SwitchTo(Demo.Scene);
 }
 
 // (the internal mode) the scene editor closed: the scene demo's scene changed, it is made again
 void OnSceneEdited(string scene) {
-    if (playground.demo == Demo.Scene && scene == sceneDemoName) {
+    if (playground.demo == Demo.Scene && scene == playground.sceneDemoName) {
         playground.SwitchTo(Demo.Scene);
     }
 }
 void DoFrame() { playground.DoFrame(); }
 Game GameMain() {
-    return Game(info: AppInfo("hope playground", "hope_playground", "0.01", 320, 180), Create: CreateGame, DoFrame: DoFrame, RegisterEntities: RegisterEntityTypes, SceneEdited: OnSceneEdited, Tests: RegisterTests);
+    return Game(info: AppInfo("hope playground", "hope_playground", "0.01", 320, 180), state: TypeOf[Playground](), Create: CreateGame, DoFrame: DoFrame, RegisterEntities: RegisterEntityTypes, SceneEdited: OnSceneEdited, Tests: RegisterTests);
 }
