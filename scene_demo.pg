@@ -10,7 +10,7 @@
 // frames.
 //
 // The scene editor is hope's (F1 in every demo, the internal mode): the demo is made again when
-// the editor closes and its scene changed (main.pg: SceneEdited); SceneData.Load gives it the
+// the editor closes and its scene changed (main.pg: SceneEdited); Scene.Load gives it the
 // editor's data, unsaved changes too.
 
 // The scene the demo shows (kept when the demo is made again for another scene; persistent
@@ -29,8 +29,7 @@ void SetSceneDemoName(string name) {
 
 // (the level phase, as everything of the demo)
 struct SceneDemo {
-    SceneData data;
-    SceneDrawings* preview;            // what is drawn of the layers
+    Scene data;                        // (prepared: drawn)
     CollisionWorld* triggers;          // the areas as triggers, the probe
     ColliderId probe;
     String requestedScene;             // (main.pg makes the demo again with it after this frame)
@@ -45,8 +44,8 @@ extend SceneDemo {
             let chosen = sceneDemoName.len > 0 ? sceneDemoName : names.Find((string* candidate) => *candidate == last) != null ? last : names.len > 0 ? names[0] : "test";
             SetSceneDemoName(chosen);
         }
-        data = SceneData.Load(sceneDemoName);
-        preview = SceneDrawings.Make(&data);
+        data = Scene.Load(sceneDemoName);
+        data.Prepare();
         MakeTriggers();
         // The entities (in the level phase, like the drawing: wiped with it)
         Collisions.world = triggers;            // (the scene's collision world: hope's)
@@ -82,7 +81,7 @@ extend SceneDemo {
 
     // The demo goes (main.pg; its memory goes with the level phase)
     void Leave() {
-        preview.ReleaseSprites();
+        data.Release();
     }
 
     void Request(string scene) {
@@ -116,9 +115,7 @@ extend SceneDemo {
         Camera.pos = Vec2(Clamp(pos.x, bounds.left + half.x, Max(bounds.left + half.x, bounds.right - half.x)),
             Clamp(pos.y, bounds.top + half.y, Max(bounds.top + half.y, bounds.bottom - half.y)));
         let view = Camera.viewportRect;
-        for (let drawing in preview.layers) {
-            drawing.Draw(view);
-        }
+        data.Draw(view);
         // The entities: their frames in the game's order, the destroyed ones gone, then drawn
         for (let brazier in Entities.All[Brazier]()) {
             brazier.DoFrame();
