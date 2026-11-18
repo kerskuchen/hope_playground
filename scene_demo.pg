@@ -82,8 +82,7 @@ extend SceneDemo {
     }
 
     void Request(string scene) {
-        requestedScene.Clear();
-        requestedScene.Append(scene);
+        requestedScene.Set(scene);
     }
 
     //----------------------------------------------------------------------------------------------

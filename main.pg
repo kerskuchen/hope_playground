@@ -409,7 +409,7 @@ extend Playground {
         }
         // Another scene picked in the scene demo: the demo made again with it
         if (scene != null && scene.requestedScene.len > 0) {
-            SetSceneDemoName(scene.requestedScene.view);
+            SetSceneDemoName(scene.requestedScene);
             SwitchTo(Demo.Scene);
         }
         if (ui != null && ui.wantsToPlay) {
