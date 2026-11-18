@@ -6,11 +6,11 @@ DungeonTracks). Its own git repository next to `../hope` and `../piggi` in `~/Pr
 README, "Versions"). Open `hope_playground.code-workspace` in VS Code: the game and hope, each
 committed on its own.
 
-The scenes (each file's header lists its keys):
+The demos (each file's header lists its keys):
 
-- F1 the scene scene (`scene_scene.pg`): a scene of `assets/scenes/` as a game shows it (the
+- F9 the scene demo (`scene_demo.pg`): a scene of `assets/scenes/` as a game shows it (the
   fixed canvas, the arrow keys move the view; the list at the right top: another scene); F1
-  again: the scene editor on that scene (`scene_editor.pg`, its header lists the keys): tiles,
+  (in every demo): hope's scene editor on the scene loaded last (`hope/scene_editor.pg`, its header lists the keys): tiles,
   autotiles and decals; brush sizes, lines, rectangles, the eyedropper; stamps (a picked region,
   10 slots per tileset in `assets/stamps/<tileset>.stamp.json`); random tiles from a shuffle bag
   and random decals within ranges (previewed: what comes next); trigger areas (an Areas layer:
@@ -23,28 +23,32 @@ The scenes (each file's header lists its keys):
   scene; undo and redo; Open, New (an empty scene with the same layers), Save as. Between runs
   `build/editor/` keeps the tools (`editor.json`), each scene's view and its undo steps (within a
   run only)
-- F3 the start scene (`main.pg`): Sorcy runs in circles, Susi (a 3D sprite on tracks) drives with
+- F3 the start demo (`main.pg`): Sorcy runs in circles, Susi (a 3D sprite on tracks) drives with
   WASD, the arrow keys or a gamepad; camera shakes, following, translucent sorting
-- F2 the physics scene (`physics_scene.pg`): hope's collision world, shots, rams, impulses
-- F4 the navigation scene (`navigation_scene.pg`): agents of three sizes and four profiles
-- F6 the audio scene (`audio_scene.pg`): music layers on the beat grid and the spatial audio test
-- F7 the lighting scene (`lighting_scene.pg`, the fixed 320 x 180 canvas): lights and shadows in
+- F2 the physics demo (`physics_demo.pg`): hope's collision world, shots, rams, impulses
+- F4 the navigation demo (`navigation_demo.pg`): agents of three sizes and four profiles
+- F6 the audio demo (`audio_demo.pg`): music layers on the beat grid and the spatial audio test
+- F7 the lighting demo (`lighting_demo.pg`, the fixed 320 x 180 canvas): lights and shadows in
   DungeonTracks' mood (its ambient and torch measured in the game jam's Let's Play); the camera
   follows a point a third of the way from Susi to the mouse; 3: the
   overlays on/off (hope's Draw.RegisterOverlay: `overlay_ground` over the floor's tiles,
   `overlay_wall` over the walls, both 256 x 256 and made by `tools/make_overlays.lua`)
-- F8 the UI scene (`ui_scene.pg`, the fixed canvas): a title screen, options (volumes,
+- F8 the UI demo (`ui_demo.pg`, the fixed canvas): a title screen, options (volumes,
   fullscreen; saved with hope's Storage (the value `settings` in `storage.json`) when the options screen is left: `build/user/` in the internal mode,
   localStorage on the web), the controls (hope's `Ui.Controls`: click a binding, press the new
   key or button; saved as the value `bindings` at once, Reset brings the game's back) and the scrolling credits with hope's UI (`hope/ui.pg`), on test sprites in
   `assets/ui/` (made by a script: rounded boxes with attach0/attach1 for the 9-slices); the
   mouse, the keys and a gamepad
+- F10 the effects demo (`effects_demo.pg`, the fixed canvas): antennas, debris, particles,
+  blasts and their shockwaves (hope's `effects.pg`)
+- Shift+F10 the legs demo (`legs_demo.pg`): Susi on six legs (hope's `legs.pg`): walking,
+  stumbling, the ragdoll, legs torn off
 - `save_samples/`: storage.json files of earlier versions; in the internal mode they must still
   read as their `.expected.json` say (hope's `SaveSamples.Check`, in `main.pg` for `settings`;
   hope checks `bindings`). Copy `build/user/storage.json` there when the save format matters.
 
 The camera pans with the middle mouse button and zooms with the wheel. Escape quits (in the UI
-scene it goes back), F11 toggles fullscreen.
+demo it goes back), F11 toggles fullscreen.
 
 ```
 piggi run .                    # desktop: build/desktop/hope_playground
