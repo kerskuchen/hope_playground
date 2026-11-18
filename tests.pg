@@ -103,7 +103,7 @@ void TestLooseLegs(TestRun* run) {
         let at = 400 + look * 40;
         if (f == at) { run.Press(Scancode.Alpha3); run.MoveMouse(her + Vec2(0, 30)); }
         if (f == at + 2) { run.Press(Scancode.X); }
-        if (f == at + 20) { run.Screenshot(temp "look {look}"); }
+        if (f == at + 20) { run.Screenshot("look {look}"); }
     }
     if (f == 600) {
         run.Check(demo.look == 3 && rig.attachedCount == 3, "three looks, a leg off in each ({rig.attachedCount} on)");

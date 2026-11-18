@@ -449,7 +449,7 @@ extend PhysicsDemo {
         Draw.LogLine("circle radius {body.radius}, slide steps {playerPath.len - 1}, shots {shots.len}, colliders {world.count}",
             ", crates broken {broken}/{crateCells.len}");
         if (aimHit.hasIntersection) {
-            Draw.LogLine("aim: {aimHit.isTile ? temp "tile {aimHit.cell}" : OwnerName(aimHit.owner)} at {aimHit.point} normal {aimHit.normal}",
+            Draw.LogLine("aim: {aimHit.isTile ? "tile {aimHit.cell}" : OwnerName(aimHit.owner)} at {aimHit.point} normal {aimHit.normal}",
                 " impact angle {aimHit.impactAngle:F1}{aimHit.startsInside ? " (starts inside)" : ""}");
         }
     }
