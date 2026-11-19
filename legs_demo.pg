@@ -37,7 +37,7 @@ LegLook LegsLook(int index) {
 enum SusiLife { Alive, KnockedOut, Dead }
 
 struct LegsDemo {
-    AnimationPlayer bodyAnim;          // (Susi's first frame: no tracks running)
+    AnimPlayer bodyAnim;          // (Susi's first frame: no tracks running)
     Transform xform = Transform(Vec2(160, 110), 0);
     Vec2 velocity;                     // her own (walking)
     Vec2 push;                         // from outside (a shove), dying down
@@ -62,7 +62,7 @@ struct LegsDemo {
 
 extend LegsDemo {
     init() {
-        bodyAnim = AnimationPlayer(Draw.GetAnim("susi.run"));
+        bodyAnim = AnimPlayer(Draw.GetAnim("susi.run"));
         Camera.pos = Vec2(160, 90);
         Camera.isCentered = true;
         wallBoxes[0] = Box(Vec2(0, 30), Vec2(320, 34));

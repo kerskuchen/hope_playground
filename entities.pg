@@ -203,7 +203,7 @@ extend Spawner {
         Draw();
         global.Draw.CircleOutline(Circle(xform.pos, Max(1.0, radius)), 1, 33, DrawParams(color: Color(0.6, 0.5, 0.9, 0.5)));
         // (ghosty's animation at the time: a preview is made again every frame)
-        let ghosty = AnimationPlayer(global.Draw.GetAnim("ghosty.default"));
+        let ghosty = AnimPlayer(global.Draw.GetAnim("ghosty.default"));
         let duration = ghosty.current.duration;
         ghosty.curTime = (float)(platform.TimeSinceStartup() % (double)Max(0.001, duration));
         DrawCentered(ghosty.CurSprite(), xform.pos, 1, 31, DrawParams(color: Color(0.6, 0.6, 0.6, 0.6)));
@@ -222,7 +222,7 @@ struct Ghost : Entity {
     ColliderId body;
     Vec2 goal;
     float time;
-    AnimationPlayer anim;              // ghosty.default
+    AnimPlayer anim;              // ghosty.default
     float awake;                       // seconds it stays awake ("wake": again)
 }
 
@@ -237,7 +237,7 @@ extend Ghost {
 
     void Prepare() {
         goal = xform.pos;
-        anim = AnimationPlayer(global.Draw.GetAnim("ghosty.default"));
+        anim = AnimPlayer(global.Draw.GetAnim("ghosty.default"));
         anim.curTime = (float)(id.index % 7) * 0.1;      // (not all in step)
         if (Collisions.world != null) {
             let collider = Collider(ColliderShape.Circle(circle: Circle(xform.pos, 5)), LAYER_GHOST, 0);

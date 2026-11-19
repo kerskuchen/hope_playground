@@ -83,7 +83,7 @@ struct LightingDemo {
     Tilemap floor;
     Sprite* wallSprite;                  // wall_soil (its pivot at the tile, its cap shaded by its light mask)
     Sprite* light;
-    AnimationPlayer tracksAnim;
+    AnimPlayer tracksAnim;
     Sprite3D* turret;
     Vec2 tankPos;                        // where it stands (the middle of its tracks)
     float tankAngle;
@@ -120,7 +120,7 @@ extend LightingDemo {
         SetOverlays(true);
         wallSprite = Draw.GetSprite("wall_soil");
         light = Draw.GetSprite("light_torch");
-        tracksAnim = AnimationPlayer(Draw.GetAnim("susi.run"));
+        tracksAnim = AnimPlayer(Draw.GetAnim("susi.run"));
         turret = Draw.GetSprite3D("susi_turret");
         tankPos = Vec2(60, 120);
         torch = LightFlicker(1);

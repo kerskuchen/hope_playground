@@ -3,7 +3,7 @@
 // Susi
 
 struct SusiTracks {
-    AnimationPlayer tracksAnim;
+    AnimPlayer tracksAnim;
     Transform xform;
     Vec2 vel;
     Vec2 acc;
@@ -13,7 +13,7 @@ struct SusiTracks {
 
 extend SusiTracks {
     init() {
-        tracksAnim = AnimationPlayer(Draw.GetAnim("susi.run"));
+        tracksAnim = AnimPlayer(Draw.GetAnim("susi.run"));
         xform = Vec2(100, 100);
     }
 
@@ -50,8 +50,8 @@ extend Susi {
 struct StartDemo {
     float time;
     Susi susi;
-    AnimationPlayer sorcyAnim;
-    AnimationPlayer ghostyAnim;
+    AnimPlayer sorcyAnim;
+    AnimPlayer ghostyAnim;
     bool showsGrid;                // 6: a world grid at the window's resolution (DrawSpace.ScreenWorld)
     ShakeId rumble;                // 4: a continuous shake, on and off
     bool isFollowingSusi;          // C: the camera follows Susi
@@ -61,8 +61,8 @@ struct StartDemo {
 extend StartDemo {
     init() {
         susi = Susi();
-        sorcyAnim = AnimationPlayer(Draw.GetAnim("sorcy.run"));
-        ghostyAnim = AnimationPlayer(Draw.GetAnim("ghosty.default"));
+        sorcyAnim = AnimPlayer(Draw.GetAnim("sorcy.run"));
+        ghostyAnim = AnimPlayer(Draw.GetAnim("ghosty.default"));
     }
 
     // Before the demo goes: its camera effects stop

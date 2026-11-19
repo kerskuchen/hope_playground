@@ -19,7 +19,7 @@ const Vec2 effectsPlatform = Vec2(80, 140);              // where the row's plat
 const Vec2 effectsCampfire = Vec2(50, 80);
 
 struct EffectsDemo {
-    AnimationPlayer tracksAnim;
+    AnimPlayer tracksAnim;
     Sprite3D* turret;
     Vec2 tankPos = Vec2(200, 100);
     float tankAngle;
@@ -57,7 +57,7 @@ struct EffectsDemo {
 
 extend EffectsDemo {
     init() {
-        tracksAnim = AnimationPlayer(Draw.GetAnim("susi.run"));
+        tracksAnim = AnimPlayer(Draw.GetAnim("susi.run"));
         turret = Draw.GetSprite3D("susi_turret");
         turretAntenna = Antenna(length: 5);
         cursorAntenna = Antenna(length: 18, tipColor: Color(0.4, 0.9, 1, 1));
