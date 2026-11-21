@@ -51,7 +51,7 @@ The camera pans with the middle mouse button and zooms with the wheel. Escape qu
 demo it goes back), F11 toggles fullscreen.
 
 ```
-piggi run .                    # desktop: build/desktop/hope_playground
+piggi run .                    # linux: build/linux/hope_playground
 piggi run . --target=internal  # hot reloading (build again while it runs)
 piggi run . --target=web       # the browser: http://localhost:8000/
 ../hope/tools/publish.pgs .          # release builds in publish/<target>/
