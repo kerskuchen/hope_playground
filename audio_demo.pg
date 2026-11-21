@@ -24,7 +24,7 @@ struct AudioDemo {
     AudioStreamId sine;
     Vec2 sinePosition;
     Vec2 sineVelocity;             // smoothed
-    AudioFalloffCurve sineFalloff; // F switches it
+    FalloffCurve sineFalloff; // F switches it
     bool isSineFloored;            // K: a minimum loudness of 0.2
     int reverbRoom;                // R: 0 dry, 1 a small room, 2 a big hall (the farther, the wetter)
     bool isSineFiltered;           // L
@@ -57,7 +57,7 @@ extend AudioDemo {
     // (or at its minimum loudness) from 45 % of it on (both circles fit the window)
     AudioFalloffParams SineFalloff() {
         let side = (float)Min(Input.windowDim.x, Input.windowDim.y);
-        return AudioFalloffParams(curve: sineFalloff, minDistance: side * 0.1, maxDistance: side * 0.45, minLoudness: isSineFloored ? 0.2 : 0, reverbAtMaxDistance: reverbRoom == 2 ? 0.9 : 0);
+        return AudioFalloffParams(loudness: Falloff(curve: sineFalloff, minDistance: side * 0.1, maxDistance: side * 0.45, floor: isSineFloored ? 0.2 : 0), reverbAtMaxDistance: reverbRoom == 2 ? 0.9 : 0);
     }
 
     void DoFrame() {
@@ -118,7 +118,7 @@ extend AudioDemo {
         let isPlaying = sine.value != 0 && !Audio.IsFinished(sine);
         let restart = false;
         if (Input.KeyPressed(Scancode.F)) {
-            sineFalloff = sineFalloff == AudioFalloffCurve.Linear ? AudioFalloffCurve.Inverse : AudioFalloffCurve.Linear;
+            sineFalloff = sineFalloff == FalloffCurve.Linear ? FalloffCurve.Inverse : FalloffCurve.Linear;
             restart = isPlaying;                  // the falloff is the stream's from its start
         }
         if (Input.KeyPressed(Scancode.K)) {
@@ -174,8 +174,8 @@ extend AudioDemo {
             Draw.Rect(box, 2, screen(i == beatNow ? lit : Color(0.25, 0.25, 0.25, 1)));
         }
         let falloff = SineFalloff();
-        Draw.CircleOutline(Circle(center, falloff.minDistance), 1, 2, screen(Color(0.4, 1, 0.4, 0.8)));
-        Draw.CircleOutline(Circle(center, falloff.maxDistance), 1, 2, screen(Color(1, 0.4, 0.4, 0.6)));
+        Draw.CircleOutline(Circle(center, falloff.loudness.minDistance), 1, 2, screen(Color(0.4, 1, 0.4, 0.8)));
+        Draw.CircleOutline(Circle(center, falloff.loudness.maxDistance), 1, 2, screen(Color(1, 0.4, 0.4, 0.6)));
         Draw.Line(center - Vec2(8, 0), center + Vec2(8, 0), 1, 3, screen(Color.White));
         Draw.Line(center - Vec2(0, 8), center + Vec2(0, 8), 1, 3, screen(Color.White));
         let isPlaying = sine.value != 0 && !Audio.IsFinished(sine);
